@@ -5665,3 +5665,714 @@ p {
   .home-overview__actions { align-items: stretch; flex-direction: column; }
   .home-overview__feature figure { min-height: 300px; }
 }
+
+/* Compact desktop and laptop rhythm */
+@media (min-width: 981px) and (max-width: 1600px), (min-width: 981px) and (max-height: 900px) {
+  :root {
+    --page: min(1380px, calc(100vw - 48px));
+  }
+
+  .section {
+    padding: 76px 0;
+  }
+
+  .site-header {
+    height: 76px;
+  }
+
+  .site-header--compact {
+    height: 68px;
+  }
+
+  .site-header__inner {
+    gap: 20px;
+  }
+
+  .brand {
+    min-width: 246px;
+    gap: 10px;
+  }
+
+  .brand .brand__dealer {
+    width: 124px;
+    height: 50px;
+  }
+
+  .brand .brand__protect {
+    width: 112px;
+    height: 34px;
+  }
+
+  .brand__divider {
+    height: 28px;
+  }
+
+  .desktop-nav {
+    gap: 16px;
+  }
+
+  .desktop-nav button {
+    font-size: 13px;
+  }
+
+  .header-cta {
+    min-height: 44px;
+    padding-inline: 18px;
+  }
+
+  .site-page--compare .plan-explorer,
+  .site-page--eligibility .eligibility-hub,
+  .site-page--how-it-works .journey,
+  .site-page--resources .faq-section {
+    padding-top: 112px;
+    padding-bottom: 76px;
+  }
+
+  .hero {
+    min-height: 620px;
+    margin-top: 76px;
+  }
+
+  .hero__content {
+    min-height: 540px;
+  }
+
+  .hero__copy {
+    padding: 40px 0 84px;
+  }
+
+  .hero h1 {
+    margin-bottom: 18px;
+    font-size: clamp(54px, 4.5vw, 70px);
+  }
+
+  .hero__copy > p {
+    max-width: 520px;
+    margin-bottom: 22px;
+    font-size: 18px;
+    line-height: 1.5;
+  }
+
+  .hero__trust {
+    margin-top: 24px;
+  }
+
+  .hero__trust > div {
+    padding-inline: 18px;
+  }
+
+  .button--large {
+    min-height: 52px;
+    padding-inline: 26px;
+    font-size: 15px;
+  }
+
+  .quote-dock {
+    bottom: -58px;
+    min-height: 124px;
+    padding: 20px 22px 21px;
+    gap: 14px;
+  }
+
+  .quote-dock label,
+  .studio-field {
+    gap: 6px;
+  }
+
+  .quote-dock input,
+  .quote-dock select,
+  .quote-dock__submit {
+    height: 46px;
+  }
+
+  .quote-dock__vin {
+    right: 24px;
+    bottom: 5px;
+  }
+
+  .home-overview {
+    padding-top: 100px;
+  }
+
+  .home-overview__heading h2,
+  .product-library__heading h2,
+  .eligibility-hub__heading h2,
+  .faq-section h2,
+  .ford-benefits h2 {
+    font-size: clamp(38px, 3.4vw, 52px);
+  }
+
+  .home-overview__heading p,
+  .product-library__heading > div:first-child > p,
+  .eligibility-hub__heading > div > p,
+  .faq-section__intro > p,
+  .ford-benefits__heading p {
+    font-size: 16px;
+    line-height: 1.52;
+  }
+
+  .home-overview__browser {
+    margin-top: 36px;
+    grid-template-columns: 270px minmax(0, 1fr);
+  }
+
+  .home-overview__nav button {
+    min-height: 78px;
+    padding: 14px 18px 14px 22px;
+  }
+
+  .home-overview__feature {
+    min-height: 400px;
+  }
+
+  .home-overview__copy {
+    padding: 36px 34px;
+  }
+
+  .product-library {
+    padding-top: 112px;
+  }
+
+  .product-library__heading {
+    gap: 44px;
+  }
+
+  .product-library__search {
+    height: 50px;
+    margin: 24px 0 18px;
+  }
+
+  .product-category-nav button {
+    min-height: 60px;
+  }
+
+  .product-library__intro {
+    padding: 20px 28px;
+  }
+
+  .product-browser__list button {
+    min-height: 74px;
+    padding-block: 13px;
+  }
+
+  .product-browser__detail {
+    min-height: 490px;
+  }
+
+  .product-browser__copy {
+    padding: 30px 32px;
+  }
+
+  .product-browser__included {
+    margin-top: 20px;
+    padding-top: 18px;
+    gap: 11px 16px;
+  }
+
+  .product-browser__actions {
+    margin-top: 20px;
+  }
+
+  .ford-benefits {
+    margin-top: 72px;
+    padding: 64px 0;
+  }
+
+  .ford-benefits__grid {
+    margin-top: 36px;
+  }
+
+  .ford-benefits__grid article {
+    min-height: 150px;
+    padding: 22px 20px;
+  }
+
+  .plan-explorer__heading {
+    margin-bottom: 30px;
+  }
+
+  .plan-explorer__heading p {
+    font-size: 16px;
+  }
+
+  .compare-mode {
+    margin-bottom: 16px;
+  }
+
+  .compare-mode button {
+    min-height: 44px;
+    padding-inline: 20px;
+    font-size: 13px;
+  }
+
+  .plan-feature {
+    grid-template-columns: 280px minmax(0, 1fr);
+  }
+
+  .plan-feature__nav button {
+    min-height: 94px;
+    padding: 16px 14px 16px 20px;
+  }
+
+  .plan-feature__detail {
+    min-height: 390px;
+  }
+
+  .plan-feature__copy {
+    padding: 30px 32px 28px;
+  }
+
+  .plan-feature__copy h3,
+  .plan-feature__count strong {
+    font-size: 34px;
+  }
+
+  .plan-feature__count {
+    margin-bottom: 16px;
+  }
+
+  .plan-feature__systems {
+    margin: 18px 0;
+    gap: 10px 12px;
+  }
+
+  .plan-feature__examples {
+    padding: 16px 22px;
+  }
+
+  .plan-feature__examples > strong {
+    margin-bottom: 10px;
+  }
+
+  .detailed-comparison__row > div,
+  .detailed-comparison__head > button {
+    min-height: 60px;
+    padding: 12px 14px;
+  }
+
+  .detailed-comparison__head > div,
+  .detailed-comparison__head > button {
+    min-height: 70px;
+  }
+
+  .other-products-compare {
+    padding-top: 50px;
+  }
+
+  .other-products-table > div {
+    min-height: 70px;
+    padding: 11px 0;
+  }
+
+  .eligibility-hub__heading {
+    gap: 48px;
+  }
+
+  .eligibility-hub__heading > img {
+    max-height: 320px;
+  }
+
+  .eligibility-hub__grid {
+    margin-top: 44px;
+    gap: 28px;
+  }
+
+  .eligibility-paths > h3 {
+    padding: 17px 0;
+  }
+
+  .eligibility-paths article {
+    min-height: 92px;
+    padding: 16px 4px;
+  }
+
+  .rating-inputs {
+    padding: 28px 26px;
+  }
+
+  .rating-inputs h3 {
+    margin-top: 16px;
+  }
+
+  .rating-inputs > div {
+    margin: 19px 0 22px;
+    padding: 17px 0;
+  }
+
+  .purchase-path {
+    margin-top: 48px;
+    padding: 30px;
+  }
+
+  .purchase-path__steps {
+    margin-top: 24px;
+  }
+
+  .purchase-path__steps article {
+    padding: 20px 18px 8px 0;
+  }
+
+  .purchase-path__steps h4 {
+    margin-top: 13px;
+  }
+
+  .purchase-path__note {
+    margin-top: 20px;
+    padding-top: 16px;
+  }
+
+  .journey__hero {
+    gap: 48px;
+  }
+
+  .journey__hero h1 {
+    font-size: clamp(44px, 4.5vw, 62px);
+  }
+
+  .journey__hero > div > p {
+    font-size: 16px;
+    line-height: 1.55;
+  }
+
+  .journey__hero-actions {
+    margin-top: 23px;
+  }
+
+  .journey__hero-card {
+    padding: 24px;
+  }
+
+  .journey__hero-card h2 {
+    margin: 19px 0 14px;
+  }
+
+  .journey__timeline {
+    margin-top: 56px;
+  }
+
+  .journey-timeline__step {
+    min-height: 220px;
+    padding: 24px 22px 21px;
+  }
+
+  .journey__pathways,
+  .journey__outcomes {
+    margin-top: 68px;
+  }
+
+  .journey__pathway-grid,
+  .journey__outcomes > div {
+    margin-top: 26px;
+  }
+
+  .journey__pathway-grid article {
+    padding: 24px;
+  }
+
+  .journey__outcomes article {
+    min-height: 150px;
+    padding: 22px;
+  }
+
+  .journey__agreement {
+    margin-top: 48px;
+    padding: 26px;
+  }
+
+  .document-center {
+    padding: 36px 42px;
+  }
+
+  .document-center h2 {
+    margin-bottom: 8px;
+    font-size: 34px;
+  }
+
+  .document-center__heading p {
+    font-size: 16px;
+    line-height: 1.5;
+  }
+
+  .document-center__heading > svg {
+    width: 42px;
+    height: 42px;
+  }
+
+  .resource-view-nav {
+    margin-top: 22px;
+  }
+
+  .resource-view-nav button {
+    min-height: 48px;
+    font-size: 13px;
+  }
+
+  .plan-differences,
+  .coverage-explorer,
+  .coverage-basics,
+  .payment-plan {
+    margin-top: 52px;
+  }
+
+  .plan-differences__heading h2,
+  .coverage-explorer__heading h2,
+  .coverage-basics__heading h2,
+  .payment-plan__copy h2 {
+    font-size: clamp(32px, 3vw, 44px);
+  }
+
+  .plan-differences__grid,
+  .coverage-basics__grid {
+    margin-top: 24px;
+  }
+
+  .plan-differences__card {
+    min-height: 370px;
+    padding: 22px 20px 19px;
+  }
+
+  .plan-differences__card > p {
+    min-height: 88px;
+    margin: 15px 0;
+  }
+
+  .coverage-explorer__systems {
+    margin-top: 25px;
+  }
+
+  .coverage-explorer__detail > header {
+    padding: 22px 24px 19px;
+  }
+
+  .coverage-explorer__plans > article {
+    min-height: 320px;
+    padding: 18px;
+  }
+
+  .coverage-basics__grid article {
+    min-height: 200px;
+    padding: 20px;
+  }
+
+  .coverage-basics__grid h3 {
+    margin: 18px 0 8px;
+  }
+
+  .coverage-basics__limits {
+    padding: 17px 20px;
+  }
+
+  .payment-plan {
+    gap: 46px;
+    padding: 42px;
+  }
+
+  .payment-plan__copy > p {
+    font-size: 15px;
+  }
+
+  .payment-plan__copy ul {
+    margin: 19px 0 22px;
+  }
+
+  .payment-plan__calculator {
+    padding: 24px;
+  }
+
+  .onsite-guide {
+    padding: 34px 38px;
+  }
+
+  .onsite-guide__tabs {
+    margin-top: 24px;
+  }
+
+  .onsite-guide__body {
+    gap: 38px;
+    margin-top: 22px;
+  }
+
+  .onsite-guide__actions {
+    margin-top: 22px;
+  }
+
+  .faq-section__grid {
+    margin-top: 60px;
+    gap: 64px;
+  }
+
+  .faq-list summary {
+    min-height: 68px;
+    padding: 18px 6px;
+  }
+
+  .closing-cta {
+    padding: 38px 0;
+  }
+
+  .closing-cta h2 {
+    font-size: clamp(32px, 3vw, 42px);
+  }
+
+  .site-footer__top {
+    min-height: 100px;
+  }
+
+  .site-footer__legal {
+    padding: 20px 0 24px;
+  }
+
+  .quote-studio {
+    width: min(1460px, calc(100vw - 24px));
+    height: min(900px, calc(100vh - 24px));
+    grid-template-rows: 64px 58px 1fr;
+  }
+
+  .studio-header {
+    padding: 0 24px;
+  }
+
+  .studio-header .brand img {
+    width: 124px;
+    height: 46px;
+  }
+
+  .studio-progress {
+    padding: 0 26px;
+  }
+
+  .studio-progress button > span {
+    width: 28px;
+    height: 28px;
+  }
+
+  .studio-layout {
+    grid-template-columns: minmax(0, 1fr) clamp(320px, 26vw, 380px);
+  }
+
+  .studio-step {
+    padding: 20px 26px 18px;
+  }
+
+  .studio-step__heading {
+    margin-bottom: 16px;
+  }
+
+  .studio-step__heading h1 {
+    font-size: 28px;
+  }
+
+  .studio-step__heading p {
+    font-size: 13px;
+  }
+
+  .studio-section {
+    padding: 16px;
+    margin-bottom: 12px;
+  }
+
+  .studio-section h2 {
+    margin-bottom: 13px;
+  }
+
+  .studio-fields {
+    gap: 14px;
+  }
+
+  .studio-fields--three,
+  .studio-fields--secondary {
+    margin-top: 14px;
+  }
+
+  .studio-field input,
+  .studio-field select {
+    height: 42px;
+    font-size: 14px;
+  }
+
+  .vehicle-rating-section__heading,
+  .vehicle-rating-grid {
+    gap: 18px;
+  }
+
+  .vehicle-rating-grid button {
+    min-height: 38px;
+  }
+
+  .studio-summary {
+    padding: 22px;
+  }
+
+  .studio-summary__rows > div {
+    min-height: 58px;
+    padding: 10px 0;
+  }
+
+  .eligibility,
+  .pricing-connection {
+    margin-top: 13px;
+    padding: 12px;
+  }
+
+  .studio-summary .button {
+    margin-top: 13px;
+  }
+
+  .studio-summary__utility {
+    margin-top: 9px;
+  }
+
+  .studio-summary__utility button {
+    min-height: 44px;
+  }
+
+  .studio-summary > p {
+    margin-top: 13px;
+  }
+}
+
+@media (min-width: 681px) and (max-width: 1100px) {
+  .desktop-nav,
+  .header-cta {
+    display: none;
+  }
+
+  .site-header__inner {
+    justify-content: space-between;
+  }
+
+  .menu-button {
+    width: 46px;
+    height: 46px;
+    margin-left: auto;
+    border: 0;
+    background: transparent;
+    display: grid;
+    place-items: center;
+  }
+
+  .mobile-nav {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    padding: 18px 24px 26px;
+    border-top: 1px solid var(--line);
+    background: var(--white);
+    box-shadow: var(--shadow-md);
+    display: grid;
+  }
+
+  .mobile-nav > button:not(.button) {
+    min-height: 52px;
+    border: 0;
+    border-bottom: 1px solid var(--line);
+    background: transparent;
+    text-align: left;
+    font-weight: 650;
+  }
+
+  .mobile-nav .button {
+    margin-top: 18px;
+  }
+}

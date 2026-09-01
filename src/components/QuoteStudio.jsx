@@ -53,19 +53,22 @@ function Field({ label, hint, error, children }) {
 function Progress({ step, maxStep, onSelect }) {
   return (
     <div className="studio-progress" aria-label="Quote progress">
-      {stepNames.map((name, index) => (
-        <button
-          key={name}
-          type="button"
-          className={`${step === index ? 'is-current' : ''} ${index < maxStep ? 'is-complete' : ''}`}
-          onClick={() => onSelect(index)}
-          disabled={index > maxStep}
-          aria-current={step === index ? 'step' : undefined}
-        >
-          <span>{index < maxStep ? <Check size={14} /> : index + 1}</span>
-          <em>{name}</em>
-        </button>
-      ))}
+      <strong className="studio-progress__mobile-label">{step + 1} of {stepNames.length} · {stepNames[step]}</strong>
+      <div className="studio-progress__steps">
+        {stepNames.map((name, index) => (
+          <button
+            key={name}
+            type="button"
+            className={`${step === index ? 'is-current' : ''} ${index < maxStep ? 'is-complete' : ''}`}
+            onClick={() => onSelect(index)}
+            disabled={index > maxStep}
+            aria-current={step === index ? 'step' : undefined}
+          >
+            <span>{index < maxStep ? <Check size={14} /> : index + 1}</span>
+            <em>{name}</em>
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
@@ -83,7 +86,25 @@ function VehicleStrip({ quote, onEdit }) {
   );
 }
 
-function Summary({ quote, plan, detail, eligibility, onSave, onPreview }) {
+function PlanRail({ plans, selectedId, onSelect, onDetails, compact = false }) {
+  const selected = plans.find((item) => item.id === selectedId) || plans[0];
+  return (
+    <div className={`plan-rail-wrap ${compact ? 'is-compact' : ''}`}>
+      <div className="studio-plan-rail" role="radiogroup" aria-label="Ford Protect coverage level">
+        {plans.map((item) => (
+          <button key={item.id} type="button" role="radio" aria-checked={selectedId === item.id} className={selectedId === item.id ? 'is-selected' : ''} onClick={() => onSelect(item.id)}>
+            <ShieldCheck />
+            <span><strong>{item.name}</strong><small>{item.count} covered components</small></span>
+            {selectedId === item.id && <CheckCircle2 className="plan-rail-check" />}
+          </button>
+        ))}
+      </div>
+      <button className="selected-plan-detail" type="button" onClick={() => onDetails(selected.id)}>See full {selected.name} coverage <ChevronDown /></button>
+    </div>
+  );
+}
+
+function Summary({ quote, plan, detail, eligibility, onSave, onPreview, onContinue, step }) {
   const selectedOptions = protectionOptions.filter((item) => quote.addOns.includes(item.id));
   const term = quote.program === 'csp'
     ? 'Monthly / no annual mileage limit'
@@ -96,27 +117,29 @@ function Summary({ quote, plan, detail, eligibility, onSave, onPreview }) {
     [ShieldCheck, 'Protection', plan.name],
     [CalendarDays, 'Term', term],
     [CircleDollarSign, 'Deductible', deductible],
-    [Wrench, 'Extra products', quote.maintenanceId !== 'none' ? quote.maintenanceName : selectedOptions.length ? `${selectedOptions.length} option${selectedOptions.length === 1 ? '' : 's'}` : 'None requested'],
+    [Wrench, 'Plan options', selectedOptions.length ? `${selectedOptions.length} selected` : 'None requested'],
+    [Wrench, 'Maintenance', quote.maintenanceId !== 'none' ? quote.maintenanceName : 'Not added'],
   ];
 
   return (
     <aside className="studio-summary">
       <div className="studio-summary__eyebrow"><span>Quote in progress</span><strong>{quote.id}</strong></div>
-      <h2>Your selection</h2>
+      <h2>Your protection</h2>
       <div className="studio-summary__rows">
         {rows.map(([Icon, label, value]) => (
           <div key={label}><Icon /><span><small>{label}</small><strong>{value}</strong></span></div>
         ))}
       </div>
+      {selectedOptions.length > 0 && <div className="studio-summary__options">{selectedOptions.map((item) => <span key={item.id}><CheckCircle2 /> {item.title}</span>)}</div>}
       <div className={`eligibility ${eligibility.tone}`}>
         <CheckCircle2 /><span><strong>{eligibility.title}</strong><small>{eligibility.text}</small></span>
       </div>
       <div className="summary-price">
-        <span>Bob Maxey price</span>
-        <strong>Confirmed after eligibility</strong>
-        <small>Current Ford rates and vehicle-specific options are not estimated from last year’s guide.</small>
+        <span>Rep-confirmed price</span>
+        <strong>Prepared after eligibility</strong>
+        <small>Your Bob Maxey F&amp;I representative confirms the current Ford-authorized options and price.</small>
       </div>
-      <button className="button button--white button--full" type="button" onClick={onPreview}><FileText /> Preview proposal</button>
+      <button className="button button--summary button--full" type="button" onClick={step < 5 ? onContinue : onPreview}>{step < 5 ? <>Continue to {stepNames[step + 1].toLowerCase()} <ArrowRight /></> : <><FileText /> Preview proposal</>}</button>
       <div className="studio-summary__utility">
         <button type="button" onClick={onSave}><Bookmark /> Save</button>
         <button type="button" onClick={onPreview}><Download /> PDF</button>
@@ -192,27 +215,24 @@ function ProposalPreview({ quote, plan, detail, onClose, onDownload, busy }) {
 function TermMatrix({ matrix, quote, recommendation, showMatrix, onToggleMatrix, onMonth, onMiles, onUseMatch }) {
   const validMiles = matrix.miles.filter((miles) => matrix.isAvailable(quote.termMonths, miles));
   return (
-    <>
-      <div className="match-panel">
-        <div><Sparkles /><span><small>{recommendation?.meetsGoal ? 'YOUR MATCH' : 'CLOSEST AVAILABLE IN THIS MATRIX'}</small><strong>{recommendation ? `${formatTerm(recommendation.months)} / ${formatMiles(recommendation.miles)} miles` : 'Specialist review'}</strong><p>{recommendation?.meetsGoal ? `Based on keeping the vehicle ${quote.keepYears} years and driving about ${formatMiles(quote.annualMiles)} miles per year.` : 'This historical matrix does not fully reach your ownership goal. Ask the specialist about CSP or another current path.'}</p></span></div>
-        {recommendation && <button type="button" onClick={onUseMatch}>Use this combination</button>}
-      </div>
-      <div className="guided-term-picker">
-        <div>
-          <div className="term-row-heading"><span><CalendarDays /> Choose months</span><strong>{formatTerm(quote.termMonths)}</strong></div>
-          <div className="term-choice-rail">{matrix.months.map((months) => <button key={months} type="button" className={`${quote.termMonths === months ? 'is-selected' : ''} ${recommendation?.months === months ? 'is-match' : ''}`} onClick={() => onMonth(months)}><strong>{months}</strong><small>{months / 12} yr</small></button>)}</div>
+    <div className="term-fidelity-grid">
+      <div className="term-fidelity-main">
+        <div className="term-fidelity-heading"><CalendarDays /><span><strong>1. Choose your term</strong><small>Select an available combination of years and mileage.</small></span></div>
+        <div className="guided-term-picker">
+          <div>
+            <div className="term-row-heading"><span><CalendarDays /> Years</span><strong>{formatTerm(quote.termMonths)}</strong></div>
+            <div className="term-choice-rail">{matrix.months.map((months) => <button key={months} type="button" className={`${quote.termMonths === months ? 'is-selected' : ''} ${recommendation?.months === months ? 'is-match' : ''}`} onClick={() => onMonth(months)}><strong>{months / 12}</strong><small>{months} mo</small></button>)}</div>
+          </div>
+          <div>
+            <div className="term-row-heading"><span><Gauge /> {quote.planPath === 'used' ? 'Additional mileage' : 'Total mileage'}</span><strong>{formatMiles(quote.termMiles)} miles</strong></div>
+            <div className="term-choice-rail">{validMiles.map((miles) => <button key={miles} type="button" className={`${quote.termMiles === miles ? 'is-selected' : ''} ${recommendation?.miles === miles && recommendation?.months === quote.termMonths ? 'is-match' : ''}`} onClick={() => onMiles(miles)}><strong>{miles / 1000}k</strong><small>miles</small></button>)}</div>
+          </div>
         </div>
-        <div>
-          <div className="term-row-heading"><span><Gauge /> Choose {quote.planPath === 'used' ? 'additional mileage' : 'total mileage'}</span><strong>{formatMiles(quote.termMiles)} miles</strong></div>
-          <div className="term-choice-rail">{validMiles.map((miles) => <button key={miles} type="button" className={`${quote.termMiles === miles ? 'is-selected' : ''} ${recommendation?.miles === miles && recommendation?.months === quote.termMonths ? 'is-match' : ''}`} onClick={() => onMiles(miles)}><strong>{miles / 1000}k</strong><small>miles</small></button>)}</div>
-        </div>
-      </div>
-      <button className={`matrix-toggle ${showMatrix ? 'is-open' : ''}`} type="button" onClick={onToggleMatrix}>View every available combination <ChevronDown /></button>
-      {showMatrix && (
-        <div className="term-matrix-wrap">
+        <button className={`matrix-toggle ${showMatrix ? 'is-open' : ''}`} type="button" onClick={onToggleMatrix}>View every available combination <ChevronDown /></button>
+        <div className={`term-matrix-wrap ${showMatrix ? 'is-open' : ''}`}>
           <div className="term-matrix" style={{ '--term-columns': matrix.months.length }}>
-            <div className="term-matrix__corner">Miles \ months</div>
-            {matrix.months.map((months) => <div className="term-matrix__month" key={months}>{months}<small>{months / 12} yr</small></div>)}
+            <div className="term-matrix__corner">Total mileage</div>
+            {matrix.months.map((months) => <div className={`term-matrix__month ${quote.termMonths === months ? 'is-selected' : ''}`} key={months}>{months / 12}<small>years</small></div>)}
             {matrix.miles.map((miles) => (
               <div className="term-matrix__row" key={miles}>
                 <div className="term-matrix__miles">{miles / 1000}k</div>
@@ -220,14 +240,18 @@ function TermMatrix({ matrix, quote, recommendation, showMatrix, onToggleMatrix,
                   const available = matrix.isAvailable(months, miles);
                   const selected = quote.termMonths === months && quote.termMiles === miles;
                   const matched = recommendation?.months === months && recommendation?.miles === miles;
-                  return <button key={months} type="button" disabled={!available} className={`${selected ? 'is-selected' : ''} ${matched ? 'is-match' : ''}`} onClick={() => { onMonth(months); onMiles(miles); }} aria-label={available ? `${formatTerm(months)}, ${formatMiles(miles)} miles` : 'Combination not available'}>{available ? selected ? <Check /> : matched ? <Sparkles /> : <span className="availability-dot" aria-hidden="true" /> : '—'}</button>;
+                  return <button key={months} type="button" disabled={!available} className={`${selected ? 'is-selected' : ''} ${matched ? 'is-match' : ''}`} onClick={() => { onMonth(months); onMiles(miles); }} aria-label={available ? `${formatTerm(months)}, ${formatMiles(miles)} miles` : 'Combination not available'}>{available ? selected ? <Check /> : matched ? <Sparkles /> : <Check className="availability-check" aria-hidden="true" /> : '—'}</button>;
                 })}
               </div>
             ))}
           </div>
         </div>
-      )}
-    </>
+      </div>
+      <div className="match-panel">
+        <div><Sparkles /><span><small>{recommendation?.meetsGoal ? 'BEST MATCH' : 'CLOSEST AVAILABLE'}</small><strong>{recommendation ? `${formatTerm(recommendation.months)} / ${formatMiles(recommendation.miles)} miles` : 'Specialist review'}</strong><p>{recommendation?.meetsGoal ? `This combination aligns with keeping the vehicle ${quote.keepYears} years and driving about ${formatMiles(quote.annualMiles)} miles per year.` : 'This historical matrix does not fully reach your ownership goal. Ask the specialist about another current path.'}</p></span></div>
+        {recommendation && <button type="button" onClick={onUseMatch}>Use this combination <ArrowRight /></button>}
+      </div>
+    </div>
   );
 }
 
@@ -478,8 +502,8 @@ export default function QuoteStudio({ initial = {}, onClose, onToast, onSaved })
 
             {step === 1 && (
               <section className="studio-step">
-                <div className="studio-step__heading"><small>STEP 2 OF 6</small><h1>Choose how you want to be protected.</h1><p>Compare Ford Protect paths here without leaving Bob Maxey’s site.</p></div>
                 <VehicleStrip quote={quote} onEdit={() => goTo(0)} />
+                <div className="studio-step__heading"><small>STEP 2 OF 6</small><h1>Choose how you want to be protected.</h1><p>Compare Ford Protect paths here without leaving Bob Maxey’s site.</p></div>
                 <div className="program-switch">
                   <button type="button" className={quote.program === 'esp' ? 'is-selected' : ''} onClick={() => update('program', 'esp')}><ShieldCheck /><span><strong>Extended Service Plan</strong><small>Choose a plan, fixed term, mileage limit, and deductible.</small></span>{quote.program === 'esp' && <Check />}</button>
                   <button type="button" className={quote.program === 'csp' ? 'is-selected' : ''} onClick={() => update('program', 'csp')}><CalendarDays /><span><strong>Continued Service Plan</strong><small>Monthly protection for eligible older or higher-mileage vehicles.</small></span>{quote.program === 'csp' && <Check />}</button>
@@ -487,21 +511,9 @@ export default function QuoteStudio({ initial = {}, onClose, onToast, onSaved })
                 {quote.program === 'esp' ? (
                   <>
                     <div className="path-switch"><span>Which eligibility path should we explore?</span><div><button type="button" className={quote.planPath === 'new' ? 'is-selected' : ''} onClick={() => update('planPath', 'new')}><strong>New-plan path</strong><small>Time / mileage from original in-service and 0 miles</small></button><button type="button" className={quote.planPath === 'used' ? 'is-selected' : ''} onClick={() => update('planPath', 'used')}><strong>Used-plan path</strong><small>Time / miles from contract date and current odometer</small></button></div></div>
-                    <div className="studio-section studio-section--plans">
+                    <div className="studio-section studio-section--plans plan-rail-section">
                       <div className="studio-section__heading"><div><span>03</span><h2>Select a coverage level</h2></div><small>Open any plan to see its full on-site coverage guide.</small></div>
-                      <div className="studio-plan-grid">
-                        {applicablePlans.map((item) => (
-                          <article key={item.id} className={`studio-plan-card ${espPlan.id === item.id ? 'is-selected' : ''}`}>
-                            <button className="studio-plan-select" type="button" onClick={() => update('planId', item.id)}>
-                              <span className="selection-dot">{espPlan.id === item.id && <Check />}</span>
-                              <small>{item.label}</small><strong>{item.name}</strong>
-                              <b>{item.count}</b><em>covered components</em>
-                              <p>{item.bestFor}</p>
-                            </button>
-                            <button className="studio-plan-help" type="button" onClick={() => { update('planId', item.id); setPlanHelp(true); }}>Full coverage details <ArrowRight /></button>
-                          </article>
-                        ))}
-                      </div>
+                      <PlanRail plans={applicablePlans} selectedId={espPlan.id} onSelect={(id) => update('planId', id)} onDetails={(id) => { update('planId', id); setPlanHelp(true); }} />
                     </div>
                     <div className="source-note"><Info /><span><strong>Planning matrix, not a price book</strong><small>{historicalMatrixNotice}</small></span></div>
                   </>
@@ -519,13 +531,24 @@ export default function QuoteStudio({ initial = {}, onClose, onToast, onSaved })
 
             {step === 2 && (
               <section className="studio-step">
-                <div className="studio-step__heading"><small>STEP 3 OF 6</small><h1>{quote.program === 'csp' ? 'Understand the monthly coverage path.' : 'Build the time-and-mileage combination.'}</h1><p>{quote.program === 'csp' ? 'CSP follows monthly terms rather than a fixed years-and-miles grid.' : 'Pick months first, then only mileage choices shown as available for that term.'}</p></div>
                 <VehicleStrip quote={quote} onEdit={() => goTo(0)} />
+                <div className="studio-step__heading studio-step__heading--compact"><small>STEP 3 OF 6</small><h1>{quote.program === 'csp' ? 'Understand the monthly coverage path.' : <><span className="term-title-desktop">Build the right Ford Protect plan.</span><span className="term-title-mobile">Choose your term</span></>}</h1><p>{quote.program === 'csp' ? 'CSP follows monthly terms rather than a fixed years-and-miles grid.' : 'Choose a plan, then match the years and mileage to how long you expect to keep your Ford.'}</p></div>
                 {quote.program === 'esp' ? (
-                  <div className="studio-section term-builder-section">
-                    <div className="term-context"><span><strong>{plan.name}</strong><small>{quote.planPath === 'used' ? 'Used-plan terms begin at signature/current mileage.' : 'New-plan terms measure from original in-service/zero miles.'}</small></span><button type="button" onClick={() => goTo(1)}>Change plan</button></div>
+                  <div className="term-experience">
+                    <div className="term-plan-bar">
+                      <PlanRail compact plans={applicablePlans} selectedId={espPlan.id} onSelect={(id) => update('planId', id)} onDetails={(id) => { update('planId', id); setPlanHelp(true); }} />
+                      <div className="term-path-switch"><span>Ownership</span><button type="button" className={quote.planPath === 'new' ? 'is-selected' : ''} onClick={() => update('planPath', 'new')}>New plan</button><button type="button" className={quote.planPath === 'used' ? 'is-selected' : ''} onClick={() => update('planPath', 'used')}>Used plan</button></div>
+                    </div>
+                    <div className="studio-section term-builder-section">
+                    <div className="term-context"><span><strong>{plan.name}</strong><small>{quote.planPath === 'used' ? 'Used-plan terms begin at signature/current mileage.' : 'New-plan terms measure from original in-service/zero miles.'}</small></span><button type="button" onClick={() => goTo(1)}>Compare protection</button></div>
                     {matrix.months.length ? <TermMatrix matrix={matrix} quote={quote} recommendation={recommendation} showMatrix={showMatrix} onToggleMatrix={() => setShowMatrix((value) => !value)} onMonth={chooseMonth} onMiles={(miles) => update('termMiles', miles)} onUseMatch={() => setQuote((current) => ({ ...current, termMonths: recommendation.months, termMiles: recommendation.miles }))} /> : <div className="no-standard-matrix"><ShieldCheck /><h2>Specialist review needed</h2><p>A standard used-plan term grid is not shown beyond the historical guide’s current-mileage range. Continued Service Plan may be a better path.</p><button className="button button--secondary" type="button" onClick={() => { update('program', 'csp'); goTo(1); }}>Explore Continued Service Plan</button></div>}
                     <div className="source-note source-note--plain"><Info /><span><strong>How the two mileage paths differ</strong><small>New-plan mileage is a total odometer limit. Used-plan mileage is additional mileage added from the contract’s starting odometer. Final Ford eligibility can remove or add combinations.</small></span></div>
+                    <div className="term-next-settings">
+                      <button type="button" onClick={() => goTo(3)}><CircleDollarSign /><span><strong>Deductible</strong><small>{quote.deductible === 'disappearing' ? 'Disappearing deductible selected' : `$${quote.deductible} per covered repair visit`}</small></span><ChevronDown /></button>
+                      <button type="button" onClick={() => goTo(3)}><ShieldCheck /><span><strong>Plan options</strong><small>{quote.addOns.length ? `${quote.addOns.length} selected benefit${quote.addOns.length === 1 ? '' : 's'}` : 'Rental, key, lighting and pickup options'}</small></span><ChevronDown /></button>
+                      <button type="button" onClick={() => goTo(3)}><Wrench /><span><strong>Maintenance</strong><small>{quote.maintenanceId === 'none' ? 'Add or remove scheduled maintenance' : quote.maintenanceName}</small></span><ChevronDown /></button>
+                    </div>
+                    </div>
                   </div>
                 ) : (
                   <div className="studio-section csp-term-card">
@@ -540,6 +563,7 @@ export default function QuoteStudio({ initial = {}, onClose, onToast, onSaved })
 
             {step === 3 && (
               <section className="studio-step">
+                <VehicleStrip quote={quote} onEdit={() => goTo(0)} />
                 <div className="studio-step__heading"><small>STEP 4 OF 6</small><h1>Add only what fits your ownership plan.</h1><p>Deductibles and benefits are requests until Ford confirms what is available for the vehicle and term.</p></div>
                 {quote.program === 'esp' ? (
                   <>
@@ -618,7 +642,7 @@ export default function QuoteStudio({ initial = {}, onClose, onToast, onSaved })
               </section>
             )}
           </main>
-          <Summary quote={quote} plan={plan} detail={detail} eligibility={eligibility} onSave={saveQuote} onPreview={() => setProposalPreview(true)} />
+          <Summary quote={quote} plan={plan} detail={detail} eligibility={eligibility} onSave={saveQuote} onPreview={() => setProposalPreview(true)} onContinue={() => goTo(Math.min(5, step + 1))} step={step} />
         </div>
         <div className="studio-mobile-bar"><span><small>{plan.name}</small><strong>{quote.program === 'csp' ? 'Monthly coverage request' : `${formatTerm(quote.termMonths)} · ${formatMiles(quote.termMiles)} mi`}</strong></span><button type="button" onClick={() => goTo(Math.min(5, step + 1))}>{step === 5 ? 'Review' : 'Continue'} <ArrowRight /></button></div>
       </div>

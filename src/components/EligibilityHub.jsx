@@ -23,7 +23,7 @@ export default function EligibilityHub({ onQuote, onContact }) {
   return (
     <section className="eligibility-hub section" id="eligibility">
       <div className="page-shell eligibility-hub__heading">
-        <div><h2>Know your eligibility path<br />before you compare price.</h2><p>Ford Protect rating is vehicle-specific. The site should identify the right contract path before it shows a term, deductible or final price.</p></div>
+        <div><h1>Know your eligibility path<br />before you compare price.</h1><p>Ford Protect rating is vehicle-specific. The site should identify the right contract path before it shows a term, deductible or final price.</p></div>
         <img src={assetUrl('/assets/ford-official/ford-why-1.png')} alt="Ford F-150 Lightning from official Ford Protect marketing media" />
       </div>
 
@@ -45,7 +45,7 @@ export default function EligibilityHub({ onQuote, onContact }) {
       <div className="page-shell purchase-path">
         <div className="purchase-path__heading"><ShieldCheck /><div><h3>From quote to an issued Ford Protect contract</h3><p>A complete purchase experience should make each status unmistakable.</p></div></div>
         <div className="purchase-path__steps">{purchaseSteps.map(([number, title, text]) => <article key={number}><span>{number}</span><h4>{title}</h4><p>{text}</p></article>)}</div>
-        <p className="purchase-path__note">The current prototype completes vehicle selection, plan comparison and a saved quote. Live Ford eligibility/rating, secure payment and Ford contract enrollment remain production integrations.</p>
+        <p className="purchase-path__note">This site prepares the complete selection, proposal and CRM-ready request. Live Ford eligibility and rating, secure payment, contract enrollment and final DealerMail delivery remain dealership-system integrations.</p>
       </div>
     </section>
   );

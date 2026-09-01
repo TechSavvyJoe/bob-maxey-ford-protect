@@ -64,7 +64,7 @@ export default function FaqSection({ onQuote, onContact, onOpenProduct }) {
   return (
     <section className="faq-section section" id="faq">
       <div className="page-shell document-center" id="documents">
-        <div className="document-center__heading"><div><h2>Ford Protect resources, right here.</h2><p>Coverage guides, product highlights and plan comparisons stay on the Bob Maxey site. We do not send customers to a separate pricing site.</p></div><FileText /></div>
+        <div className="document-center__heading"><div><h1>Ford Protect resources, right here.</h1><p>Coverage guides, product highlights and plan comparisons stay on the Bob Maxey site. We do not send customers to a separate pricing site.</p></div><FileText /></div>
         <div className="resource-view-nav" role="tablist" aria-label="Resource topics">
           {resourceTabs.map(([id, label]) => <button key={id} type="button" role="tab" aria-selected={resourceView === id} className={resourceView === id ? 'is-active' : ''} onClick={() => setResourceView(id)}>{label}</button>)}
         </div>

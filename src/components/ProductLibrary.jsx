@@ -33,7 +33,7 @@ export default function ProductLibrary({ onQuote, onContact, onOpenProduct }) {
       <div className="page-shell">
         <div className="product-library__heading">
           <div>
-            <h2>Every relevant Ford Protect product, clearly explained.</h2>
+            <h1>Every relevant Ford Protect product, clearly explained.</h1>
             <p>Explore mechanical, EV, maintenance, certified and commercial protection that may be considered after the vehicle sale. Time-of-sale-only, GAP and lease-only products are intentionally excluded.</p>
           </div>
           <div className="product-library__source"><img src={assetUrl('/assets/ford-official/ford-protect-logo.png')} alt="Ford Protect" /><span>Product information organized from current Ford Protect materials.</span></div>

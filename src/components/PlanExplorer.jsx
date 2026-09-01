@@ -61,7 +61,7 @@ export default function PlanExplorer({ onQuote, onOpenProduct }) {
     <section className="plan-explorer section" id="plans">
       <div className="page-shell">
         <div className="plan-explorer__heading">
-          <div><h2>Compare protection without the guesswork.</h2><p>See coverage structure, systems, terms, deductibles, ownership benefits and purchase timing before you choose a plan.</p></div>
+          <div><h1>Compare protection without the guesswork.</h1><p>See coverage structure, systems, terms, deductibles, ownership benefits and purchase timing before you choose a plan.</p></div>
           <img src={assetUrl('/assets/ford-official/ford-protect-logo.png')} alt="Ford Protect" />
         </div>
 

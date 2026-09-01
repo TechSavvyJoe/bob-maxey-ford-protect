@@ -64,7 +64,7 @@ function Progress({ step, maxStep, onSelect }) {
             disabled={index > maxStep}
             aria-current={step === index ? 'step' : undefined}
           >
-            <span>{index < maxStep ? <Check size={14} /> : index + 1}</span>
+            <span>{index + 1}.</span>
             <em>{name}</em>
           </button>
         ))}
@@ -99,6 +99,12 @@ function PlanRail({ plans, selectedId, onSelect, onDetails, compact = false }) {
           </button>
         ))}
       </div>
+      {!compact && (
+        <div className="plan-coverage-table" role="table" aria-label="Coverage level overview">
+          <div role="row"><span role="rowheader">Coverage position</span>{plans.map((item) => <strong role="cell" className={selectedId === item.id ? 'is-selected' : ''} key={item.id}>{item.label}</strong>)}</div>
+          <div role="row"><span role="rowheader">Listed components</span>{plans.map((item) => <strong role="cell" className={selectedId === item.id ? 'is-selected' : ''} key={item.id}>{item.count}</strong>)}</div>
+        </div>
+      )}
       <button className="selected-plan-detail" type="button" onClick={() => onDetails(selected.id)}>See full {selected.name} coverage <ChevronDown /></button>
     </div>
   );
@@ -172,18 +178,36 @@ function StudioFooter({ step, quote, saved, onBack, onContinue, onSave, onPrevie
 }
 
 function PlanHelp({ plan, detail, onClose }) {
+  const modalRef = useRef(null);
+
+  useEffect(() => {
+    const previousFocus = document.activeElement;
+    const closeButton = modalRef.current?.querySelector('header button');
+    closeButton?.focus();
+
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') onClose();
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      previousFocus?.focus?.();
+    };
+  }, [onClose]);
+
   if (!detail) return null;
   return (
-    <div className="context-backdrop" role="dialog" aria-modal="true" aria-label={`${plan.name} coverage details`}>
-      <article className="context-modal context-modal--expanded">
+    <div className="context-backdrop" role="dialog" aria-modal="true" aria-labelledby="plan-help-title">
+      <article ref={modalRef} className="context-modal context-modal--expanded">
         <header>
           <img src={assetUrl('/assets/ford-official/ford-protect-logo.png')} alt="Ford Protect" />
-          <span>Complete plan guide</span>
+          <span><small>Ford Protect coverage</small><strong>Complete plan guide</strong></span>
           <button type="button" onClick={onClose} aria-label="Close plan details"><X /></button>
         </header>
         <div className="context-modal__body">
           <p>{detail.type}</p>
-          <h2>{plan.name}</h2>
+          <h2 id="plan-help-title">{plan.name}</h2>
           <strong>{detail.tagline}</strong>
           <span>{detail.coverageModel}</span>
           <div className="context-modal__facts">
@@ -202,7 +226,7 @@ function PlanHelp({ plan, detail, onClose }) {
           </div>
           <div className="context-modal__notice"><ShieldCheck /><span><b>The agreement is the final word</b><small>This on-site guide helps compare plans. Covered components, options, term, price, limits, and exclusions must match the agreement issued for the vehicle.</small></span></div>
         </div>
-        <footer><button className="button button--primary" type="button" onClick={onClose}>Keep {plan.name} selected <ArrowRight /></button></footer>
+        <footer><small>Your quote selections stay saved while you review coverage.</small><button className="button button--primary" type="button" onClick={onClose}>Keep {plan.name} selected <ArrowRight /></button></footer>
       </article>
     </div>
   );

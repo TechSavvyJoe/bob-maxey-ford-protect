@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft, ArrowRight, Bookmark, CalendarDays, CarFront, Check, CheckCircle2,
   ChevronDown, CircleDollarSign, Clock3, Download, FileText, Gauge, Info, KeyRound,
-  Lightbulb, Mail, MapPin, MessageSquare, Phone, Send, ShieldCheck, Sparkles, Tag,
+  Grid3X3, Lightbulb, Mail, MapPin, MessageSquare, Phone, Send, ShieldCheck, Sparkles, Tag,
   UserRound, Wrench, X, Zap,
 } from 'lucide-react';
 import Brand from './Brand';
@@ -53,7 +53,7 @@ function Field({ label, hint, error, children }) {
 function Progress({ step, maxStep, onSelect }) {
   return (
     <div className="studio-progress" aria-label="Quote progress">
-      <strong className="studio-progress__mobile-label">{step + 1} of {stepNames.length} · {stepNames[step]}</strong>
+      <strong className="studio-progress__mobile-label">Step {step + 1} of {stepNames.length} · {stepNames[step]}</strong>
       <div className="studio-progress__steps">
         {stepNames.map((name, index) => (
           <button
@@ -104,7 +104,7 @@ function PlanRail({ plans, selectedId, onSelect, onDetails, compact = false }) {
   );
 }
 
-function Summary({ quote, plan, detail, eligibility, onSave, onPreview, onContinue, step }) {
+function Summary({ quote, plan, eligibility }) {
   const selectedOptions = protectionOptions.filter((item) => quote.addOns.includes(item.id));
   const term = quote.program === 'csp'
     ? 'Monthly / no annual mileage limit'
@@ -114,38 +114,60 @@ function Summary({ quote, plan, detail, eligibility, onSave, onPreview, onContin
     : quote.deductible === 'disappearing' ? 'Disappearing' : `$${quote.deductible}`;
   const rows = [
     [CarFront, 'Vehicle', `${quote.year} ${quote.make} ${quote.model || 'Model'}`],
-    [ShieldCheck, 'Protection', plan.name],
+    [ShieldCheck, 'Plan', plan.name],
     [CalendarDays, 'Term', term],
     [CircleDollarSign, 'Deductible', deductible],
-    [Wrench, 'Plan options', selectedOptions.length ? `${selectedOptions.length} selected` : 'None requested'],
-    [Wrench, 'Maintenance', quote.maintenanceId !== 'none' ? quote.maintenanceName : 'Not added'],
   ];
+
+  const summaryRows = (
+    <div className="studio-summary__rows">
+      {rows.map(([Icon, label, value]) => (
+        <div key={label}><Icon /><span><small>{label}</small><strong>{value}</strong></span></div>
+      ))}
+    </div>
+  );
+
+  const extras = selectedOptions.length
+    ? selectedOptions.map((item) => item.title)
+    : ['No additional benefits selected'];
 
   return (
     <aside className="studio-summary">
-      <div className="studio-summary__eyebrow"><span>Quote in progress</span><strong>{quote.id}</strong></div>
-      <h2>Your protection</h2>
-      <div className="studio-summary__rows">
-        {rows.map(([Icon, label, value]) => (
-          <div key={label}><Icon /><span><small>{label}</small><strong>{value}</strong></span></div>
-        ))}
+      <div className="studio-summary__desktop">
+        <div className="studio-summary__eyebrow"><span>Your quote</span><strong>{quote.id}</strong></div>
+        <h2>Your quote</h2>
+        {summaryRows}
+        <div className="studio-summary__options">
+          {extras.map((item) => <span key={item}><CheckCircle2 /> {item}</span>)}
+          {quote.maintenanceId !== 'none' && <span><CheckCircle2 /> {quote.maintenanceName}</span>}
+        </div>
+        <div className={`eligibility ${eligibility.tone}`}>
+          <CheckCircle2 /><span><strong>{eligibility.title}</strong><small>{eligibility.text}</small></span>
+        </div>
+        <div className="summary-price">
+          <span>Specialist-confirmed pricing</span>
+          <strong>Prepared after eligibility review</strong>
+          <small>Your Bob Maxey F&amp;I specialist confirms the current Ford-authorized options and price.</small>
+        </div>
+        <p>Ford records and the issued agreement confirm eligibility, coverage, price, and exclusions.</p>
       </div>
-      {selectedOptions.length > 0 && <div className="studio-summary__options">{selectedOptions.map((item) => <span key={item.id}><CheckCircle2 /> {item.title}</span>)}</div>}
-      <div className={`eligibility ${eligibility.tone}`}>
-        <CheckCircle2 /><span><strong>{eligibility.title}</strong><small>{eligibility.text}</small></span>
-      </div>
-      <div className="summary-price">
-        <span>Rep-confirmed price</span>
-        <strong>Prepared after eligibility</strong>
-        <small>Your Bob Maxey F&amp;I representative confirms the current Ford-authorized options and price.</small>
-      </div>
-      <button className="button button--summary button--full" type="button" onClick={step < 5 ? onContinue : onPreview}>{step < 5 ? <>Continue to {stepNames[step + 1].toLowerCase()} <ArrowRight /></> : <><FileText /> Preview proposal</>}</button>
-      <div className="studio-summary__utility">
-        <button type="button" onClick={onSave}><Bookmark /> Save</button>
-        <button type="button" onClick={onPreview}><Download /> PDF</button>
-      </div>
-      <p>The issued Ford Protect agreement controls exact coverage, eligibility, price, and exclusions.</p>
+      <details className="studio-summary__mobile">
+        <summary><ShieldCheck /><span><strong>Your quote</strong><small>{plan.name} · {quote.program === 'csp' ? 'Monthly' : `${quote.termMonths / 12} yr / ${quote.termMiles / 1000}k mi`}</small></span><ChevronDown /></summary>
+        <div className="studio-summary__mobile-body">{summaryRows}<div className={`eligibility ${eligibility.tone}`}><CheckCircle2 /><span><strong>{eligibility.title}</strong><small>{eligibility.text}</small></span></div></div>
+      </details>
     </aside>
+  );
+}
+
+function StudioFooter({ step, quote, saved, onBack, onContinue, onSave, onPreview }) {
+  const labels = ['See protection paths', 'Choose term & mileage', 'Continue to options', 'Add my details', 'Review my request', 'Preview proposal'];
+  return (
+    <footer className="studio-footer">
+      <button className={`studio-footer__back ${step === 0 ? 'is-hidden' : ''}`} type="button" onClick={onBack} tabIndex={step === 0 ? -1 : 0}><ArrowLeft /> Back</button>
+      <button className={`studio-footer__save ${saved ? 'is-saved' : ''}`} type="button" onClick={onSave}>{saved ? <CheckCircle2 /> : <Bookmark />}<span>{saved ? 'Saved' : 'Save quote'} <strong>{quote.id}</strong></span></button>
+      <button className="button button--primary studio-footer__continue" type="button" onClick={step === 5 ? onPreview : onContinue}>{labels[step]} <ArrowRight /></button>
+      <small><ShieldCheck /> Ford records and the issued agreement confirm eligibility and coverage.</small>
+    </footer>
   );
 }
 
@@ -212,26 +234,58 @@ function ProposalPreview({ quote, plan, detail, onClose, onDownload, busy }) {
   );
 }
 
-function TermMatrix({ matrix, quote, recommendation, showMatrix, onToggleMatrix, onMonth, onMiles, onUseMatch }) {
+function TermMatrix({ matrix, quote, recommendation, onOpenMatrix, onMonth, onMiles, onUseMatch }) {
   const validMiles = matrix.miles.filter((miles) => matrix.isAvailable(quote.termMonths, miles));
+  const termRailRef = useRef(null);
+  const mileageRailRef = useRef(null);
+
+  useEffect(() => {
+    const centerSelection = () => {
+      [termRailRef.current, mileageRailRef.current].forEach((rail) => {
+        const selected = rail?.querySelector('[aria-pressed="true"]');
+        if (!selected || rail.scrollWidth <= rail.clientWidth) return;
+        rail.scrollTo({ left: selected.offsetLeft - (rail.clientWidth - selected.offsetWidth) / 2, behavior: 'smooth' });
+      });
+    };
+    const frame = window.requestAnimationFrame(centerSelection);
+    window.addEventListener('resize', centerSelection);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener('resize', centerSelection);
+    };
+  }, [quote.termMonths, quote.termMiles, validMiles.length]);
+
   return (
     <div className="term-fidelity-grid">
       <div className="term-fidelity-main">
-        <div className="term-fidelity-heading"><CalendarDays /><span><strong>1. Choose your term</strong><small>Select an available combination of years and mileage.</small></span></div>
         <div className="guided-term-picker">
           <div>
-            <div className="term-row-heading"><span><CalendarDays /> Years</span><strong>{formatTerm(quote.termMonths)}</strong></div>
-            <div className="term-choice-rail">{matrix.months.map((months) => <button key={months} type="button" className={`${quote.termMonths === months ? 'is-selected' : ''} ${recommendation?.months === months ? 'is-match' : ''}`} onClick={() => onMonth(months)}><strong>{months / 12}</strong><small>{months} mo</small></button>)}</div>
+            <div className="term-row-heading"><span><CalendarDays /> 1. Protection term</span><strong>{formatTerm(quote.termMonths)}</strong></div>
+            <div className="term-choice-rail" ref={termRailRef}>{matrix.months.map((months) => <button key={months} type="button" aria-pressed={quote.termMonths === months} className={`${quote.termMonths === months ? 'is-selected' : ''} ${recommendation?.months === months ? 'is-match' : ''}`} onClick={() => onMonth(months)}><strong>{months / 12}</strong><small>years</small></button>)}</div>
           </div>
           <div>
-            <div className="term-row-heading"><span><Gauge /> {quote.planPath === 'used' ? 'Additional mileage' : 'Total mileage'}</span><strong>{formatMiles(quote.termMiles)} miles</strong></div>
-            <div className="term-choice-rail">{validMiles.map((miles) => <button key={miles} type="button" className={`${quote.termMiles === miles ? 'is-selected' : ''} ${recommendation?.miles === miles && recommendation?.months === quote.termMonths ? 'is-match' : ''}`} onClick={() => onMiles(miles)}><strong>{miles / 1000}k</strong><small>miles</small></button>)}</div>
+            <div className="term-row-heading"><span><Gauge /> 2. {quote.planPath === 'used' ? 'Additional mileage' : 'Mileage limit'}</span><strong>{formatMiles(quote.termMiles)} miles</strong></div>
+            <div className="term-choice-rail" ref={mileageRailRef}>{validMiles.map((miles) => <button key={miles} type="button" aria-pressed={quote.termMiles === miles} className={`${quote.termMiles === miles ? 'is-selected' : ''} ${recommendation?.miles === miles && recommendation?.months === quote.termMonths ? 'is-match' : ''}`} onClick={() => onMiles(miles)}><strong>{miles / 1000}k</strong><small>miles</small></button>)}</div>
           </div>
         </div>
-        <button className={`matrix-toggle ${showMatrix ? 'is-open' : ''}`} type="button" onClick={onToggleMatrix}>View every available combination <ChevronDown /></button>
-        <div className={`term-matrix-wrap ${showMatrix ? 'is-open' : ''}`}>
+        <button className="matrix-toggle" type="button" onClick={onOpenMatrix}><Grid3X3 /> View all available combinations <ArrowRight /></button>
+      </div>
+      <div className="match-panel">
+        <div><Sparkles /><span><small>{recommendation?.meetsGoal ? 'BEST FIT' : 'CLOSEST AVAILABLE'}</small><strong>{recommendation ? `${formatTerm(recommendation.months)} / ${formatMiles(recommendation.miles)} miles` : 'Specialist review'}</strong><p>{recommendation?.meetsGoal ? `Fits a ${quote.keepYears}-year ownership goal at about ${formatMiles(quote.annualMiles)} miles per year.` : 'The available matrix does not fully reach your ownership goal. A specialist can review another current path.'}</p></span></div>
+        {recommendation && (quote.termMonths !== recommendation.months || quote.termMiles !== recommendation.miles) && <button type="button" onClick={onUseMatch}>Use best fit <ArrowRight /></button>}
+      </div>
+    </div>
+  );
+}
+
+function MatrixDrawer({ matrix, quote, recommendation, onClose, onMonth, onMiles }) {
+  return (
+    <div className="matrix-drawer-backdrop" role="dialog" aria-modal="true" aria-label="All available term and mileage combinations">
+      <section className="matrix-drawer">
+        <header><div><small>Complete term matrix</small><h2>Every available combination</h2><p>Choose any available years-and-mileage pairing. Ford record review confirms the final options.</p></div><button type="button" onClick={onClose} aria-label="Close term matrix"><X /></button></header>
+        <div className="matrix-drawer__scroll">
           <div className="term-matrix" style={{ '--term-columns': matrix.months.length }}>
-            <div className="term-matrix__corner">Total mileage</div>
+            <div className="term-matrix__corner">{quote.planPath === 'used' ? 'Additional miles' : 'Total mileage'}</div>
             {matrix.months.map((months) => <div className={`term-matrix__month ${quote.termMonths === months ? 'is-selected' : ''}`} key={months}>{months / 12}<small>years</small></div>)}
             {matrix.miles.map((miles) => (
               <div className="term-matrix__row" key={miles}>
@@ -240,17 +294,14 @@ function TermMatrix({ matrix, quote, recommendation, showMatrix, onToggleMatrix,
                   const available = matrix.isAvailable(months, miles);
                   const selected = quote.termMonths === months && quote.termMiles === miles;
                   const matched = recommendation?.months === months && recommendation?.miles === miles;
-                  return <button key={months} type="button" disabled={!available} className={`${selected ? 'is-selected' : ''} ${matched ? 'is-match' : ''}`} onClick={() => { onMonth(months); onMiles(miles); }} aria-label={available ? `${formatTerm(months)}, ${formatMiles(miles)} miles` : 'Combination not available'}>{available ? selected ? <Check /> : matched ? <Sparkles /> : <Check className="availability-check" aria-hidden="true" /> : '—'}</button>;
+                  return <button key={months} type="button" disabled={!available} className={`${selected ? 'is-selected' : ''} ${matched ? 'is-match' : ''}`} onClick={() => { onMonth(months); onMiles(miles); }} aria-label={available ? `${formatTerm(months)}, ${formatMiles(miles)} miles` : 'Combination not available'}>{available ? selected ? <Check /> : matched ? <Sparkles /> : <span className="availability-dot" /> : '—'}</button>;
                 })}
               </div>
             ))}
           </div>
         </div>
-      </div>
-      <div className="match-panel">
-        <div><Sparkles /><span><small>{recommendation?.meetsGoal ? 'BEST MATCH' : 'CLOSEST AVAILABLE'}</small><strong>{recommendation ? `${formatTerm(recommendation.months)} / ${formatMiles(recommendation.miles)} miles` : 'Specialist review'}</strong><p>{recommendation?.meetsGoal ? `This combination aligns with keeping the vehicle ${quote.keepYears} years and driving about ${formatMiles(quote.annualMiles)} miles per year.` : 'This historical matrix does not fully reach your ownership goal. Ask the specialist about another current path.'}</p></span></div>
-        {recommendation && <button type="button" onClick={onUseMatch}>Use this combination <ArrowRight /></button>}
-      </div>
+        <footer><span><small>Selected combination</small><strong>{formatTerm(quote.termMonths)} · {formatMiles(quote.termMiles)} miles</strong></span><button className="button button--primary" type="button" onClick={onClose}>Use selected combination <Check /></button></footer>
+      </section>
     </div>
   );
 }
@@ -258,6 +309,7 @@ function TermMatrix({ matrix, quote, recommendation, showMatrix, onToggleMatrix,
 export default function QuoteStudio({ initial = {}, onClose, onToast, onSaved }) {
   const [step, setStep] = useState(0);
   const [maxStep, setMaxStep] = useState(0);
+  const [saved, setSaved] = useState(false);
   const [planHelp, setPlanHelp] = useState(false);
   const [showMatrix, setShowMatrix] = useState(false);
   const [proposalPreview, setProposalPreview] = useState(false);
@@ -375,11 +427,13 @@ export default function QuoteStudio({ initial = {}, onClose, onToast, onSaved })
       });
       return next;
     });
+    setSaved(false);
     setCrmStatus(null);
   };
 
   const updateCustomer = (field, value) => {
     setQuote((current) => ({ ...current, customer: { ...current.customer, [field]: value } }));
+    setSaved(false);
     setCrmStatus(null);
   };
 
@@ -389,13 +443,18 @@ export default function QuoteStudio({ initial = {}, onClose, onToast, onSaved })
       ? quote.termMiles
       : validMiles.find((miles) => miles >= quote.termMiles) || validMiles.at(-1);
     setQuote((current) => ({ ...current, termMonths: months, termMiles: nextMiles }));
+    setSaved(false);
   };
 
-  const toggleAddOn = (id) => setQuote((current) => ({ ...current, addOns: current.addOns.includes(id) ? current.addOns.filter((item) => item !== id) : [...current.addOns, id] }));
+  const toggleAddOn = (id) => {
+    setQuote((current) => ({ ...current, addOns: current.addOns.includes(id) ? current.addOns.filter((item) => item !== id) : [...current.addOns, id] }));
+    setSaved(false);
+  };
 
   const selectMaintenance = (id) => {
     const choice = maintenanceChoices.find((item) => item.id === id);
     setQuote((current) => ({ ...current, maintenanceId: id, maintenanceName: choice?.title || '' }));
+    setSaved(false);
   };
 
   const quoteForOutput = () => ({ ...quote, planName: plan.name, maintenanceName: quote.maintenanceName || maintenanceChoices.find((item) => item.id === quote.maintenanceId)?.title || '' });
@@ -405,7 +464,13 @@ export default function QuoteStudio({ initial = {}, onClose, onToast, onSaved })
     const existing = JSON.parse(localStorage.getItem('bobMaxeyProtectQuotes') || '[]');
     localStorage.setItem('bobMaxeyProtectQuotes', JSON.stringify([saved, ...existing.filter((item) => item.id !== saved.id)].slice(0, 8)));
     onSaved?.(saved);
+    setSaved(true);
     onToast(`Quote ${saved.id} saved in this browser.`);
+  };
+
+  const continueQuote = () => {
+    if (step === 4) setShowErrors(true);
+    goTo(Math.min(5, step + 1));
   };
 
   const downloadProposal = async () => {
@@ -458,6 +523,7 @@ export default function QuoteStudio({ initial = {}, onClose, onToast, onSaved })
       <div className="quote-studio">
         <header className="studio-header">
           <Brand />
+          <strong className="studio-header__title">Build your Ford Protect quote</strong>
           <div className="studio-header__utilities"><ShieldCheck /> Ford-backed protection · Bob Maxey support</div>
           <button className="studio-close" type="button" onClick={onClose} aria-label="Close quote builder"><X /></button>
         </header>
@@ -532,7 +598,7 @@ export default function QuoteStudio({ initial = {}, onClose, onToast, onSaved })
             {step === 2 && (
               <section className="studio-step">
                 <VehicleStrip quote={quote} onEdit={() => goTo(0)} />
-                <div className="studio-step__heading studio-step__heading--compact"><small>STEP 3 OF 6</small><h1>{quote.program === 'csp' ? 'Understand the monthly coverage path.' : <><span className="term-title-desktop">Build the right Ford Protect plan.</span><span className="term-title-mobile">Choose your term</span></>}</h1><p>{quote.program === 'csp' ? 'CSP follows monthly terms rather than a fixed years-and-miles grid.' : 'Choose a plan, then match the years and mileage to how long you expect to keep your Ford.'}</p></div>
+                <div className="studio-step__heading studio-step__heading--compact"><small>STEP 3 OF 6</small><h1>{quote.program === 'csp' ? 'Understand the monthly coverage path.' : 'Choose how long you want to be protected.'}</h1><p>{quote.program === 'csp' ? 'CSP follows monthly terms rather than a fixed years-and-miles grid.' : 'Pick a term and mileage that fits how you plan to keep and drive your Ford.'}</p></div>
                 {quote.program === 'esp' ? (
                   <div className="term-experience">
                     <div className="term-plan-bar">
@@ -541,7 +607,7 @@ export default function QuoteStudio({ initial = {}, onClose, onToast, onSaved })
                     </div>
                     <div className="studio-section term-builder-section">
                     <div className="term-context"><span><strong>{plan.name}</strong><small>{quote.planPath === 'used' ? 'Used-plan terms begin at signature/current mileage.' : 'New-plan terms measure from original in-service/zero miles.'}</small></span><button type="button" onClick={() => goTo(1)}>Compare protection</button></div>
-                    {matrix.months.length ? <TermMatrix matrix={matrix} quote={quote} recommendation={recommendation} showMatrix={showMatrix} onToggleMatrix={() => setShowMatrix((value) => !value)} onMonth={chooseMonth} onMiles={(miles) => update('termMiles', miles)} onUseMatch={() => setQuote((current) => ({ ...current, termMonths: recommendation.months, termMiles: recommendation.miles }))} /> : <div className="no-standard-matrix"><ShieldCheck /><h2>Specialist review needed</h2><p>A standard used-plan term grid is not shown beyond the historical guide’s current-mileage range. Continued Service Plan may be a better path.</p><button className="button button--secondary" type="button" onClick={() => { update('program', 'csp'); goTo(1); }}>Explore Continued Service Plan</button></div>}
+                    {matrix.months.length ? <TermMatrix matrix={matrix} quote={quote} recommendation={recommendation} onOpenMatrix={() => setShowMatrix(true)} onMonth={chooseMonth} onMiles={(miles) => update('termMiles', miles)} onUseMatch={() => { setQuote((current) => ({ ...current, termMonths: recommendation.months, termMiles: recommendation.miles })); setSaved(false); }} /> : <div className="no-standard-matrix"><ShieldCheck /><h2>Specialist review needed</h2><p>A standard used-plan term grid is not shown beyond the historical guide’s current-mileage range. Continued Service Plan may be a better path.</p><button className="button button--secondary" type="button" onClick={() => { update('program', 'csp'); goTo(1); }}>Explore Continued Service Plan</button></div>}
                     <div className="source-note source-note--plain"><Info /><span><strong>How the two mileage paths differ</strong><small>New-plan mileage is a total odometer limit. Used-plan mileage is additional mileage added from the contract’s starting odometer. Final Ford eligibility can remove or add combinations.</small></span></div>
                     <div className="term-next-settings">
                       <button type="button" onClick={() => goTo(3)}><CircleDollarSign /><span><strong>Deductible</strong><small>{quote.deductible === 'disappearing' ? 'Disappearing deductible selected' : `$${quote.deductible} per covered repair visit`}</small></span><ChevronDown /></button>
@@ -642,12 +708,13 @@ export default function QuoteStudio({ initial = {}, onClose, onToast, onSaved })
               </section>
             )}
           </main>
-          <Summary quote={quote} plan={plan} detail={detail} eligibility={eligibility} onSave={saveQuote} onPreview={() => setProposalPreview(true)} onContinue={() => goTo(Math.min(5, step + 1))} step={step} />
+          <Summary quote={quote} plan={plan} eligibility={eligibility} />
         </div>
-        <div className="studio-mobile-bar"><span><small>{plan.name}</small><strong>{quote.program === 'csp' ? 'Monthly coverage request' : `${formatTerm(quote.termMonths)} · ${formatMiles(quote.termMiles)} mi`}</strong></span><button type="button" onClick={() => goTo(Math.min(5, step + 1))}>{step === 5 ? 'Review' : 'Continue'} <ArrowRight /></button></div>
+        <StudioFooter step={step} quote={quote} saved={saved} onBack={() => goTo(Math.max(0, step - 1))} onContinue={continueQuote} onSave={saveQuote} onPreview={() => setProposalPreview(true)} />
       </div>
       {planHelp && <PlanHelp plan={plan} detail={detail} onClose={() => setPlanHelp(false)} />}
       {proposalPreview && <ProposalPreview quote={quote} plan={plan} detail={detail} onClose={() => setProposalPreview(false)} onDownload={downloadProposal} busy={busy === 'pdf'} />}
+      {showMatrix && <MatrixDrawer matrix={matrix} quote={quote} recommendation={recommendation} onClose={() => setShowMatrix(false)} onMonth={chooseMonth} onMiles={(miles) => update('termMiles', miles)} />}
     </div>
   );
 }

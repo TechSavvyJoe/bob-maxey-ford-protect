@@ -33,8 +33,51 @@ jobs:
       - name: Build site
         run: npm run build
 
-      - name: Add single-page fallback
-        run: cp dist/index.html dist/404.html
+      - name: Add GitHub Pages route entry points
+        shell: bash
+        run: |
+          page_routes=(
+            products
+            compare
+            eligibility
+            how-it-works
+            resources
+          )
+          product_routes=(
+            premium
+            extra
+            base
+            powertrain
+            premium-plus-ev
+            premium-ev
+            extra-ev
+            base-ev
+            premium-maintenance
+            premium-maintenance-ev
+            continued-service
+            tirecare
+            dentcare
+            windshieldcare
+            windshieldcare-ev
+            triplecare
+            surfacecare
+            theftcare
+            commercial
+            incomplete
+            medium-duty
+          )
+
+          for route in "${page_routes[@]}"; do
+            mkdir -p "dist/$route"
+            cp dist/index.html "dist/$route/index.html"
+          done
+
+          for product in "${product_routes[@]}"; do
+            mkdir -p "dist/products/$product"
+            cp dist/index.html "dist/products/$product/index.html"
+          done
+
+          cp dist/index.html dist/404.html
 
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5

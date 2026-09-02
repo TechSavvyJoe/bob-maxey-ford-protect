@@ -102,7 +102,7 @@
 .studio-v5 .studio-header__center > span,
 .studio-v5 .studio-header__utilities small {
   color: var(--qp-muted);
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .studio-v5 .studio-header__utilities strong {

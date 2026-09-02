@@ -212,9 +212,14 @@ export default function ProductDetail({ productId, onBack, onQuote, onContact, o
   const eligibility = asEligibility(detail, quoteProduct);
   const variant = quoteProduct?.configuration?.variants?.[0];
   const purchaseWindow = variant?.purchaseWindowLabel || detail.maxTerm;
-  const start = () => detail.quoteMode === 'dealer'
-    ? onContact()
-    : onQuote({ planId: detail.id, powertrain: detail.quoteMode === 'electric' ? 'Electric' : undefined });
+  const requestableDealerProduct = detail.quoteMode === 'dealer' && Boolean(quoteProduct?.purchaseContexts?.length);
+  const requiredPurchaseContext = quoteProduct?.purchaseContexts?.length === 1 ? quoteProduct.purchaseContexts[0] : undefined;
+  const primaryActionLabel = requestableDealerProduct ? 'Add to My Request' : detail.quoteMode === 'dealer' ? 'Talk With a Specialist' : 'Check My Vehicle';
+  const start = () => requestableDealerProduct
+    ? onQuote({ purchaseContext: requiredPurchaseContext, productId: quoteProduct.id })
+    : detail.quoteMode === 'dealer'
+      ? onContact()
+      : onQuote({ planId: detail.id, powertrain: detail.quoteMode === 'electric' ? 'Electric' : undefined });
   const downloadGuide = async () => {
     if (downloadState === 'working') return;
     setDownloadState('working');
@@ -243,7 +248,7 @@ export default function ProductDetail({ productId, onBack, onQuote, onContact, o
           <p className="pdoem-hero__tagline">{detail.tagline}</p>
           <p className="pdoem-hero__best"><strong>Designed for</strong><span>{detail.bestFor}</span></p>
           <div className="pdoem-actions">
-            <button className="pdoem-button pdoem-button--primary" type="button" onClick={start}>{detail.quoteMode === 'dealer' ? 'Ask a specialist' : 'Build my quote'} <ArrowRight /></button>
+            <button className="pdoem-button pdoem-button--primary" type="button" onClick={start}>{primaryActionLabel} <ArrowRight /></button>
             <button className="pdoem-button pdoem-button--secondary" type="button" onClick={downloadGuide} disabled={downloadState === 'working'}><Download /> {downloadState === 'working' ? 'Preparing guide…' : 'Download product guide'}</button>
             {detail.family.includes('Mechanical') && <button className="pdoem-button pdoem-button--text" type="button" onClick={onCompare}>Compare plans</button>}
           </div>
@@ -320,7 +325,7 @@ export default function ProductDetail({ productId, onBack, onQuote, onContact, o
       <section className="pdoem-footer-cta">
         <div className="pdoem-shell">
           <div><p className="pdoem-eyebrow">Next step</p><h2>Match {detail.name} to your vehicle.</h2><span>Bob Maxey confirms eligibility, available choices and current pricing.</span></div>
-          <div><button className="pdoem-button pdoem-button--primary" type="button" onClick={start}>{detail.quoteMode === 'dealer' ? 'Ask a specialist' : 'Build my quote'} <ArrowRight /></button><button className="pdoem-button pdoem-button--secondary" type="button" onClick={downloadGuide}><Download /> Product guide</button></div>
+          <div><button className="pdoem-button pdoem-button--primary" type="button" onClick={start}>{primaryActionLabel} <ArrowRight /></button><button className="pdoem-button pdoem-button--secondary" type="button" onClick={downloadGuide}><Download /> Product guide</button></div>
         </div>
       </section>
     </article>

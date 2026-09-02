@@ -33,7 +33,7 @@
 .studio-v5 textarea {
   font-family: "Inter Variable", Inter, Arial, sans-serif !important;
   font-optical-sizing: auto;
-  text-rendering: geometricPrecision;
+  text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
 }
 

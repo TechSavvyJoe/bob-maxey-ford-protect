@@ -198,7 +198,7 @@
   .studio-header .brand__protect { height: 17px; }
   .studio-header .brand__divider { height: 22px; }
   .studio-header__title { position: static; margin-left: auto; transform: none; font-size: 0; }
-  .studio-header__title::after { content: 'Build your quote'; font-size: 14px; }
+  .studio-header__title::after { content: 'Build your request'; font-size: 14px; }
   .studio-header__utilities { display: none; }
   .studio-close { width: 36px; height: 36px; }
   .studio-progress { height: 56px; min-height: 56px; padding: 9px 16px 11px; }

@@ -21,7 +21,7 @@ import {
 } from '../quoteProducts';
 import { buildProposalModel } from '../quoteOutput';
 
-const stepNames = ['Vehicle', 'Protection', 'Term', 'Options', 'Your details', 'Review'];
+const stepNames = ['Vehicle & timing', 'Main coverage', 'Coverage window', 'Additional products', 'Contact', 'Review'];
 const optionIcons = {
   'first-day': CarFront,
   'enhanced-rental': Clock3,
@@ -182,7 +182,7 @@ function Field({ label, hint, error, children }) {
 
 function Progress({ step, maxStep, onSelect }) {
   return (
-    <div className="studio-progress" aria-label="Quote progress">
+    <div className="studio-progress" aria-label="Coverage request progress">
       <div className="studio-progress__intro">
         <small>Your protection request</small>
         <strong className="studio-progress__mobile-label">Step {step + 1} of {stepNames.length} · {stepNames[step]}</strong>
@@ -289,14 +289,13 @@ function Summary({ quote, plan, eligibility, selectedProducts = [], inspection }
   return (
     <aside className="studio-summary">
       <div className="studio-summary__desktop">
-        <div className="studio-summary__eyebrow"><span>Your quote</span><strong>{quote.id}</strong></div>
-        <h2>Your quote</h2>
+        <div className="studio-summary__eyebrow"><span>Your request</span><strong>{quote.id}</strong></div>
+        <h2>Your request</h2>
         {summaryRows}
         <div className="studio-summary__options">
           <small className="studio-summary__section-label">Requested additions</small>
           {extras.length ? extras.map((item) => <span key={item}><CheckCircle2 /> {item}</span>) : <span className="is-empty"><PackagePlus /> No additional products yet</span>}
         </div>
-        {inspection && <div className={`summary-inspection ${inspection.required ? 'is-required' : 'is-clear'}`}><ClipboardCheck /><span><small>Inspection status</small><strong>{inspection.shortLabel || inspection.title}</strong></span></div>}
         <div className={`eligibility ${eligibility.tone}`}>
           <CheckCircle2 /><span><strong>{eligibility.title}</strong><small>{eligibility.text}</small></span>
         </div>
@@ -305,7 +304,6 @@ function Summary({ quote, plan, eligibility, selectedProducts = [], inspection }
           <strong>Prepared after eligibility review</strong>
           <small>Your Bob Maxey F&amp;I specialist confirms the current Ford-authorized options and price.</small>
         </div>
-        <p>Ford records and the issued agreement confirm eligibility, coverage, price, and exclusions.</p>
       </div>
       <details className="studio-summary__mobile">
         <summary>
@@ -321,7 +319,6 @@ function Summary({ quote, plan, eligibility, selectedProducts = [], inspection }
             <small className="studio-summary__section-label">Requested additions</small>
             {extras.length ? extras.map((item) => <span key={item}><CheckCircle2 /> {item}</span>) : <span className="is-empty"><PackagePlus /> No additional products yet</span>}
           </div>
-          {inspection && <div className={`summary-inspection ${inspection.required ? 'is-required' : 'is-clear'}`}><ClipboardCheck /><span><small>Inspection status</small><strong>{inspection.shortLabel || inspection.title}</strong></span></div>}
           <div className={`eligibility ${eligibility.tone}`}><CheckCircle2 /><span><strong>{eligibility.title}</strong><small>{eligibility.text}</small></span></div>
         </div>
       </details>
@@ -331,11 +328,11 @@ function Summary({ quote, plan, eligibility, selectedProducts = [], inspection }
 
 function StudioFooter({ step, quote, saved, onBack, onContinue, onSave, onSubmit, submitting }) {
   const termAction = quote.program === 'enginecare' ? 'Review plan limits' : quote.program === 'csp' ? 'Review monthly path' : 'Choose term & mileage';
-  const labels = ['See protection paths', termAction, 'Continue to options', 'Add my details', 'Review my request', 'Submit my quote request'];
+  const labels = ['See coverage choices', termAction, 'Continue to products', 'Add my contact details', 'Review my request', 'Send my request'];
   return (
     <footer className={`studio-footer ${step === 0 ? 'is-first-step' : ''}`}>
       <button className={`studio-footer__back ${step === 0 ? 'is-hidden' : ''}`} type="button" onClick={onBack} tabIndex={step === 0 ? -1 : 0}><ArrowLeft /> Back</button>
-      <button className={`studio-footer__save ${saved ? 'is-saved' : ''}`} type="button" onClick={onSave}>{saved ? <CheckCircle2 /> : <Bookmark />}<span>{saved ? 'Saved' : 'Save quote'} <strong>{quote.id}</strong></span></button>
+      <button className={`studio-footer__save ${saved ? 'is-saved' : ''}`} type="button" onClick={onSave}>{saved ? <CheckCircle2 /> : <Bookmark />}<span>{saved ? 'Saved' : 'Save request'} <strong>{quote.id}</strong></span></button>
       <button className="button button--primary studio-footer__continue" type="button" onClick={step === 5 ? onSubmit : onContinue} disabled={submitting}>{submitting ? 'Sending securely…' : labels[step]} {submitting ? <span className="button-spinner" /> : step === 5 ? <Send /> : <ArrowRight />}</button>
       <small><ShieldCheck /> Ford records and the issued agreement confirm eligibility and coverage.</small>
     </footer>
@@ -391,7 +388,7 @@ function PlanHelp({ plan, detail, onClose }) {
           </div>
           <div className="context-modal__notice"><ShieldCheck /><span><b>The agreement is the final word</b><small>This on-site guide helps compare plans. Covered components, options, term, price, limits, and exclusions must match the agreement issued for the vehicle.</small></span></div>
         </div>
-        <footer><small>Your quote selections stay saved while you review coverage.</small><button className="button button--primary" type="button" onClick={onClose}>Keep {plan.name} selected <ArrowRight /></button></footer>
+        <footer><small>Your request stays saved while you review coverage.</small><button className="button button--primary" type="button" onClick={onClose}>Keep {plan.name} selected <ArrowRight /></button></footer>
       </article>
     </div>
   );
@@ -554,31 +551,102 @@ function ProposalPreview({ quote, plan, detail, onClose, onDownload, busy }) {
   const model = buildProposalModel({ quote, plan, detail });
   const groups = model.coverage.groups || [];
   const products = model.products.additionalProducts || [];
+  const vehicle = model.requestSummary.vehicle;
+  const coverage = model.requestSummary.coverage;
+  const customer = model.requestSummary.customer;
+  const store = model.requestSummary.store;
+  const benefits = (model.overview.benefits || []).slice(0, 6);
+  const vehicleFacts = [
+    ['Current mileage', vehicle.currentMileageLabel],
+    ['VIN', vehicle.vin || 'To be confirmed'],
+    ['Powertrain', vehicle.powertrain || 'To be confirmed'],
+    ['Registered', [vehicle.state, vehicle.zip].filter(Boolean).join(' ') || 'To be confirmed'],
+  ];
+  const documentFooter = (label, pageNumber) => (
+    <footer className="proposal-document__footer">
+      <span>{label}</span>
+      <strong>{model.document.quoteId}</strong>
+      <b>{pageNumber}</b>
+    </footer>
+  );
+  const coveragePageCount = Math.max(1, Math.ceil(groups.length / 4));
+  const coverageChunkSize = Math.max(1, Math.ceil(groups.length / coveragePageCount));
+  const coverageChunks = groups.length
+    ? Array.from({ length: coveragePageCount }, (_, index) => groups.slice(index * coverageChunkSize, (index + 1) * coverageChunkSize)).filter((chunk) => chunk.length)
+    : [groups];
+  const productsPageNumber = coverageChunks.length + 2;
+  const nextStepsPageNumber = productsPageNumber + 1;
   const pages = [
-    <section className="proposal-document proposal-document--cover" key="cover">
-      <header><img src={assetUrl('/assets/bob-maxey-logo.png')} alt="Bob Maxey" /><img src={assetUrl('/assets/ford-official/ford-protect-logo.png')} alt="Ford Protect" /></header>
-      <div className="proposal-document__hero"><img src={assetUrl(model.cover.vehicleImage)} alt={model.cover.vehicleImageAlt} /><div><small>{model.cover.eyebrow}</small><h2>{model.cover.headline}</h2><p>{model.cover.subhead}</p></div></div>
-      <div className="proposal-document__body"><small>PREPARED FOR</small><h3>{model.cover.preparedFor}</h3><p>{model.cover.vehicle}</p><p className="proposal-document__journey">{model.cover.purchaseContextLabel}</p><div className="proposal-document__selection"><span><small>Selected plan</small><strong>{model.cover.planName}</strong></span><span><small>Term</small><strong>{model.cover.termLabel}</strong></span><span><small>Mileage</small><strong>{model.cover.mileageLabel}</strong></span><span><small>Deductible</small><strong>{model.cover.deductibleLabel}</strong></span></div><div className="proposal-document__band"><ShieldCheck /><span><strong>Ford-backed protection. Bob Maxey support.</strong><small>Reference {model.document.quoteId}</small></span></div></div>
-    </section>,
-    <section className="proposal-document" key="coverage">
-      <header><img src={assetUrl('/assets/ford-official/ford-protect-logo.png')} alt="Ford Protect" /><span><small>YOUR SELECTED COVERAGE</small><strong>{plan.name}</strong></span></header>
-      <div className="proposal-document__body"><small>PLAN OVERVIEW</small><h2>{model.coverage.headline}</h2><p>{model.overview.coverageModel}</p><div className="proposal-document__coverage-grid">{groups.map((group) => <article key={group.title}><CheckCircle2 /><div><h3>{group.title}</h3><p>{group.summary}</p><ul>{group.items.slice(0, 5).map((item) => <li key={item}>{item}</li>)}</ul></div></article>)}</div><p className="proposal-document__legal">{model.coverage.note}</p></div>
-    </section>,
-    <section className="proposal-document" key="products">
-      <header><img src={assetUrl('/assets/ford-official/ford-protect-logo.png')} alt="Ford Protect" /><span><small>PERSONALIZED REQUEST</small><strong>Added protection</strong></span></header>
-      <div className="proposal-document__body"><small>ADDITIONAL FORD PROTECT PRODUCTS</small><h2>Protection selected around your ownership needs.</h2>{products.length ? <div className="proposal-document__products">{products.map((product) => <article key={product.id}><img src={assetUrl(product.image)} alt={product.imageAlt} /><div><small>{product.familyLabel}</small><h3>{product.name}</h3>{product.configuration?.labels?.length > 0 && <p className="proposal-document__configuration">{product.configuration.labels.join(' · ')}</p>}<p>{product.value || product.description}</p><ul>{product.highlights.slice(0, 4).map((item) => <li key={item}><Check /> {item}</li>)}</ul></div></article>)}</div> : <div className="proposal-document__empty"><PackagePlus /><h3>No additional products requested</h3><p>The primary coverage request remains ready for specialist review.</p></div>}<div className="proposal-document__inspection"><ClipboardCheck /><span><small>INSPECTION PATH</small><strong>{model.overview.inspection.title}</strong><p>{model.overview.inspection.message}</p></span></div></div>
-    </section>,
-    <section className="proposal-document" key="next">
-      <header><img src={assetUrl('/assets/bob-maxey-logo.png')} alt="Bob Maxey" /><span><small>BOB MAXEY SUPPORT</small><strong>Your next steps</strong></span></header>
-      <div className="proposal-document__body"><small>WHAT HAPPENS NEXT</small><h2>Your specialist turns this request into an exact Ford offer.</h2><div className="proposal-document__steps">{model.nextSteps.map((item) => <article key={item.number}><strong>{item.number}</strong><span><h3>{item.title}</h3><p>{item.text}</p></span></article>)}</div><div className="proposal-document__summary"><h3>Request summary</h3><dl><div><dt>Journey</dt><dd>{model.requestSummary.purchaseContextLabel}</dd></div><div><dt>Customer</dt><dd>{model.requestSummary.customer.fullName}</dd></div><div><dt>Vehicle</dt><dd>{model.requestSummary.vehicle.displayName}</dd></div><div><dt>Coverage</dt><dd>{model.requestSummary.coverage.planName}</dd></div><div><dt>Payment preference</dt><dd>{model.requestSummary.payment.preference}</dd></div><div><dt>Preferred location</dt><dd>{model.requestSummary.store.descriptor}</dd></div><div><dt>Reference</dt><dd>{model.document.quoteId}</dd></div></dl></div><p className="proposal-document__legal">{model.disclaimer}</p></div>
-    </section>,
+    {
+      title: 'Cover',
+      description: 'Vehicle and selected protection',
+      content: <section className="proposal-document proposal-document--cover" key="cover">
+        <header className="proposal-document__masthead"><span><img src={assetUrl('/assets/bob-maxey-logo.png')} alt="Bob Maxey" /><i /><img src={assetUrl('/assets/ford-official/ford-protect-logo.png')} alt="Ford Protect" /></span><div><small>QUOTE REFERENCE</small><strong>{model.document.quoteId}</strong></div></header>
+        <div className="proposal-document__hero"><img src={assetUrl(model.cover.vehicleImage)} alt={model.cover.vehicleImageAlt} /><div><span /><h2>{model.cover.headline}</h2><p>{model.cover.subhead}</p></div></div>
+        <div className="proposal-document__body proposal-document__body--cover">
+          <div className="proposal-document__identity"><div><small>PREPARED FOR</small><h3>{model.cover.preparedFor}</h3><p>{model.cover.purchaseContextLabel}</p></div><div><CarFront /><span><small>YOUR VEHICLE</small><h3>{model.cover.vehicle}</h3><p>{vehicle.currentMileageLabel}</p></span></div></div>
+          <div className="proposal-document__vehicle-facts">{vehicleFacts.map(([label, value]) => <span key={label}><small>{label}</small><strong>{value}</strong></span>)}</div>
+          <section className="proposal-document__plan-intro"><div><small>YOUR SELECTED PROTECTION</small><h2>{model.cover.planName}</h2><p>{coverage.description || model.overview.coverageModel}</p></div><ShieldCheck /></section>
+          <div className="proposal-document__selection"><span><small>Term</small><strong>{model.cover.termLabel}</strong></span><span><small>Mileage</small><strong>{model.cover.mileageLabel}</strong></span><span><small>Deductible</small><strong>{model.cover.deductibleLabel}</strong></span><span><small>Added products</small><strong>{products.length || 'None requested'}</strong></span></div>
+          <div className="proposal-document__band"><span><ShieldCheck /><strong>Ford-backed coverage</strong></span><span><MapPin /><strong>Nationwide dealer support</strong></span><span><CarFront /><strong>Rental benefits where included</strong></span></div>
+        </div>
+        {documentFooter('Personalized Ford Protect request', 1)}
+      </section>,
+    },
+    ...coverageChunks.map((pageGroups, chunkIndex) => {
+      const isFirstCoveragePage = chunkIndex === 0;
+      const isLastCoveragePage = chunkIndex === coverageChunks.length - 1;
+      const pageNumber = chunkIndex + 2;
+      return {
+        title: coverageChunks.length > 1 ? `Coverage ${chunkIndex + 1}` : 'Coverage',
+        description: isFirstCoveragePage ? 'Plan terms and covered systems' : 'Additional covered systems',
+        content: <section className="proposal-document proposal-document--coverage" key={`coverage-${chunkIndex}`}>
+          <header className="proposal-document__title-band"><div><span /><small>{isFirstCoveragePage ? 'YOUR SELECTED COVERAGE' : 'COVERAGE CONTINUED'}</small><h2>{isFirstCoveragePage ? plan.name : `${plan.name} covered systems`}</h2><p>{isFirstCoveragePage ? model.overview.coverageModel : 'More of the systems and component examples included in your selected protection level.'}</p></div><img src={assetUrl('/assets/ford-official/ford-protect-logo.png')} alt="Ford Protect" /></header>
+          <div className="proposal-document__body">
+            {isFirstCoveragePage && <div className="proposal-document__plan-facts"><span><small>Coverage model</small><strong>{coverage.programLabel}</strong></span><span><small>Term</small><strong>{model.cover.termLabel}</strong></span><span><small>Mileage</small><strong>{model.cover.mileageLabel}</strong></span><span><small>Deductible</small><strong>{model.cover.deductibleLabel}</strong></span>{model.overview.componentCount && <span><small>Published component count</small><strong>{model.overview.componentCount}</strong></span>}</div>}
+            <div className="proposal-document__section-heading"><span><small>{isFirstCoveragePage ? 'KEY COVERED SYSTEMS' : 'MORE COVERED SYSTEMS'}</small><h2>{isFirstCoveragePage ? model.coverage.headline : `Continue exploring ${plan.name}.`}</h2></span><p>{isFirstCoveragePage ? model.overview.bestFor : 'Component examples are organized by vehicle system for easy review.'}</p></div>
+            <div className="proposal-document__coverage-grid">{pageGroups.map((group) => <article key={group.title}><CheckCircle2 /><div><h3>{group.title}</h3><p>{group.summary}</p><ul>{group.items.slice(0, 5).map((item) => <li key={item}>{item}</li>)}</ul></div></article>)}</div>
+            {isLastCoveragePage && benefits.length > 0 && <section className="proposal-document__benefits"><small>PLAN BENEFITS</small><div>{benefits.map((benefit) => <span key={benefit.title}><CheckCircle2 /><strong>{benefit.title}</strong>{benefit.text && <small>{benefit.text}</small>}</span>)}</div></section>}
+            {isLastCoveragePage && <p className="proposal-document__legal">{model.coverage.note}</p>}
+          </div>
+          {documentFooter(`${plan.name} coverage ${coverageChunks.length > 1 ? `${chunkIndex + 1} of ${coverageChunks.length}` : 'overview'}`, pageNumber)}
+        </section>,
+      };
+    }),
+    {
+      title: 'Products',
+      description: 'Additional selections and inspection',
+      content: <section className="proposal-document proposal-document--products" key="products">
+        <header className="proposal-document__title-band"><div><span /><small>YOUR OWNERSHIP PLAN</small><h2>Additional protection selected for your Ford.</h2><p>Each requested product is reviewed for vehicle-specific eligibility and current Ford availability.</p></div><img src={assetUrl('/assets/ford-official/ford-protect-logo.png')} alt="Ford Protect" /></header>
+        <div className="proposal-document__body">
+          {products.length ? <div className="proposal-document__products">{products.map((product) => <article key={product.id}>{product.image && <img src={assetUrl(product.image)} alt={product.imageAlt || product.name} />}<div><small>{product.familyLabel || 'FORD PROTECT PRODUCT'}</small><h3>{product.name}</h3>{product.configuration?.labels?.length > 0 && <p className="proposal-document__configuration">{product.configuration.labels.join(' · ')}</p>}<p>{product.value || product.description}</p><ul>{product.highlights.slice(0, 4).map((item) => <li key={item}><Check /> {item}</li>)}</ul>{product.eligibility?.headline && <span className="proposal-document__product-status"><CheckCircle2 /> {product.eligibility.headline}</span>}</div></article>)}</div> : <div className="proposal-document__empty"><PackagePlus /><span><small>NO ADDITIONAL PRODUCTS REQUESTED</small><h3>Your primary Ford Protect coverage remains the focus.</h3><p>A specialist can still explain eligible maintenance, mobility, tire-and-wheel, or appearance protection before you make a decision.</p></span></div>}
+          <div className={`proposal-document__inspection ${model.overview.inspection.required ? 'is-required' : 'is-clear'}`}><ClipboardCheck /><span><small>VEHICLE INSPECTION PATH</small><strong>{model.overview.inspection.title}</strong><p>{model.overview.inspection.message}</p>{model.overview.inspection.caveat && <em>{model.overview.inspection.caveat}</em>}</span></div>
+          <div className="proposal-document__product-summary"><span><small>PRIMARY COVERAGE</small><strong>{coverage.planName}</strong></span><span><small>ADDITIONAL PRODUCTS</small><strong>{products.length ? products.map((product) => product.name).join(', ') : 'None requested'}</strong></span><span><small>PAYMENT PREFERENCE</small><strong>{model.requestSummary.payment.preference}</strong></span></div>
+        </div>
+        {documentFooter('Selected products and eligibility path', productsPageNumber)}
+      </section>,
+    },
+    {
+      title: 'Next steps',
+      description: 'Specialist review and contact',
+      content: <section className="proposal-document proposal-document--next" key="next">
+        <header className="proposal-document__title-band"><div><span /><small>BOB MAXEY SUPPORT</small><h2>What happens after your request.</h2><p>Your specialist turns these selections into a current, vehicle-specific Ford Protect offer.</p></div><img src={assetUrl('/assets/bob-maxey-logo.png')} alt="Bob Maxey" /></header>
+        <div className="proposal-document__body">
+          <div className="proposal-document__next-layout"><section><small>YOUR NEXT STEPS</small><div className="proposal-document__steps">{model.nextSteps.map((item) => <article key={item.number}><strong>{item.number}</strong><span><h3>{item.title}</h3><p>{item.text}</p></span></article>)}</div></section><aside><small>REQUEST CONTACT</small><h3>{customer.fullName}</h3><dl><div><dt>Email</dt><dd>{customer.email || 'To be confirmed'}</dd></div><div><dt>Phone</dt><dd>{customer.phone || 'To be confirmed'}</dd></div><div><dt>Preferred method</dt><dd>{model.requestSummary.contact.preferredMethod}</dd></div><div><dt>Location</dt><dd>{store.descriptor}</dd></div></dl></aside></div>
+          <div className="proposal-document__summary"><div><small>REQUEST SUMMARY</small><h3>{vehicle.displayName}</h3><p>{vehicle.currentMileageLabel} · {coverage.planName}</p></div><dl><div><dt>Plan path</dt><dd>{coverage.planPathLabel}</dd></div><div><dt>Term</dt><dd>{coverage.term.label}</dd></div><div><dt>Mileage</dt><dd>{coverage.term.mileageLabel}</dd></div><div><dt>Deductible</dt><dd>{coverage.deductible.label}</dd></div><div><dt>Inspection</dt><dd>{model.overview.inspection.title}</dd></div><div><dt>Reference</dt><dd>{model.document.quoteId}</dd></div></dl></div>
+          <div className="proposal-document__pricing"><CircleDollarSign /><span><small>{model.overview.pricing.title}</small><strong>{model.overview.pricing.message}</strong></span></div>
+          <p className="proposal-document__legal">{model.disclaimer}</p>
+        </div>
+        {documentFooter('Bob Maxey specialist handoff', nextStepsPageNumber)}
+      </section>,
+    },
   ];
   return (
-    <div className="proposal-backdrop" role="dialog" aria-modal="true" aria-label="Proposal preview">
-      <div className="proposal-preview">
-        <header><Brand /><div><small>PERSONALIZED CUSTOMER PROPOSAL</small><strong>Page {pageIndex + 1} of {pages.length}</strong></div><button type="button" onClick={onClose} aria-label="Close preview"><X /></button></header>
-        <div className="proposal-preview__workspace"><nav aria-label="Proposal pages">{pages.map((_, index) => <button key={index} type="button" className={pageIndex === index ? 'is-current' : ''} onClick={() => setPageIndex(index)}><span>{index + 1}</span><small>{['Cover', 'Coverage', 'Products', 'Next steps'][index]}</small></button>)}</nav><div className="proposal-preview__page">{pages[pageIndex]}</div></div>
-        <footer><button className="button button--secondary" type="button" onClick={() => setPageIndex(Math.max(0, pageIndex - 1))} disabled={pageIndex === 0}><ArrowLeft /> Previous</button><span><button className="back-link" type="button" onClick={onClose}>Close preview</button><button className="button button--primary" type="button" onClick={onDownload} disabled={busy}>{busy ? 'Designing PDF…' : 'Download professional PDF'} <Download /></button></span><button className="button button--secondary" type="button" onClick={() => setPageIndex(Math.min(pages.length - 1, pageIndex + 1))} disabled={pageIndex === pages.length - 1}>Next <ArrowRight /></button></footer>
+    <div className="proposal-backdrop proposal-backdrop--handoff" role="dialog" aria-modal="true" aria-label="Personalized Ford Protect proposal preview">
+      <div className="proposal-preview proposal-preview--handoff">
+        <header className="proposal-preview__header"><Brand /><div className="proposal-preview__heading"><small>PERSONALIZED CUSTOMER PROPOSAL</small><strong>{vehicle.displayName}</strong><span>Page {pageIndex + 1} of {pages.length} · {model.document.quoteId}</span></div><button type="button" onClick={onClose} aria-label="Close preview"><X /></button></header>
+        <div className="proposal-preview__workspace"><nav aria-label="Proposal pages">{pages.map((page, index) => <button key={page.title} type="button" aria-current={pageIndex === index ? 'page' : undefined} className={pageIndex === index ? 'is-current' : ''} onClick={() => setPageIndex(index)}><span>{index + 1}</span><i><strong>{page.title}</strong><small>{page.description}</small></i><ChevronRight /></button>)}</nav><div className="proposal-preview__page" key={pageIndex}>{pages[pageIndex].content}</div></div>
+        <footer className="proposal-preview__footer"><button className="button button--secondary" type="button" onClick={() => setPageIndex(Math.max(0, pageIndex - 1))} disabled={pageIndex === 0}><ArrowLeft /> Previous</button><div><button className="back-link" type="button" onClick={onClose}>Close preview</button><button className="button button--primary" type="button" onClick={onDownload} disabled={busy}>{busy ? 'Preparing PDF…' : 'Download proposal'} <Download /></button></div><button className="button button--secondary" type="button" onClick={() => setPageIndex(Math.min(pages.length - 1, pageIndex + 1))} disabled={pageIndex === pages.length - 1}>Next <ArrowRight /></button></footer>
       </div>
     </div>
   );
@@ -752,8 +820,8 @@ export default function QuoteStudio({ initial = {}, onClose, onToast, onSaved })
     termMiles: Number(initial.termMiles || 100000),
     deductible: String(initial.deductible ?? '100'),
     addOns: initial.addOns || [],
-    requestedProductIds: initial.requestedProductIds || [],
-    productSelections: initial.productSelections || {},
+    requestedProductIds: initial.requestedProductIds || (initial.productId ? [initial.productId] : []),
+    productSelections: initial.productSelections || (initial.productId ? { [initial.productId]: defaultProductSelection(quoteProducts.find((item) => item.id === initial.productId), initial.powertrain || 'Gas') } : {}),
     maintenanceId: initial.maintenanceId || 'none',
     maintenanceName: initial.maintenanceName || '',
     maintenanceInterval: Number(initial.maintenanceInterval || 7500),
@@ -820,6 +888,7 @@ export default function QuoteStudio({ initial = {}, onClose, onToast, onSaved })
       : productCatalog.filter((item) => item.category === productCategory);
   const phoneDigits = quote.customer.phone.replace(/\D/g, '');
   const detailsValid = Boolean(quote.customer.firstName.trim() && quote.customer.lastName.trim() && /\S+@\S+\.\S+/.test(quote.customer.email) && phoneDigits.length >= 10 && quote.consent);
+  const showCrmTools = import.meta.env.DEV || new URLSearchParams(window.location.search).has('crmtest');
 
   const eligibility = useMemo(() => {
     const mileage = Number(quote.mileage || 0);
@@ -1041,7 +1110,7 @@ export default function QuoteStudio({ initial = {}, onClose, onToast, onSaved })
     localStorage.setItem('bobMaxeyProtectQuotes', JSON.stringify([saved, ...existing.filter((item) => item.id !== saved.id)].slice(0, 8)));
     onSaved?.(saved);
     setSaved(true);
-    onToast(`Quote ${saved.id} saved in this browser.`);
+    onToast(`Request ${saved.id} saved in this browser.`);
   };
 
   const continueQuote = () => {
@@ -1113,7 +1182,7 @@ export default function QuoteStudio({ initial = {}, onClose, onToast, onSaved })
       saveQuote();
       const receipt = { leadId: result.leadId || quote.id, receivedAt: result.receivedAt || new Date().toISOString() };
       setSubmissionReceipt(receipt);
-      setCrmStatus({ tone: 'success', title: 'Request delivered to Bob Maxey', text: `Quote ${quote.id} was accepted as an F&I Product Only Sale lead.` });
+      setCrmStatus({ tone: 'success', title: 'Request delivered to Bob Maxey', text: `Request ${quote.id} was accepted by the dealership lead system.` });
     } catch (error) {
       console.error(error);
       setCrmStatus({ tone: 'error', title: 'Request was not delivered', text: 'Nothing was marked sent. Please try again or contact the dealership.' });
@@ -1123,13 +1192,13 @@ export default function QuoteStudio({ initial = {}, onClose, onToast, onSaved })
   };
 
   return (
-    <div className="studio-backdrop studio-v5" role="dialog" aria-modal="true" aria-label="Build your Ford Protect quote">
+    <div className="studio-backdrop studio-v5" role="dialog" aria-modal="true" aria-label="Build your Ford Protect coverage request">
       <div className="quote-studio">
         <header className="studio-header">
           <div className="studio-header__brand"><Brand /><span><small>Bob Maxey coverage center</small><strong>Ford Protect</strong></span></div>
           <div className="studio-header__center"><small>BOB MAXEY FORD PROTECT</small><strong className="studio-header__title">Build your protection request</strong><span>{step === 0 ? quote.purchaseContext === 'shopping' ? 'Planning protection with a Bob Maxey vehicle purchase' : quote.purchaseContext === 'owner' ? 'Adding protection to a vehicle you already own' : 'Choose your vehicle journey to begin' : `${quote.year} ${quote.make} ${quote.model || 'vehicle'} · ${plan.name}`}</span></div>
           <div className="studio-header__utilities"><ShieldCheck /><span><strong>Ford-backed</strong><small>Specialist supported</small></span></div>
-          <button className="studio-close" type="button" onClick={onClose} aria-label="Close quote builder"><X /></button>
+          <button className="studio-close" type="button" onClick={onClose} aria-label="Close coverage builder"><X /></button>
         </header>
         <Progress step={step} maxStep={maxStep} onSelect={goTo} />
         <div className={`studio-layout ${step === 5 ? 'is-review' : ''}`}>
@@ -1288,8 +1357,8 @@ export default function QuoteStudio({ initial = {}, onClose, onToast, onSaved })
             {step === 5 && (
               submissionReceipt ? (
                 <section className="studio-step studio-success">
-                  <div className="studio-success__mark"><Check /></div><small>REQUEST ACCEPTED</small><h1>Your Ford Protect request is on its way.</h1><p>A Bob Maxey specialist will review your vehicle, coverage, and product selections and contact you by {quote.preferredContact === 'text' ? 'text message' : quote.preferredContact === 'email' ? 'email' : 'phone'}.</p>
-                  <div className="studio-success__reference"><span><small>REFERENCE</small><strong>{quote.id}</strong></span><span><small>CRM RECEIPT</small><strong>{submissionReceipt.leadId}</strong></span></div>
+                  <div className="studio-success__mark"><Check /></div><small>REQUEST RECEIVED</small><h1>Your Ford Protect request has been received.</h1><p>A Bob Maxey specialist will review your vehicle, coverage, and product selections and contact you by {quote.preferredContact === 'text' ? 'text message' : quote.preferredContact === 'email' ? 'email' : 'phone'}.</p>
+                  <div className="studio-success__reference"><span><small>YOUR REFERENCE</small><strong>{quote.id}</strong></span><span><small>DEALERSHIP RECEIPT</small><strong>{submissionReceipt.leadId}</strong></span></div>
                   <div className="studio-success__next"><h2>What happens next</h2><div><span><strong>1</strong><p>We verify the VIN, warranty status, inspection path, and current Ford eligibility.</p></span><span><strong>2</strong><p>Your specialist confirms the exact plan, selected products, and Bob Maxey price.</p></span><span><strong>3</strong><p>You review the issued agreement before deciding whether to purchase coverage.</p></span></div></div>
                   <div className="studio-success__actions"><button className="button button--secondary" type="button" onClick={() => setProposalPreview(true)}><Eye /> Preview proposal</button><button className="button button--primary" type="button" onClick={downloadProposal} disabled={busy === 'pdf'}>{busy === 'pdf' ? 'Preparing…' : 'Download personalized proposal'} <Download /></button></div>
                   {selectedProducts.length > 0 && <section className="selected-product-guides selected-product-guides--success"><div><small>DETAILED PRODUCT GUIDES</small><h2>Keep the details for every product you requested.</h2><p>Your personalized proposal stays concise. These separate guides explain each product in more depth.</p></div><div>{selectedProducts.map((product) => <button key={product.id} type="button" onClick={() => downloadSelectedProductGuide(product)} disabled={busy === `guide-${product.id}`}><FileText /><span><strong>{product.name}</strong><small>{busy === `guide-${product.id}` ? 'Preparing guide…' : 'Download product guide'}</small></span><Download /></button>)}</div></section>}
@@ -1297,7 +1366,7 @@ export default function QuoteStudio({ initial = {}, onClose, onToast, onSaved })
               ) : (
                 <section className="studio-step studio-review">
                   <div className="studio-step__heading"><small>STEP 6 OF 6</small><h1>Review your complete protection request.</h1><p>Confirm the vehicle, primary coverage, additional products, and follow-up details before submitting to Bob Maxey.</p></div>
-                  <div className="review-hero"><div><small>PERSONAL PROTECTION SUMMARY</small><h2>{plan.name}</h2><p>{quote.year} {quote.make} {quote.model} · Quote {quote.id}</p></div><img src={assetUrl('/assets/ford-official/ford-protect-logo.png')} alt="Ford Protect" /></div>
+                  <div className="review-hero"><div><small>PERSONAL PROTECTION SUMMARY</small><h2>{plan.name}</h2><p>{quote.year} {quote.make} {quote.model} · Reference {quote.id}</p></div><img src={assetUrl('/assets/ford-official/ford-protect-logo.png')} alt="Ford Protect" /></div>
                   <div className="review-section-grid">
                     <details className="review-disclosure"><summary><CarFront /><span><small>VEHICLE</small><h2>{quote.year} {quote.make} {quote.model}</h2></span><button type="button" onClick={(event) => { event.preventDefault(); event.stopPropagation(); goTo(0); }}>Edit</button><ChevronDown className="review-chevron" /></summary><dl><div><dt>VIN</dt><dd>{quote.vin || 'To be confirmed'}</dd></div><div><dt>Current mileage</dt><dd>{formatMiles(quote.mileage)} miles</dd></div><div><dt>Warranty / inspection</dt><dd>{inspection.shortLabel}</dd></div></dl></details>
                     <details className="review-disclosure"><summary><ShieldCheck /><span><small>PRIMARY COVERAGE</small><h2>{plan.name}</h2></span><button type="button" onClick={(event) => { event.preventDefault(); event.stopPropagation(); goTo(1); }}>Edit</button><ChevronDown className="review-chevron" /></summary><dl><div><dt>Term</dt><dd>{quote.program === 'csp' ? 'Monthly / no annual mileage limit' : quote.program === 'enginecare' ? '7 years / 200,000 total miles / 8,000 engine hours referenced maximum' : `${formatTerm(quote.termMonths)} / ${formatMiles(quote.termMiles)} ${quote.planPath === 'used' ? 'additional' : 'total'} miles`}</dd></div><div><dt>Deductible</dt><dd>{quote.program === 'csp' ? 'Confirmed with offer' : quote.program === 'enginecare' ? '$100' : quote.deductible === 'disappearing' ? 'Disappearing' : `$${quote.deductible}`}</dd></div><div><dt>{quote.program === 'enginecare' ? 'Eligibility review' : 'Benefit requests'}</dt><dd>{quote.program === 'csp' ? `${cspLevel.name} CSP offer` : quote.program === 'enginecare' ? 'Power Stroke engine, mileage, hours, use, and current Ford offer' : protectionOptions.filter((item) => quote.addOns.includes(item.id)).map((item) => item.title).join(', ') || 'None requested'}</dd></div></dl></details>
@@ -1308,7 +1377,7 @@ export default function QuoteStudio({ initial = {}, onClose, onToast, onSaved })
                   {selectedProducts.length > 0 && <section className="selected-product-guides"><div><small>OPTIONAL DOWNLOADS</small><h2>Detailed guides for your selected products</h2><p>Download only the deeper product information you want to keep.</p></div><div>{selectedProducts.map((product) => <button key={product.id} type="button" onClick={() => downloadSelectedProductGuide(product)} disabled={busy === `guide-${product.id}`}><FileText /><span><strong>{product.name}</strong><small>{productSelectionLabel(product, quote.productSelections?.[product.id])}</small></span><Download /></button>)}</div></section>}
                   {crmStatus && <div className={`crm-status ${crmStatus.tone}`}><CheckCircle2 /><span><strong>{crmStatus.title}</strong><small>{crmStatus.text}</small></span></div>}
                   <div className="review-notice"><ShieldCheck /><span><strong>Ready for specialist review—not a purchase</strong><small>Submitting sends this request to Bob Maxey. Coverage is issued only after eligibility, price, and the Ford Protect agreement are confirmed and you approve the final offer.</small></span></div>
-                  <details className="crm-test-tools"><summary><span><Download /> CRM testing tools</span><small>For dealership setup only</small></summary><div><p>Download an ADF/XML test file for the {CRM_DESTINATION} DealerMail route. This does not send customer data.</p><button className="button button--secondary" type="button" onClick={downloadXml}><Download /> Download CRM test</button></div></details>
+                  {showCrmTools && <details className="crm-test-tools"><summary><span><Download /> CRM testing tools</span><small>For dealership setup only</small></summary><div><p>Download an ADF/XML test file for the {CRM_DESTINATION} DealerMail route. This does not send customer data.</p><button className="button button--secondary" type="button" onClick={downloadXml}><Download /> Download CRM test</button></div></details>}
                 </section>
               )
             )}

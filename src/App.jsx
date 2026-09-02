@@ -12,12 +12,17 @@ import FaqSection from './components/FaqSection';
 import QuoteStudio from './components/QuoteStudio';
 import TrustFooter from './components/TrustFooter';
 import { ContactPanel, ResourcePanel, SavedQuotes } from './components/UtilityModal';
-import { afterSaleProductCategories, hiddenCustomerProductIds } from './data';
+import { hiddenCustomerProductIds, productCategories } from './data';
 import { appPathname, appUrl } from './paths';
 
 const validPages = ['home', 'products', 'compare', 'eligibility', 'how-it-works', 'resources'];
-const availableProductIds = new Set(afterSaleProductCategories.flatMap((category) => category.products.map((product) => product.id)));
 const hiddenCustomerProductIdSet = new Set(hiddenCustomerProductIds);
+const availableProductIds = new Set(
+  productCategories
+    .flatMap((category) => category.products)
+    .filter((product) => !hiddenCustomerProductIdSet.has(product.id))
+    .map((product) => product.id),
+);
 const pageFromPath = () => {
   const slug = appPathname().split('/').filter(Boolean)[0] || 'home';
   return validPages.includes(slug) ? slug : 'home';
@@ -145,7 +150,7 @@ export default function App() {
           <CheckCircle2 /> <span>{toast}</span><button type="button" onClick={() => setToast('')} aria-label="Dismiss"><X /></button>
         </div>
       )}
-      {!productId && <button className="mobile-sticky-cta" type="button" onClick={() => openQuote()}>Get My Price <span>→</span></button>}
+      {!productId && <button className="mobile-sticky-cta" type="button" onClick={() => openQuote()}>Check My Vehicle <span>→</span></button>}
     </div>
   );
 }

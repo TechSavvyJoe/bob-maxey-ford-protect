@@ -1,4 +1,4 @@
-import { ArrowRight, CarFront, CheckCircle2, Download, FileCheck2, MapPin, Search, ShieldCheck, X } from 'lucide-react';
+import { ArrowRight, CarFront, CheckCircle2, FileCheck2, MapPin, Search, ShieldCheck, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import Brand from './Brand';
 import { locations } from '../data';
@@ -30,11 +30,11 @@ export function SavedQuotes({ onClose, onLoad }) {
   const filtered = quotes.filter((quote) => quote.id.toLowerCase().includes(search.toLowerCase()));
 
   return (
-    <ModalShell title="Find a saved quote" onClose={onClose}>
+    <ModalShell title="Find a saved request" onClose={onClose}>
       <div className="utility-modal__body">
-        <h1>Find a saved quote</h1>
+        <h1>Find a saved request</h1>
         <p>Saved drafts stay in this browser so you can return to them before submitting a completed request.</p>
-        <label className="search-field"><Search /><input placeholder="Enter quote number" value={search} onChange={(event) => setSearch(event.target.value)} /></label>
+        <label className="search-field"><Search /><input placeholder="Enter request number" value={search} onChange={(event) => setSearch(event.target.value)} /></label>
         <div className="saved-list">
           {filtered.map((quote) => (
             <button key={quote.id} type="button" onClick={() => onLoad(quote)}>
@@ -43,7 +43,7 @@ export function SavedQuotes({ onClose, onLoad }) {
               <ArrowRight />
             </button>
           ))}
-          {!filtered.length && <div className="empty-saved"><CarFront /><strong>No matching saved quotes</strong><span>Start a quote and choose “Save quote” to keep a draft here.</span></div>}
+          {!filtered.length && <div className="empty-saved"><CarFront /><strong>No matching saved requests</strong><span>Start a request and choose “Save request” to keep a draft in this browser.</span></div>}
         </div>
       </div>
     </ModalShell>
@@ -58,7 +58,7 @@ export function ContactPanel({ onClose, initialLocation, onToast }) {
     <ModalShell title="Talk to a Bob Maxey specialist" onClose={onClose}>
       <div className="utility-modal__body contact-panel">
         <h1>Talk to a Ford Protect specialist</h1>
-        <p>Choose the Bob Maxey location you want connected to the final quote and purchase workflow.</p>
+        <p>Choose the Bob Maxey location you want connected to your coverage request and follow-up.</p>
         <div className="contact-locations">
           {locations.map((item) => (
             <button key={item.name} type="button" className={location === item.name ? 'is-selected' : ''} onClick={() => setLocation(item.name)}>
@@ -75,9 +75,9 @@ export function ContactPanel({ onClose, initialLocation, onToast }) {
 
 const resourceContent = {
   documents: {
-    title: 'Coverage documents',
-    intro: 'Give customers one place to review official plan provisions before they buy.',
-    items: ['PremiumCARE plan provisions', 'ExtraCARE plan provisions', 'BaseCARE & PowertrainCARE provisions', 'Maintenance and TripleCARE+ documents'],
+    title: 'Coverage guides',
+    intro: 'Review the on-site product guides before asking Bob Maxey to confirm the vehicle-specific offer.',
+    items: ['PremiumCARE coverage guide', 'ExtraCARE coverage guide', 'BaseCARE and PowertrainCARE guides', 'Maintenance and vehicle-care product guides'],
   },
   eligibility: {
     title: 'Vehicle eligibility',
@@ -91,22 +91,22 @@ const resourceContent = {
   },
   privacy: {
     title: 'Privacy',
-    intro: 'The production privacy page will explain exactly what quote information is collected, how it is used and how customers can request changes.',
-    items: ['Vehicle and quote information', 'Contact preferences and consent', 'CRM and Ford-system disclosures', 'Data access and deletion requests'],
+    intro: 'Bob Maxey uses the information you submit to review eligibility, prepare a Ford Protect offer and contact you about your request.',
+    items: ['Vehicle and coverage-request information', 'Contact details and follow-up preference', 'Draft requests stored only in this browser', 'Dealership lead delivery after you choose Send My Request'],
   },
   terms: {
     title: 'Terms',
-    intro: 'Website estimates are not contracts. Final eligibility, price and coverage come from the executed Ford Protect agreement.',
-    items: ['Quote validity and price changes', 'Plan provisions and exclusions', 'Payment and cancellation terms', 'Dealer and manufacturer responsibilities'],
+    intro: 'Online selections are a coverage request, not a contract or purchase. Final eligibility, price and coverage come from the Ford Protect offer and issued agreement.',
+    items: ['Vehicle-specific eligibility and availability', 'Plan provisions, exclusions and limits', 'Payment, cancellation and transfer terms', 'Customer approval before coverage is purchased'],
   },
   accessibility: {
     title: 'Accessibility',
     intro: 'The experience is designed for keyboard navigation, readable contrast, visible focus states and responsive text.',
-    items: ['Keyboard-operable quote workflow', 'Semantic labels and status announcements', 'Reduced-motion support', 'Mobile touch targets and responsive layout'],
+    items: ['Keyboard-operable request workflow', 'Semantic labels and status announcements', 'Reduced-motion support', 'Mobile touch targets and responsive layout'],
   },
 };
 
-export function ResourcePanel({ resourceKey, onClose, onToast }) {
+export function ResourcePanel({ resourceKey, onClose }) {
   const content = resourceContent[resourceKey] ?? resourceContent.documents;
   const isDocuments = resourceKey === 'documents';
 
@@ -117,14 +117,14 @@ export function ResourcePanel({ resourceKey, onClose, onToast }) {
         <p>{content.intro}</p>
         <div className="resource-panel__list">
           {content.items.map((item) => (
-            <button key={item} type="button" onClick={() => onToast(isDocuments ? 'Official Ford document links connect during dealer-system setup.' : `${item} content is staged for the production content library.`)}>
+            <div key={item}>
               {isDocuments ? <FileCheck2 /> : <ShieldCheck />}
               <span>{item}</span>
-              {isDocuments ? <Download /> : <ArrowRight />}
-            </button>
+              <CheckCircle2 />
+            </div>
           ))}
         </div>
-        <div className="resource-panel__notice"><CheckCircle2 /><span><strong>Production-ready structure</strong><small>Final legal language and official Ford documents must be approved before public launch.</small></span></div>
+        <div className="resource-panel__notice"><CheckCircle2 /><span><strong>The vehicle-specific agreement controls</strong><small>Bob Maxey confirms current availability, pricing, coverage, exclusions and terms before you decide to purchase.</small></span></div>
       </div>
     </ModalShell>
   );

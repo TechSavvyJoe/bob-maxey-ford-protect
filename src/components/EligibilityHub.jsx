@@ -1,47 +1,41 @@
 import { ArrowRight, BriefcaseBusiness, Check, ClipboardCheck, Gauge, ShieldCheck, Zap } from 'lucide-react';
+import { useState } from 'react';
 import { assetUrl } from '../paths';
 
-const specialProfiles = [
-  { icon: Zap, title: 'Electric vehicle', text: 'Powertrain and battery-warranty information route the vehicle to the EV-specific Ford Protect lineup.' },
-  { icon: BriefcaseBusiness, title: 'Commercial, snow-plow, upfit or medium duty', text: 'Vehicle class, use, equipment, mileage and hours require dealer review before plan rating.' },
-];
+const ratingInputs = ['VIN', 'Current mileage', 'Original in-service date', 'Registration state', 'Vehicle use', 'Powertrain', 'Snow-plow or upfit status'];
 
-const ratingInputs = ['VIN', 'Model year & vehicle', 'Current mileage', 'Original in-service date', 'Registration state', 'Personal or business use', 'Gas, hybrid or electric', 'Snow-plow or upfit status'];
-
-export default function EligibilityHub({ onQuote, onContact, onNavigate }) {
+export default function EligibilityHub({ onQuote, onContact }) {
+  const [warrantyPath, setWarrantyPath] = useState('within');
   return (
-    <section className="eligibility-hub section" id="eligibility">
-      <div className="page-shell eligibility-hub__heading">
-        <div><h1>Know the vehicle’s eligibility path before choosing a plan.</h1><p>Ford Protect eligibility starts with the vehicle record. Warranty status determines the inspection path; VIN, mileage, in-service date, state and use determine the products and combinations Bob Maxey can confirm.</p></div>
-        <img src={assetUrl('/assets/ford-official/ford-why-1.png')} alt="Ford F-150 Lightning from official Ford Protect marketing media" />
+    <section className="eligibility-hub eligibility-hub--professional" id="eligibility">
+      <div className="page-shell eligibility-hub__hero">
+        <div><span>Vehicle eligibility</span><h1>See what coverage your Ford may qualify for.</h1><p>Your VIN, mileage, warranty status and vehicle use determine the available plans—and whether an inspection is needed.</p><button className="button button--primary" type="button" onClick={() => onQuote()}>Check My Vehicle <ArrowRight /></button></div>
+        <img src={assetUrl('/assets/ford-official/ford-why-1.png')} alt="Ford vehicle from official Ford Protect marketing media" />
       </div>
 
-      <section className="page-shell inspection-decision" aria-labelledby="inspection-decision-title">
-        <div className="inspection-decision__heading"><ClipboardCheck /><div><small>INSPECTION DECISION</small><h2 id="inspection-decision-title">Factory-warranty status sets the next step.</h2></div></div>
-        <div className="inspection-decision__grid">
-          <article className="is-covered"><ShieldCheck /><div><small>WITHIN THE NEW VEHICLE LIMITED WARRANTY</small><h3>No used-vehicle inspection is required.</h3><p>For an eligible ESP used-plan enrollment completed while the vehicle remains within the New Vehicle Limited Warranty, no used-vehicle inspection is required. Ford records still confirm final eligibility.</p></div></article>
-          <article className="is-inspection"><Gauge /><div><small>OUTSIDE FACTORY WARRANTY</small><h3>A dealership inspection is required first.</h3><p>Before an eligible Ford Protect sale can be completed, a participating dealership must inspect the vehicle and confirm it meets the current program requirements.</p></div></article>
+      <section className="page-shell eligibility-decision" aria-labelledby="eligibility-decision-title">
+        <div className="eligibility-decision__heading"><small>EXTENDED SERVICE PLAN INSPECTION</small><h2 id="eligibility-decision-title">Is the vehicle still under the New Vehicle Limited Warranty?</h2></div>
+        <div className="eligibility-decision__buttons">
+          <button className={warrantyPath === 'within' ? 'is-active' : ''} type="button" onClick={() => setWarrantyPath('within')}><ShieldCheck /><span><strong>Yes, it is still under warranty</strong><small>Show the in-warranty enrollment path</small></span><ArrowRight /></button>
+          <button className={warrantyPath === 'outside' ? 'is-active' : ''} type="button" onClick={() => setWarrantyPath('outside')}><Gauge /><span><strong>No, factory warranty has ended</strong><small>Show the out-of-warranty enrollment path</small></span><ArrowRight /></button>
         </div>
+        <div className={`eligibility-answer eligibility-answer--${warrantyPath}`} aria-live="polite">
+          {warrantyPath === 'within' ? <><ShieldCheck /><div><small>IN-WARRANTY ESP PATH</small><h3>No used-vehicle inspection is required.</h3><p>For an eligible ESP used-plan enrollment completed while the vehicle remains within the New Vehicle Limited Warranty, Ford records confirm the warranty status before enrollment.</p></div></> : <><ClipboardCheck /><div><small>OUT-OF-WARRANTY ESP PATH</small><h3>A dealership inspection is required first.</h3><p>A participating dealership must inspect the vehicle and confirm it meets current program requirements before an eligible used Extended Service Plan can be finalized.</p></div></>}
+        </div>
+        <p className="eligibility-csp-note"><Check /> <strong>Continued Service Plan is a separate path:</strong> Ford’s current CSP buyer guide states no enrollment inspection is required.</p>
       </section>
 
-      <div className="page-shell eligibility-hub__grid">
-        <div className="eligibility-paths">
-          <h3>Profiles that need added review</h3>
-          {specialProfiles.map(({ icon: Icon, title, text }) => <article key={title}><Icon /><div><h4>{title}</h4><p>{text}</p></div></article>)}
-          <div className="eligibility-paths__links">
-            <button type="button" onClick={() => onNavigate?.('products')}>Review product details <ArrowRight /></button>
-            <button type="button" onClick={() => onNavigate?.('how-it-works')}>See how the process works <ArrowRight /></button>
-          </div>
+      <section className="page-shell eligibility-review" aria-labelledby="eligibility-review-title">
+        <div className="eligibility-review__copy">
+          <span>What Bob Maxey reviews</span><h2 id="eligibility-review-title">The exact vehicle record—not a generic eligibility guess.</h2>
+          <div className="eligibility-review__inputs">{ratingInputs.map((item) => <span key={item}><Check /> {item}</span>)}</div>
         </div>
-        <aside className="rating-inputs">
-          <ClipboardCheck />
-          <h3>What the quote needs</h3>
-          <p>These details help prevent an ineligible plan, term or deductible from being presented as available.</p>
-          <div>{ratingInputs.map((item) => <span key={item}><Check /> {item}</span>)}</div>
-          <button className="button button--primary button--full" type="button" onClick={() => onQuote()}>Check my vehicle <ArrowRight /></button>
-          <button className="rating-inputs__link" type="button" onClick={() => onContact()}>I have a specialty vehicle</button>
+        <aside className="eligibility-review__special">
+          <article><Zap /><div><h3>Electric vehicles</h3><p>EV-specific systems and battery-warranty information route the vehicle to the correct lineup.</p></div></article>
+          <article><BriefcaseBusiness /><div><h3>Commercial, plow, upfit or medium duty</h3><p>Vehicle class, use, equipment, mileage and hours require specialist review.</p></div></article>
+          <button type="button" onClick={() => onContact()}>Talk With a Ford Protect Specialist <ArrowRight /></button>
         </aside>
-      </div>
+      </section>
     </section>
   );
 }

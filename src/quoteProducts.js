@@ -55,15 +55,15 @@ const PREMIUM_MAINTENANCE_GAS_DIESEL_MATRIX = termMileageMatrix({
 const PREMIUM_MAINTENANCE_EV_MATRIX = termMileageMatrix({
   24: [25000, 30000],
   27: [25000, 30000, 39000, 45000],
-  36: [25000, 31500, 36000, 41500, 45000, 60000],
+  36: [22500, 31500, 36000, 37500, 45000, 60000],
   39: [25000, 30000, 39000, 45000, 60000],
   48: [36000, 48000, 60000, 75000],
   60: [36000, 48000, 60000, 75000, 85000, 100000],
-  72: [36000, 48000, 60000, 75000, 85000, 100000, 125000, 150000, 175000],
-  84: [36000, 48000, 60000, 75000, 85000, 100000, 125000, 150000, 175000],
-  96: [36000, 48000, 60000, 75000, 85000, 100000, 125000, 150000, 175000],
-  108: [36000, 48000, 60000, 75000, 85000, 100000, 125000, 150000, 175000],
-  120: [36000, 48000, 60000, 75000, 85000, 100000, 125000, 150000, 175000],
+  72: [36000, 48000, 60000, 75000, 85000, 100000, 125000, 150000],
+  84: [36000, 48000, 60000, 75000, 85000, 100000, 125000, 150000],
+  96: [36000, 48000, 60000, 75000, 85000, 100000, 125000, 150000],
+  108: [36000, 48000, 60000, 75000, 85000, 100000, 125000, 150000],
+  120: [36000, 48000, 60000, 75000, 85000, 100000, 125000, 150000],
 });
 const EXTRA_MAINTENANCE_MATRIX = termMileageMatrix({
   24: [25000, 30000],
@@ -124,7 +124,7 @@ const RENTALCARE_MATRIX = termMileageMatrix({
   48: [50000, 60000],
 });
 const LEASECARE_MATRIX = termMileageMatrix({
-  24: [15000, 24000, 30000],
+  24: [15000, 24000],
   27: [30000, 36000],
   36: [22500, 36000, 45000, 50000, 55000, 60000],
   39: [39000, 45000, 55000, 60000],
@@ -199,7 +199,7 @@ export const FORD_PROTECT_PRODUCT_RULES = Object.freeze({
     coverageStart: 'Historical guide basis: original warranty start date and zero miles; expires at the earlier selected time or mileage.',
     purchaseWindow: 'Current public rule: purchase during the New Vehicle Limited Warranty. The September 2024 guide contains a broader historical 5-month/5,000-mile-from-expiration rule; use the current Ford rating result, not the historical window.',
     inspection: 'No separate maintenance-plan enrollment inspection is represented; vehicle and program eligibility still require Ford review.',
-    compatibility: ['Gas, hybrid, plug-in hybrid, and eligible diesel.', 'Full-synthetic oil option is required when the vehicle specifies full synthetic oil.', 'Exact matrix is historical planning data.'],
+    compatibility: ['Gas, hybrid, plug-in hybrid, and eligible diesel.', 'Full-synthetic oil option is required when the vehicle specifies full synthetic oil.', 'Exact matrix is historical planning data.'], source: CURRENT_SOURCE, configurationSource: GUIDE_SOURCE,
   }),
   'premium-maintenance-ev': configurationRule({
     id: 'premium-maintenance-ev', label: 'Premium Maintenance EV', purchaseContexts: ['shopping', 'owner'], purchaseTiming: 'vehicle-purchase-or-after-sale-within-nvlw',
@@ -207,7 +207,7 @@ export const FORD_PROTECT_PRODUCT_RULES = Object.freeze({
     coverageStart: 'Historical guide basis: original warranty start date and zero miles; expires at the earlier selected time or mileage.',
     purchaseWindow: 'Current public rule: purchase during the New Vehicle Limited Warranty; current VIN review controls.',
     inspection: 'No separate maintenance-plan enrollment inspection is represented.',
-    compatibility: ['Electric vehicles only.', 'Do not duplicate maintenance already bundled with an eligible PremiumCARE Plus EV plan.', 'Exact matrix is historical planning data.'],
+    compatibility: ['Electric vehicles only.', 'Do not duplicate maintenance already bundled with an eligible PremiumCARE Plus EV plan.', 'Exact matrix is historical planning data.'], source: CURRENT_SOURCE, configurationSource: GUIDE_SOURCE,
   }),
   'extra-maintenance': configurationRule({
     id: 'extra-maintenance', label: 'Extra Maintenance Plan', purchaseContexts: ['shopping', 'owner'], purchaseTiming: 'dealer-confirmed-after-sale-window',
@@ -317,14 +317,14 @@ export const FORD_PROTECT_PRODUCT_RULES = Object.freeze({
     compatibility: ['Lease program, vehicle, state, mileage allowance, and return standards control.', 'Not an after-sale Ford Protect ancillary card.'], source: CURRENT_SOURCE,
   }),
   rentalcare: configurationRule({
-    id: 'rentalcare', label: 'RentalCARE', purchaseContexts: [], purchaseTiming: 'not-a-standalone-customer-ancillary-card', currentPublicStatus: 'historical-rating-system-only', selectionModel: 'dealer-rating-only', termMileage: RENTALCARE_MATRIX,
-    coverageStart: 'Historical guide basis: original warranty start date and zero miles.', purchaseWindow: 'Historical guide: before the earlier of 3 years or 36,000 miles. Current public sources do not establish RentalCARE as a standalone customer product.', inspection: 'No independent inspection rule established.',
-    compatibility: ['Cannot be combined with another plan that already provides rental benefits under the historical guide.', 'Treat rental support as an agreement benefit/option unless the current dealer system returns a standalone plan.'], customerSelectable: false,
+    id: 'rentalcare', label: 'RentalCARE', purchaseContexts: ['shopping', 'owner'], purchaseTiming: 'vehicle-purchase-or-after-sale-before-3yr-36k', currentPublicStatus: 'dealer-rating-required', selectionModel: 'term-mileage', termMileage: RENTALCARE_MATRIX,
+    coverageStart: 'Coverage begins at the warranty start date and zero miles and ends at the earlier selected time or mileage.', purchaseWindow: 'Must be purchased before the earlier of 3 years or 36,000 miles from the Warranty Start Date. Current program availability requires Bob Maxey confirmation.', inspection: 'The referenced materials do not establish a separate used-vehicle inspection requirement for RentalCARE.',
+    compatibility: ['Cannot be combined with another plan that already provides rental benefits under the referenced guide.', 'Vehicle, state, term, mileage, options, and current program availability require a dealer rating result.'], source: CURRENT_SOURCE, configurationSource: GUIDE_SOURCE,
   }),
   leasecare: configurationRule({
-    id: 'leasecare', label: 'LeaseCARE', purchaseContexts: [], purchaseTiming: 'not-a-standalone-customer-ancillary-card', currentPublicStatus: 'historical-rating-system-only', selectionModel: 'dealer-rating-only', termMileage: LEASECARE_MATRIX,
-    coverageStart: 'Historical guide basis: original warranty start date and zero miles.', purchaseWindow: 'Historical guide: before the earlier of 3 years or 36,000 miles. Current public sources do not establish it as a standalone ancillary selection.', inspection: 'No independent inspection rule established.',
-    compatibility: ['Cannot be combined with core/mechanical, Premium Maintenance, or rental plans under the historical guide.', 'Do not show as a customer-selectable ancillary card.'], customerSelectable: false,
+    id: 'leasecare', label: 'LeaseCARE', purchaseContexts: ['shopping', 'owner'], purchaseTiming: 'vehicle-purchase-or-after-sale-before-3yr-36k', currentPublicStatus: 'dealer-rating-required', selectionModel: 'term-mileage', termMileage: LEASECARE_MATRIX,
+    coverageStart: 'Coverage begins at the warranty start date and zero miles and ends at the earlier selected time or mileage.', purchaseWindow: 'Must be purchased before the earlier of 3 years or 36,000 miles from the Warranty Start Date. Current program availability requires Bob Maxey confirmation.', inspection: 'The referenced materials do not establish a separate used-vehicle inspection requirement for LeaseCARE.',
+    compatibility: ['Cannot be combined with a Core/Mechanical plan, Premium Maintenance, or RentalCARE under the referenced guide.', 'Vehicle, state, term, mileage, options, and current program availability require a dealer rating result.'], source: CURRENT_SOURCE, configurationSource: GUIDE_SOURCE,
   }),
   'key-services': configurationRule({
     id: 'key-services', label: 'Key Services', purchaseContexts: [], purchaseTiming: 'agreement-option-not-standalone', currentPublicStatus: 'plan-option-only', selectionModel: 'parent-plan-option',
@@ -375,6 +375,8 @@ const CONFIGURATION_DEFAULTS = Object.freeze({
   triplecare: { variantId: 'triplecare', termMonths: 60, termMiles: null },
   surfacecare: { variantId: 'surfacecare', termMonths: 60, termMiles: null },
   theftcare: { variantId: 'theftcare', termMonths: 60, termMiles: null, benefitAmount: 2500 },
+  rentalcare: { variantId: 'rentalcare', termMonths: 36, termMiles: 36000 },
+  leasecare: { variantId: 'leasecare', termMonths: 36, termMiles: 36000 },
 });
 
 const genericConfigurationMode = (selectionModel) => {
@@ -827,17 +829,17 @@ export const quoteProducts = Object.freeze([
   },
   {
     id: 'rentalcare',
-    purchaseContexts: [],
+    purchaseContexts: ['shopping', 'owner'],
     configurationRuleIds: ['rentalcare'],
     configuration: createProductSelectionConfiguration(['rentalcare']),
-    customerSelectable: false,
+    customerSelectable: true,
     familyId: 'mobility',
     familyLabel: 'Rental support',
     name: 'RentalCARE',
     shortName: 'RentalCARE',
     eyebrow: 'Help stay moving during qualifying repairs',
     value: 'Request rental assistance for qualifying warranty, recall, customer-satisfaction, or covered repairs.',
-    description: 'RentalCARE is recognized in Ford Protect agreement materials and can provide limited rental reimbursement under the issued agreement.',
+    description: 'RentalCARE is an elected Ford Protect plan with a limited enrollment window, a $0 referenced deductible, and term/mileage combinations that must be returned by the current dealer system.',
     image: '/assets/ford-official/ford-why-1.png',
     imageAlt: 'Ford vehicle from official Ford Protect marketing media',
     badge: 'Limited purchase window',
@@ -862,6 +864,45 @@ export const quoteProducts = Object.freeze([
     cautions: ['Do not present RentalCARE as available until a current Ford/dealer offer confirms it.', 'Rental-day and reimbursement amounts can change by agreement and jurisdiction.'],
     officialSources: [
       { label: 'Ford Protect agreement terms recognizing RentalCARE', url: 'https://fordprotect.ford.com/media/contracts/t-and-c/ESC-103-NAT-wKey-OCT-2023.pdf' },
+      { label: 'Ford Protect agreement library', url: 'https://fordprotect.ford.com/fl8250contract' },
+    ],
+  },
+  {
+    id: 'leasecare',
+    purchaseContexts: ['shopping', 'owner'],
+    configurationRuleIds: ['leasecare'],
+    configuration: createProductSelectionConfiguration(['leasecare']),
+    customerSelectable: true,
+    familyId: 'mobility',
+    familyLabel: 'Coordinated vehicle support',
+    name: 'LeaseCARE',
+    shortName: 'LeaseCARE',
+    eyebrow: 'Repair and convenience choices in one plan',
+    value: 'Request a $0-deductible elected plan with agreement-defined repair, mobility, lighting, pickup-and-delivery, or key-service choices.',
+    description: 'The supplied Ford retail guide treats LeaseCARE as an elected plan for an eligible vehicle within a limited enrollment window. The current dealer offer controls which benefits, terms, and mileage limits can be issued.',
+    image: '/assets/ford-official/ford-why-2.png',
+    imageAlt: 'Ford owner receiving dealership support from official Ford Protect marketing media',
+    badge: 'Limited purchase window',
+    requestMode: 'specialist-request',
+    powertrains: ['gas', 'hybrid', 'plug-in-hybrid', 'diesel', 'electric'],
+    warrantyApplicability: ['within-3-years-36000-miles'],
+    catalogBadges: ['Vehicle purchase or limited after-sale request', '$0 referenced deductible', 'Dealer verification'],
+    planOptions: [
+      { id: 'leasecare', name: 'LeaseCARE', summary: 'A specialist-verified elected plan with term/mileage choices and agreement-defined benefit selections.' },
+    ],
+    highlights: ['The supplied guide uses a $0 deductible', 'Purchase before the earlier of 3 years or 36,000 miles from warranty start', 'Coverage begins at warranty start and zero miles', 'Term and mileage choices require a current Ford/dealer result'],
+    detailSections: [
+      { title: 'What the request can explore', items: ['Agreement-defined repair coverage', 'Rental or pickup-and-delivery support where elected', 'Lighting or key-service choices where returned', 'A term and mileage combination that fits the ownership plan'] },
+      { title: 'What Bob Maxey verifies', items: ['Current LeaseCARE program availability', 'VIN, warranty start, mileage, and registration state', 'Available elected benefits and compatible products', 'Current term, mileage, price, and issued agreement'] },
+    ],
+    eligibility: {
+      headline: 'A limited-window elected-plan request for an eligible vehicle.',
+      requirements: ['Before the earlier of 3 years or 36,000 miles from warranty start', 'Eligible vehicle and registration state', 'Current LeaseCARE program, elected benefits, and agreement available'],
+      dealerConfirmation,
+      inspectionPolicy: 'The referenced LeaseCARE material does not establish the ESP used-plan inspection rule for this product. Bob Maxey verifies all current enrollment requirements.',
+    },
+    cautions: ['The referenced guide does not allow LeaseCARE to be combined with a Core/Mechanical plan, Premium Maintenance, or RentalCARE.', 'Do not present LeaseCARE benefits, combinations, or price as available until the current Ford/dealer offer confirms them.'],
+    officialSources: [
       { label: 'Ford Protect agreement library', url: 'https://fordprotect.ford.com/fl8250contract' },
     ],
   },
@@ -1104,10 +1145,15 @@ const dieselStatus = (facts) => {
   return status('specialist-review', null, 'Power Stroke review', 'review', 'Enter the engine description and let Bob Maxey verify engine family, mileage, age, hours, use, and current program eligibility.', null);
 };
 
-const rentalCareStatus = (facts) => {
+const limitedWindowElectedPlanStatus = (facts, label) => {
   const window = evaluateWindow({ facts, ...RENTALCARE_WINDOW });
-  const referenceWindow = window.within === false ? ' The vehicle also appears outside the historical earlier-of 3-year/36,000-mile window.' : '';
-  return status('not-standalone', false, 'Benefit or plan option—not a standalone card', 'muted', `Current public Ford sources do not establish RentalCARE as an independent customer-selectable product. Rental support should follow the selected agreement or a dealer-returned offer.${referenceWindow}`, false);
+  if (window.within === false) {
+    return status('outside-reference-window', false, 'Outside referenced enrollment window', 'muted', `${label} must be purchased before the earlier of 3 years or 36,000 miles from the warranty start date under the supplied Ford retail guide.`, false);
+  }
+  if (window.within === true) {
+    return status('specialist-verification', true, 'Request specialist verification', 'positive', `The vehicle appears to be within the referenced ${label} enrollment window. Bob Maxey must confirm the current VIN-specific program, available combinations, benefits, and price.`, false);
+  }
+  return status('specialist-verification', null, 'Warranty record review', 'review', `Enter the warranty start date and mileage so Bob Maxey can check the referenced ${label} enrollment window and current Ford/dealer offer.`, false);
 };
 
 const purchaseContextStatus = (product, facts) => {
@@ -1139,7 +1185,8 @@ export function getQuoteProductCatalog(quote = {}, options = {}) {
         case 'maintenance-essentials': productStatus = maintenanceEssentialsStatus(facts); break;
         case 'continued-service-plan': productStatus = cspStatus(facts); break;
         case 'diesel-enginecare': productStatus = dieselStatus(facts); break;
-        case 'rentalcare': productStatus = rentalCareStatus(facts); break;
+        case 'rentalcare': productStatus = limitedWindowElectedPlanStatus(facts, 'RentalCARE'); break;
+        case 'leasecare': productStatus = limitedWindowElectedPlanStatus(facts, 'LeaseCARE'); break;
         default: productStatus = status('dealer-review', null, 'Dealer review', 'review', dealerConfirmation, null);
       }
     }

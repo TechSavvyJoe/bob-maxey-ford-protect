@@ -3,11 +3,11 @@ import { Bookmark, Menu, X } from 'lucide-react';
 import Brand from './Brand';
 
 const navItems = [
-  ['Products', 'products'],
+  ['Plans & Products', 'products'],
   ['Compare', 'compare'],
   ['Eligibility', 'eligibility'],
   ['How It Works', 'how-it-works'],
-  ['Resources', 'resources'],
+  ['Help', 'resources'],
 ];
 
 export default function Header({ onQuote, onSaved, onNavigate, page }) {
@@ -34,11 +34,11 @@ export default function Header({ onQuote, onSaved, onNavigate, page }) {
             <button key={id} className={page === id ? 'is-active' : ''} type="button" onClick={() => goTo(id)}>{label}</button>
           ))}
           <button className="nav-saved" type="button" onClick={onSaved}>
-            <Bookmark size={17} strokeWidth={1.9} /> Find a Quote
+            <Bookmark size={17} strokeWidth={1.9} /> Resume Request
           </button>
         </nav>
         <button className="button button--primary header-cta" type="button" onClick={() => onQuote()}>
-          Get My Price
+          Check My Vehicle
         </button>
         <button
           className="menu-button"
@@ -55,9 +55,9 @@ export default function Header({ onQuote, onSaved, onNavigate, page }) {
           {navItems.map(([label, id]) => (
             <button key={id} className={page === id ? 'is-active' : ''} type="button" onClick={() => goTo(id)}>{label}</button>
           ))}
-          <button type="button" onClick={() => { setMenuOpen(false); onSaved(); }}>Find a Quote</button>
+          <button type="button" onClick={() => { setMenuOpen(false); onSaved(); }}>Resume Request</button>
           <button className="button button--primary" type="button" onClick={() => { setMenuOpen(false); onQuote(); }}>
-            Get My Price
+            Check My Vehicle
           </button>
         </div>
       )}

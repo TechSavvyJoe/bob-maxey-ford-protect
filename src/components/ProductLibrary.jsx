@@ -1,122 +1,110 @@
-import { ArrowRight, Search, ShieldCheck } from 'lucide-react';
-import { useMemo, useState } from 'react';
-import { afterSaleProductCategories, fordBenefits } from '../data';
+import { ArrowRight, CarFront, Check, Search, ShieldCheck } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { afterSaleProductCategories, hiddenCustomerProductIds, productCategories } from '../data';
 import { assetUrl } from '../paths';
 
-function ProductCard({ category, product, onOpenProduct, onStart }) {
+const hiddenIds = new Set(hiddenCustomerProductIds);
+
+const availableCategories = (context) => {
+  const source = context === 'owner' ? afterSaleProductCategories : productCategories;
+  return source
+    .map((category) => ({ ...category, products: category.products.filter((product) => !hiddenIds.has(product.id)) }))
+    .filter((category) => category.products.length > 0);
+};
+
+const timingLabel = (category, product, context) => {
+  if (category.id === 'vehicle-care') return 'Available with an eligible vehicle purchase';
+  if (product.id === 'continued-service') return 'Available after eligible prior coverage';
+  if (product.id.includes('maintenance')) return context === 'owner' ? 'After-sale availability depends on warranty status' : 'Available with purchase or during the eligible warranty window';
+  if (category.id === 'mechanical' || category.id === 'electric') return 'Vehicle-specific new and used coverage paths';
+  return 'Bob Maxey specialist verification required';
+};
+
+function ProductRow({ category, product, context, onOpenProduct, onStart }) {
+  const image = product.image || category.image;
+  const highlights = (product.groups || []).slice(0, 3);
   return (
-    <article className="product-catalog-card">
-      <div className="product-catalog-card__body">
-        <span className="product-catalog-card__eyebrow">{category.label}</span>
+    <article className={`product-row product-row--${category.id}`}>
+      <figure><img src={assetUrl(image)} alt="" /></figure>
+      <div className="product-row__content">
+        <div className="product-row__meta"><span>{category.label}</span><b>{timingLabel(category, product, context)}</b></div>
         <h3>{product.name}</h3>
-        <p className="product-catalog-card__label">{product.label}</p>
         <p>{product.description}</p>
-        <p className="product-catalog-card__best"><strong>Good fit for:</strong> {product.bestFor}</p>
-        <div className="product-catalog-card__highlights" aria-label={`${product.name} highlights`}>
-          {(product.groups || []).slice(0, 3).map((group) => <span key={group}>{group}</span>)}
+        <div className="product-row__highlights">
+          {highlights.map((item) => <span key={item}><Check /> {item}</span>)}
         </div>
-        <div className="product-catalog-card__actions">
-          <button className="button button--primary" type="button" onClick={() => onOpenProduct(product.id)}>Explore details <ArrowRight /></button>
-          <button type="button" onClick={() => onStart(category, product)}>{product.dealerAssisted ? 'Ask a specialist' : 'Start with my vehicle'}</button>
-        </div>
+      </div>
+      <div className="product-row__actions">
+        {product.count && <strong><b>{product.count}</b><small>{product.countLabel || 'covered components'}</small></strong>}
+        <button className="button button--primary" type="button" onClick={() => onOpenProduct(product.id)}>See Coverage Details <ArrowRight /></button>
+        <button type="button" onClick={() => onStart(product)}>Add to My Request</button>
       </div>
     </article>
   );
 }
 
-export default function ProductLibrary({ onQuote, onContact, onOpenProduct }) {
-  const [categoryId, setCategoryId] = useState(afterSaleProductCategories[0].id);
+export default function ProductLibrary({ onQuote, onOpenProduct }) {
+  const [context, setContext] = useState('owner');
+  const [categoryId, setCategoryId] = useState('mechanical');
   const [query, setQuery] = useState('');
-  const category = useMemo(
-    () => afterSaleProductCategories.find((item) => item.id === categoryId) ?? afterSaleProductCategories[0],
-    [categoryId],
-  );
-  const searchResults = useMemo(() => {
+  const categories = useMemo(() => availableCategories(context), [context]);
+
+  useEffect(() => {
+    if (!categories.some((category) => category.id === categoryId)) setCategoryId(categories[0]?.id || 'mechanical');
+  }, [categories, categoryId]);
+
+  const category = categories.find((item) => item.id === categoryId) || categories[0];
+  const products = useMemo(() => {
     const normalized = query.trim().toLowerCase();
-    if (!normalized) return [];
-    return afterSaleProductCategories
-      .flatMap((item) => item.products.map((product) => ({ category: item, product })))
-      .filter(({ category: item, product }) => (
-        `${item.label} ${item.title} ${product.name} ${product.label} ${product.description} ${product.bestFor} ${(product.groups || []).join(' ')}`
-          .toLowerCase()
-          .includes(normalized)
-      ));
-  }, [query]);
+    const pool = normalized ? categories.flatMap((item) => item.products.map((product) => ({ category: item, product }))) : (category?.products || []).map((product) => ({ category, product }));
+    if (!normalized) return pool;
+    return pool.filter(({ category: item, product }) => `${item.label} ${item.title} ${product.name} ${product.description} ${(product.groups || []).join(' ')}`.toLowerCase().includes(normalized));
+  }, [categories, category, query]);
 
-  const startProduct = (itemCategory, product) => {
-    if (itemCategory.id === 'mechanical') return onQuote({ planId: product.id });
-    if (itemCategory.id === 'electric') return onQuote({ planId: product.id, powertrain: 'Electric' });
-    return onContact();
-  };
-
-  const visibleProducts = query
-    ? searchResults
-    : category.products.map((product) => ({ category, product }));
+  const startProduct = (product) => onQuote({ purchaseContext: context, productId: product.id, planId: product.id });
 
   return (
-    <section className="product-library section" id="products">
-      <div className="page-shell">
-        <div className="product-library__heading">
-          <div>
-            <span className="product-type">Ford Protect product center</span>
-            <h1>Protection for the way you own your Ford.</h1>
-            <p>Start with the type of help you want, then review coverage, eligibility, choices, exclusions and next steps for each product.</p>
-          </div>
-          <div className="product-library__source"><img src={assetUrl('/assets/ford-official/ford-protect-logo.png')} alt="Ford Protect" /><span>Genuine Ford Protect products, with vehicle-specific availability confirmed by Bob Maxey.</span></div>
+    <section className="product-library product-library--professional" id="products">
+      <div className="page-shell product-library__hero">
+        <div>
+          <span>Ford Protect plans and products</span>
+          <h1>Choose protection for the way you own—or plan to buy—your Ford.</h1>
+          <p>Select your ownership stage first. We’ll show the products that belong in that journey and keep purchase-day-only choices clearly separated from after-sale coverage.</p>
         </div>
-
-        <div className="product-library__tools">
-          <div className="product-category-nav" role="tablist" aria-label="Ford Protect product categories">
-            {afterSaleProductCategories.map((item) => (
-              <button
-                key={item.id}
-                className={!query && category.id === item.id ? 'is-active' : ''}
-                type="button"
-                role="tab"
-                aria-selected={!query && category.id === item.id}
-                onClick={() => { setCategoryId(item.id); setQuery(''); }}
-              >
-                {item.label}
-              </button>
-            ))}
-          </div>
-          <label className="product-library__search"><Search /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search products or coverage needs" aria-label="Search Ford Protect products" /></label>
-        </div>
-
-        <div className={`product-catalog__heading${query ? ' is-search' : ''}`}>
-          <div>
-            <span>{query ? 'Search results' : category.label}</span>
-            <h2>{query ? `${visibleProducts.length} product${visibleProducts.length === 1 ? '' : 's'} found` : category.title}</h2>
-          </div>
-          <p>{query ? 'Open a product for complete details and vehicle-specific next steps.' : category.intro}</p>
-          {!query && <figure><img src={assetUrl(category.image)} alt={category.imageAlt} /></figure>}
-          {query && <button type="button" onClick={() => setQuery('')}>Clear search</button>}
-        </div>
-
-        <div className="product-catalog-grid">
-          {visibleProducts.map(({ category: itemCategory, product }) => (
-            <ProductCard
-              key={product.id}
-              category={itemCategory}
-              product={product}
-              onOpenProduct={onOpenProduct}
-              onStart={startProduct}
-            />
-          ))}
-        </div>
-
-        {!visibleProducts.length && (
-          <div className="product-catalog-empty"><Search /><h2>No matching product found.</h2><p>Try “electric,” “maintenance,” “commercial,” or a coverage need such as “turbocharger.”</p><button type="button" onClick={() => setQuery('')}>View all product families</button></div>
-        )}
-
-        <div className="product-catalog__note"><ShieldCheck /><p><strong>Your agreement confirms the details.</strong> Eligibility, covered items, limits, exclusions, provider and state rules can vary. Bob Maxey confirms the applicable Ford Protect agreement before purchase.</p></div>
+        <ShieldCheck aria-hidden="true" />
       </div>
 
-      <div className="ford-benefits">
-        <div className="page-shell ford-benefits__heading"><div><h2>Why genuine Ford Protect matters</h2><p>Ford-backed ownership support with benefits confirmed by the selected product and agreement.</p></div><img src={assetUrl('/assets/ford-official/ford-oval.png')} alt="Ford" /></div>
-        <div className="page-shell ford-benefits__grid">
-          {fordBenefits.slice(0, 6).map((benefit) => <article key={benefit.title}><img src={assetUrl(benefit.image)} alt="" /><div><h3>{benefit.title}</h3><p>{benefit.text}</p></div></article>)}
+      <div className="page-shell product-context-switch" aria-label="Choose ownership stage">
+        <button className={context === 'owner' ? 'is-active' : ''} type="button" onClick={() => { setContext('owner'); setQuery(''); }}>
+          <ShieldCheck /><span><strong>I already own this vehicle</strong><small>Products Ford may permit after the original sale—including vehicles bought elsewhere.</small></span><ArrowRight />
+        </button>
+        <button className={context === 'shopping' ? 'is-active' : ''} type="button" onClick={() => { setContext('shopping'); setQuery(''); }}>
+          <CarFront /><span><strong>I’m choosing protection with a Bob Maxey vehicle</strong><small>Include eligible purchase-day products before delivery, financing or lease signing.</small></span><ArrowRight />
+        </button>
+      </div>
+
+      <div className="page-shell product-library__workspace">
+        <div className="product-library__toolbar">
+          <div className="product-category-nav" role="tablist" aria-label="Product families">
+            {categories.map((item) => (
+              <button key={item.id} className={!query && category?.id === item.id ? 'is-active' : ''} type="button" role="tab" aria-selected={!query && category?.id === item.id} onClick={() => { setQuery(''); setCategoryId(item.id); }}>{item.label}</button>
+            ))}
+          </div>
+          <label className="product-search"><Search /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search products or coverage needs" /></label>
         </div>
+
+        {!query && category && (
+          <header className="product-family-heading">
+            <div><small>{context === 'owner' ? 'AFTER-SALE PATH' : 'VEHICLE-PURCHASE PLANNING'}</small><h2>{category.title}</h2><p>{category.intro}</p></div>
+            <img src={assetUrl(category.image)} alt="" />
+          </header>
+        )}
+
+        <div className="product-list" aria-live="polite">
+          {products.map(({ category: item, product }) => <ProductRow key={`${item.id}-${product.id}`} category={item} product={product} context={context} onOpenProduct={onOpenProduct} onStart={startProduct} />)}
+        </div>
+
+        <div className="product-library__confirmation"><ShieldCheck /><p><strong>One rule across every product:</strong> final availability, pricing, term choices and coverage are confirmed for your VIN before purchase.</p><button type="button" onClick={() => onQuote({ purchaseContext: context })}>Check My Vehicle <ArrowRight /></button></div>
       </div>
     </section>
   );

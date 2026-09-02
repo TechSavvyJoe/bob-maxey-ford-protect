@@ -1,0 +1,34 @@
+:root {
+  --color-brand-navy: #001f49;
+  --color-brand-deep: #00152f;
+  --color-brand-blue: #0068d9;
+  --color-brand-blue-dark: #0050aa;
+  --color-brand-sky: #eaf4ff;
+  --color-text: #071d3c;
+  --color-text-soft: #4c5f78;
+  --color-text-muted: #68798f;
+  --color-border: #cbd6e3;
+  --color-border-strong: #9fb1c7;
+  --surface-page: #ffffff;
+  --surface-subtle: #f4f7fa;
+  --surface-blue: #eef6ff;
+  --surface-navy: #002652;
+  --status-positive: #087b5b;
+  --status-positive-bg: #eaf8f3;
+  --status-caution: #9a5a00;
+  --status-caution-bg: #fff7e8;
+  --radius-0: 0;
+  --radius-1: 4px;
+  --radius-2: 8px;
+  --shadow-soft: 0 12px 34px rgba(0, 31, 73, .10);
+  --shadow-focus: 0 0 0 3px rgba(0, 104, 217, .18);
+  --page-max: 1440px;
+  --page-gutter: clamp(20px, 4vw, 64px);
+  --section-space: clamp(64px, 8vw, 112px);
+  --type-display: clamp(44px, 5.2vw, 76px);
+  --type-h1: clamp(38px, 4.3vw, 64px);
+  --type-h2: clamp(30px, 3vw, 46px);
+  --type-h3: clamp(20px, 1.6vw, 26px);
+  --type-body: 16px;
+  --type-small: 14px;
+}

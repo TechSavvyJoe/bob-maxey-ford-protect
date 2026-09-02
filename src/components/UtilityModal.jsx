@@ -33,7 +33,7 @@ export function SavedQuotes({ onClose, onLoad }) {
     <ModalShell title="Find a saved quote" onClose={onClose}>
       <div className="utility-modal__body">
         <h1>Find a saved quote</h1>
-        <p>Prototype quotes are stored only in this browser until the Bob Maxey CRM integration is connected.</p>
+        <p>Saved drafts stay in this browser so you can return to them before submitting a completed request.</p>
         <label className="search-field"><Search /><input placeholder="Enter quote number" value={search} onChange={(event) => setSearch(event.target.value)} /></label>
         <div className="saved-list">
           {filtered.map((quote) => (
@@ -43,7 +43,7 @@ export function SavedQuotes({ onClose, onLoad }) {
               <ArrowRight />
             </button>
           ))}
-          {!filtered.length && <div className="empty-saved"><CarFront /><strong>No matching saved quotes</strong><span>Build and save a prototype quote to see it here.</span></div>}
+          {!filtered.length && <div className="empty-saved"><CarFront /><strong>No matching saved quotes</strong><span>Start a quote and choose “Save quote” to keep a draft here.</span></div>}
         </div>
       </div>
     </ModalShell>
@@ -67,7 +67,7 @@ export function ContactPanel({ onClose, initialLocation, onToast }) {
           ))}
         </div>
         <div className="contact-summary"><span>Selected dealership</span><strong>{selected.descriptor}</strong></div>
-        <button className="button button--primary button--full" type="button" onClick={() => onToast(`${selected.descriptor} is selected. Live call and CRM routing connect at deployment.`)}>Select this dealership <ArrowRight /></button>
+        <button className="button button--primary button--full" type="button" onClick={() => onToast(`${selected.descriptor} is now your preferred Bob Maxey location.`)}>Select this dealership <ArrowRight /></button>
       </div>
     </ModalShell>
   );

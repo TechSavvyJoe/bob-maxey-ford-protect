@@ -55,7 +55,7 @@ export default function TrustFooter({ onQuote, onContact, onResource, compact = 
         </div>
       </section>}
 
-      <section className="closing-cta">
+      {!compact && <section className="closing-cta">
         <div className="page-shell closing-cta__inner">
           <h2>Ready to protect what moves you?</h2>
           <div>
@@ -63,7 +63,7 @@ export default function TrustFooter({ onQuote, onContact, onResource, compact = 
             <button className="button button--outline-light" type="button" onClick={() => onContact()}>Talk to a Specialist <ArrowRight /></button>
           </div>
         </div>
-      </section>
+      </section>}
 
       <footer className="site-footer">
         <div className="page-shell site-footer__top">

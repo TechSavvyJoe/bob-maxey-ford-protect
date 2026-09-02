@@ -307,11 +307,44 @@ export const productCategories = [
   },
 ];
 
+// Keep certified-upgrade source content available for a future staff or
+// transaction-specific experience without exposing it in the public catalog.
+// These products depend on certification completed as part of a qualifying
+// vehicle sale and are not normal after-sale purchase paths.
+export const archivedCustomerProductCatalog = Object.freeze([
+  {
+    id: 'fba-upgrade',
+    categoryId: 'specialty',
+    reason: 'Ford Blue Advantage upgrade coverage is tied to a qualifying certified-vehicle transaction.',
+  },
+  {
+    id: 'lincoln-cpo',
+    categoryId: 'specialty',
+    reason: 'Lincoln certified upgrade coverage is tied to an eligible certified-vehicle transaction.',
+  },
+]);
+
+export const hiddenCustomerProductIds = Object.freeze(archivedCustomerProductCatalog.map((product) => product.id));
+
+const hiddenCustomerProductIdSet = new Set(hiddenCustomerProductIds);
+
 // Bob Maxey's online library is intentionally limited to products that can be
-// considered after the original vehicle sale. GAP, lease-only products and
-// dealer products Ford identifies as time-of-sale-only are not presented as
-// purchase paths here.
-export const afterSaleProductCategories = productCategories.filter((category) => category.id !== 'vehicle-care');
+// considered after the original vehicle sale. GAP, lease-only products,
+// certified-sale upgrades and dealer products Ford identifies as
+// time-of-sale-only are not presented as public purchase paths here.
+export const afterSaleProductCategories = productCategories
+  .filter((category) => category.id !== 'vehicle-care')
+  .map((category) => {
+    const products = category.products.filter((product) => !hiddenCustomerProductIdSet.has(product.id));
+    if (category.id !== 'specialty') return { ...category, products };
+    return {
+      ...category,
+      label: 'Commercial & specialty',
+      intro: 'Commercial, incomplete and medium-duty vehicles need record-level eligibility review before plan selection.',
+      products,
+    };
+  })
+  .filter((category) => category.products.length > 0);
 
 export const fordBenefits = [
   { title: '100% backed by Ford', text: 'A genuine Ford Protect plan is backed by Ford Motor Company.', image: '/assets/ford-official/ford-backed.png' },
@@ -320,7 +353,7 @@ export const fordBenefits = [
   { title: '24-hour roadside assistance', text: 'Eligible plans include towing and other roadside benefits subject to contract limits.', image: '/assets/ford-official/ford-roadside.png' },
   { title: 'Rental vehicle benefits', text: 'Eligible covered repairs can include rental support, subject to the selected plan.', image: '/assets/ford-official/ford-rental.png' },
   { title: 'Transferable coverage', text: 'Eligible remaining coverage may transfer to a subsequent owner; a transfer fee may apply.', image: '/assets/ford-official/ford-transferable.png' },
-  { title: 'Flexible payment options', text: 'Ford Protect advertises interest-free installment options up to 30 months on eligible purchases.', image: '/assets/ford-official/ford-financing.png' },
+  { title: 'Flexible payment options', text: 'Eligible plans may use a small down payment, with the remaining balance financed at 0% interest. The current offer confirms the exact down payment, number of payments, schedule, and first due date.', image: '/assets/ford-official/ford-financing.png' },
 ];
 
 export const faqItems = [
@@ -334,7 +367,7 @@ export const faqItems = [
   ['Are rental and roadside benefits included?', 'Eligible Ford Protect plans include roadside and rental benefits, with limits that vary by plan and agreement. Optional enhanced benefits may also be available.'],
   ['Can a business, snow-plow or upfit vehicle be covered?', 'Possibly. Commercial use, snow-plow use, incomplete vehicles and medium-duty vehicles require a dedicated eligibility and rating review.'],
   ['Can I cancel or transfer my plan?', 'Ford Protect plans can have cancellation and transfer provisions, fees and state-specific rules. Bob Maxey will provide the agreement that applies to the selected plan before purchase.'],
-  ['Why is my online price not final yet?', 'The production site must verify Ford vehicle records, eligibility, current plan rates, state rules and Bob Maxey’s selling price before checkout. This prototype does not connect to those live systems.'],
+  ['Why is my online price not final yet?', 'Ford Protect availability and pricing are specific to the vehicle record, mileage, state, selected coverage and current program rules. A Bob Maxey specialist confirms those details and the final offer before purchase.'],
 ];
 
 export const modelsByMake = {

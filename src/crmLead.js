@@ -1,7 +1,14 @@
 import { protectionOptions } from './quoteData';
+import { locations } from './data';
+import { buildQuoteSnapshot } from './quoteOutput';
 
 export const CRM_DESTINATION = 'internetleads@dealermail.com';
-export const CRM_SOURCE = 'Bob Maxey Ford Protect Website - F&I Product Only Sale';
+export const CRM_SOURCE = 'Bob Maxey Ford Protect Website';
+
+const leadTypeFor = (quote = {}) => quote.purchaseContext === 'shopping'
+  ? 'Vehicle Purchase + F&I Product Interest'
+  : 'F&I Product Only Sale';
+const leadSourceFor = (quote = {}) => `${CRM_SOURCE} - ${leadTypeFor(quote)}`;
 
 const xmlEscape = (value = '') => String(value)
   .replaceAll('&', '&amp;')
@@ -12,18 +19,65 @@ const xmlEscape = (value = '') => String(value)
 
 const cleanLines = (lines) => lines.filter(Boolean).join('\n');
 
+const productConfigurationText = (product) => {
+  const configuration = product.configuration || {};
+  const parts = [
+    configuration.optionName,
+    configuration.termLabel,
+    configuration.mileageLabel,
+    configuration.serviceIntervalLabel,
+    configuration.engineHoursLabel,
+    configuration.benefitAmountLabel,
+  ].filter(Boolean);
+  return parts.length ? `${product.name || product.title || product.id} — ${parts.join('; ')}` : (product.name || product.title || product.id);
+};
+
 export function buildLeadComments(quote, plan) {
-  const selectedOptions = quote.addOns?.length
+  const snapshot = buildQuoteSnapshot({ quote, plan });
+  const isEngineCare = snapshot.program === 'enginecare';
+  const selectedOptions = !isEngineCare && quote.addOns?.length
     ? protectionOptions.filter((item) => quote.addOns.includes(item.id)).map((item) => item.title).join(', ')
     : 'None requested';
-  const maintenance = quote.maintenanceId && quote.maintenanceId !== 'none'
-    ? `${quote.maintenanceName || quote.maintenanceId}; preferred interval ${Number(quote.maintenanceInterval || 0).toLocaleString()} miles`
-    : 'No maintenance plan requested';
+  const configuredMaintenance = snapshot.additionalProducts.find((item) => item.id === quote.maintenanceId);
+  const maintenance = configuredMaintenance
+    ? productConfigurationText(configuredMaintenance)
+    : snapshot.maintenance.selected
+      ? `${snapshot.maintenance.name}; ${snapshot.maintenance.intervalLabel}`
+      : 'No maintenance plan requested';
+  const additionalProductRows = snapshot.additionalProducts.filter((item) => item.id !== quote.maintenanceId);
+  const additionalProducts = additionalProductRows.length
+    ? additionalProductRows.map((item) => productConfigurationText(item)).join(' | ')
+    : 'None requested';
+  const isCsp = snapshot.program === 'csp';
+  const termLines = isEngineCare
+    ? [
+      'COVERAGE PATH: Diesel EngineCARE specialist plan',
+      `TERM: ${snapshot.coverage.term.label} (referenced maximum)`,
+      `TOTAL MILEAGE LIMIT: ${snapshot.coverage.term.mileageLabel}`,
+      `ENGINE HOUR LIMIT: ${snapshot.coverage.term.engineHoursLabel}`,
+      `DEDUCTIBLE: ${snapshot.coverage.deductible.label}`,
+      `SPECIALIST RECORD REVIEW: ${snapshot.coverage.inspection.message}`,
+    ]
+    : isCsp
+    ? ['COVERAGE PATH: Continued Service Plan', 'TERM: Monthly', 'MILEAGE: No annual mileage limit', 'DEDUCTIBLE REQUEST: Confirmed with CSP offer', 'INSPECTION: Ford CSP guide states no enrollment inspection is required']
+    : [
+      `COVERAGE PATH: ${quote.planPath === 'used' ? 'Used plan - term and mileage begin at contract signature/current odometer' : 'New plan - term and mileage measured from original in-service date/zero miles'}`,
+      `TERM: ${quote.termMonths || 0} months${quote.termMonths ? ` (${quote.termMonths / 12} years)` : ''}`,
+      `${quote.planPath === 'used' ? 'ADDITIONAL MILEAGE' : 'TOTAL ODOMETER LIMIT'}: ${Number(quote.termMiles || 0).toLocaleString()} miles`,
+      `DEDUCTIBLE REQUEST: ${quote.deductible === 'disappearing' ? 'Disappearing deductible' : `$${quote.deductible || 100}`}`,
+      `INSPECTION: ${quote.inspection?.shortLabel || quote.inspection?.title || 'Ford record review required'}`,
+    ];
+  const store = locations.find((item) => item.name === quote.store)?.descriptor || quote.store || 'Bob Maxey Ford of Howell';
+  const leadType = leadTypeFor(quote);
+  const customerJourney = quote.purchaseContext === 'shopping'
+    ? 'Planning protection before purchasing a vehicle from Bob Maxey'
+    : 'Already owns the vehicle; requesting products eligible after the vehicle sale';
   return cleanLines([
-    'LEAD TYPE: F&I Product Only Sale',
-    `LEAD SOURCE: ${CRM_SOURCE}`,
+    `LEAD TYPE: ${leadType}`,
+    `LEAD SOURCE: ${leadSourceFor(quote)}`,
     `QUOTE ID: ${quote.id || 'Pending'}`,
-    `STORE: Bob Maxey ${quote.store || 'Howell'}`,
+    `STORE: ${store}`,
+    `CUSTOMER JOURNEY: ${customerJourney}`,
     '',
     `VEHICLE: ${quote.year || ''} ${quote.make || ''} ${quote.model || ''}`.trim(),
     quote.vin ? `VIN: ${quote.vin}` : 'VIN: Not provided',
@@ -33,20 +87,20 @@ export function buildLeadComments(quote, plan) {
     `SNOW-PLOW USE: ${quote.snowPlow || 'No'}`,
     `REGISTERED: ${quote.state || ''} ${quote.zip || ''}`.trim(),
     '',
-    `COVERAGE PATH: ${quote.planPath === 'used' ? 'Used plan - term and mileage begin at contract signature/current odometer' : 'New plan - term and mileage measured from original in-service date/zero miles'}`,
-    `PLAN: ${plan?.name || quote.planName || quote.planId || 'Not selected'}`,
-    `TERM: ${quote.termMonths || 0} months${quote.termMonths ? ` (${quote.termMonths / 12} years)` : ''}`,
-    `${quote.planPath === 'used' ? 'ADDITIONAL MILEAGE' : 'TOTAL ODOMETER LIMIT'}: ${Number(quote.termMiles || 0).toLocaleString()} miles`,
-    `DEDUCTIBLE REQUEST: ${quote.deductible === 'disappearing' ? 'Disappearing deductible' : `$${quote.deductible || 100}`}`,
-    `PLAN OPTIONS REQUESTED: ${selectedOptions}`,
+    ...termLines.slice(0, 1),
+    `${isEngineCare ? 'DIESEL ENGINECARE LEVEL' : 'PLAN'}: ${snapshot.coverage.planName}`,
+    ...termLines.slice(1),
+    isEngineCare ? '' : `PLAN OPTIONS REQUESTED: ${selectedOptions}`,
     `MAINTENANCE: ${maintenance}`,
+    `ADDITIONAL PRODUCTS REQUESTED: ${additionalProducts}`,
     quote.paymentPreference ? `PAYMENT PREFERENCE: ${quote.paymentPreference}` : '',
     '',
     `OWNERSHIP GOAL: Keep ${quote.keepYears || 0} years; approximately ${Number(quote.annualMiles || 0).toLocaleString()} miles/year`,
     `PREFERRED CONTACT: ${quote.preferredContact || 'phone'}`,
+    `CONTACT CONSENT: ${quote.consent ? 'Granted for this Ford Protect request' : 'Not granted'}`,
     quote.notes ? `CUSTOMER NOTES: ${quote.notes}` : '',
     '',
-    'IMPORTANT: Website selection is a coverage request, not a final contract or price. Confirm current Ford eligibility, agreement, term, options, deductible, price, and state availability before sale.',
+    'IMPORTANT: Website selection is a coverage request, not a final contract or price. Confirm current Ford eligibility, warranty and inspection status, agreement, term, products, options, deductible, price, and state availability before sale.',
   ]);
 }
 
@@ -56,6 +110,7 @@ export function createAdfXml({ quote, plan, pageUrl = '', referrer = '' }) {
   const comments = buildLeadComments(quote, plan);
   const phone = String(customer.phone || '').replace(/\D/g, '');
   const vehicleStatus = quote.planPath === 'new' ? 'new' : 'used';
+  const leadType = leadTypeFor(quote);
   return `<?xml version="1.0" encoding="UTF-8"?>
 <?adf version="1.0"?>
 <adf>
@@ -75,7 +130,7 @@ export function createAdfXml({ quote, plan, pageUrl = '', referrer = '' }) {
         <name part="first">${xmlEscape(customer.firstName)}</name>
         <name part="last">${xmlEscape(customer.lastName)}</name>
         <email preferredcontact="${quote.preferredContact === 'email' ? '1' : '0'}">${xmlEscape(customer.email)}</email>
-        <phone type="voice" time="evening" preferredcontact="${quote.preferredContact === 'phone' ? '1' : '0'}">${xmlEscape(phone)}</phone>
+        <phone type="cellphone" preferredcontact="${quote.preferredContact === 'phone' || quote.preferredContact === 'text' ? '1' : '0'}">${xmlEscape(phone)}</phone>
         <address>
           <city>${xmlEscape(customer.city)}</city>
           <regioncode>${xmlEscape(quote.state)}</regioncode>
@@ -86,15 +141,15 @@ export function createAdfXml({ quote, plan, pageUrl = '', referrer = '' }) {
       <comments>${xmlEscape(comments)}</comments>
     </customer>
     <vendor>
-      <vendorname>Bob Maxey ${xmlEscape(quote.store || 'Ford')}</vendorname>
+      <vendorname>${xmlEscape(locations.find((item) => item.name === quote.store)?.descriptor || quote.store || 'Bob Maxey Ford of Howell')}</vendorname>
       <contact>
         <name part="full" type="business">Ford Protect F&amp;I Team</name>
         <email>${CRM_DESTINATION}</email>
       </contact>
     </vendor>
     <provider>
-      <name part="full" type="business">${xmlEscape(CRM_SOURCE)}</name>
-      <service>F&amp;I Product Only Sale</service>
+       <name part="full" type="business">${xmlEscape(leadSourceFor(quote))}</name>
+      <service>${xmlEscape(leadType)}</service>
       <url>${xmlEscape(pageUrl)}</url>
       <id source="Referrer">${xmlEscape(referrer)}</id>
     </provider>
@@ -123,13 +178,15 @@ export async function submitCrmLead({ xml, quote }) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      destination: CRM_DESTINATION,
-      leadType: 'F&I Product Only Sale',
-      leadSource: CRM_SOURCE,
+      leadType: leadTypeFor(quote),
+      leadSource: leadSourceFor(quote),
       quoteId: quote.id,
+      idempotencyKey: `ford-protect-${quote.id}`,
       xml,
     }),
   });
   if (!response.ok) throw new Error('The dealership lead connection did not accept this request.');
-  return { configured: true, sent: true };
+  const receipt = await response.json().catch(() => null);
+  if (!receipt?.accepted) throw new Error('The dealership lead connection did not return an accepted receipt.');
+  return { configured: true, sent: true, accepted: true, leadId: receipt.leadId || receipt.id || quote.id, receivedAt: receipt.receivedAt || new Date().toISOString() };
 }

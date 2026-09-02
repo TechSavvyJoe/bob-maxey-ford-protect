@@ -1,37 +1,41 @@
 # Bob Maxey Ford Protect
 
-Premium multi-page React/Vite prototype for explaining, quoting and ultimately selling eligible Ford Protect products through the Bob Maxey dealership network.
+Premium multi-page React/Vite customer experience for learning about and requesting eligible Ford Protect products through the Bob Maxey dealership network.
 
 ## Pages
 
 - `/` - concise home page, vehicle quick-start and product-family gateway
-- `/products` - searchable after-sale Ford Protect catalog
+- `/products` - concise Ford Protect product catalog organized by customer need
 - `/products/:id` - complete on-site product guide with searchable coverage, benefits, eligibility, exclusions and claims guidance
 - `/compare` - detailed mechanical and electric-vehicle plan comparisons plus specialty pathways
-- `/eligibility` - new, used, EV, certified and commercial eligibility paths
-- `/how-it-works` - six-step quote-to-contract process and ESP/CSP guidance
-- `/resources` - organized on-site comparison, coverage explorer, payment estimate, guides and FAQs
+- `/eligibility` - new-plan, used-plan, EV, commercial-use and inspection guidance
+- `/how-it-works` - six-step request-to-agreement process and payment guidance
+- `/resources` - on-site help center, terminology, guides and FAQs
 
 ## Customer-facing product scope
 
 - Mechanical: PremiumCARE, ExtraCARE, BaseCARE and PowertrainCARE
 - Electric: PremiumCARE Plus EV, PremiumCARE EV, ExtraCARE EV and BaseCARE EV
-- Maintenance: Premium Maintenance, Premium Maintenance EV and Continued Service Plan
-- Specialty: Ford Blue Advantage Upgrade, Lincoln CPO Upgrade, commercial, incomplete-vehicle and medium-duty pathways
+- Maintenance: Premium Maintenance, Premium Maintenance EV and dealer-matched maintenance choices
+- Continued coverage: Continued Service Plan Ultimate and Standard Plus
+- Specialist requests: Diesel EngineCARE and RentalCARE where current Ford records and program rules allow
 
-The normal catalog intentionally excludes GAP, lease-only products and vehicle-care products that must be purchased at the original vehicle sale. Those items are not shown as after-sale purchase paths.
+The public catalog intentionally excludes GAP, lease-only products and vehicle-care products that must be purchased at the original vehicle sale. Ford Blue Advantage and Lincoln CPO upgrade records remain archived in the source data for possible later use, but their pages and cards are hidden from customers.
 
 ## Current functional scope
 
 - Working multi-page navigation without a full page reload
 - Responsive desktop and mobile layouts
-- Searchable product library and searchable component coverage
+- Focused product catalog and searchable component coverage
 - Internal product-detail pages with no links to outside pricing sites
 - Mechanical and EV comparison modes
-- Resource hub with five focused views instead of one long stacked page
-- Mechanical coverage explorer with ten systems and four plan levels
-- Budco illustration using 20% down and a user-selected payment period; final eligibility and terms remain subject to confirmation
-- Four-step quote studio with refined plan rows, plan-detail popup, term/mileage controls, deductible and add-ons
+- Organized help center with direct routes to comparison, eligibility, process and product details
+- Mechanical comparison with shared benefits separated from plan-level differences
+- Payment guidance for eligible 0%-interest financing with a small down payment; the current offer confirms the exact down payment, number of payments, schedule, and first due date
+- Six-step responsive quote studio with vehicle, protection, term/mileage, additional-product, customer and review stages
+- After-sale product requests with full in-flow details and vehicle-specific review language
+- Portrait customer proposal PDF with customer, vehicle, plan, coverage, options, inspection, payment and next-step details
+- DealerMail ADF/XML lead output and a secure-endpoint handoff that reports success only after the configured endpoint accepts the lead
 - Local saved-quote lookup, contact forms and policy/resource modals
 - Official Ford Protect logos and locally hosted Ford marketing media
 
@@ -75,7 +79,7 @@ The prototype does not invent live prices or represent an issued contract. Produ
 3. Bob Maxey pricing rules and dealership/store routing
 4. Secure customer identity, disclosures, payment and installment-plan workflow
 5. Authorized Ford contract enrollment and issued-contract confirmation
-6. CRM/DMS lead and customer-record integration
+6. Production hosting and authentication for the configured CRM/DMS lead endpoint
 7. Approved storage, email/SMS delivery, analytics and consent tracking
 8. Locally hosted, compliance-approved agreement PDFs if Bob Maxey wants downloadable contracts on the site
 
@@ -97,7 +101,7 @@ The Bob Maxey logo is the current dealer logo previously supplied from the Bob M
 - `npm audit --audit-level=high` reports 0 vulnerabilities
 - Eight primary routes return HTTP 200 in browser QA
 - No broken images, document-level horizontal overflow, console errors or page errors on tested desktop routes
-- Product search, coverage search, product tabs, comparison modes, resource tabs, payment calculator, quote coverage step and animated plan-detail popup were tested
-- 390 px product and Resources layouts pass document-level overflow checks
+- Product search, coverage search, category tabs, comparison modes, quote steps, product-detail popups, review disclosures and proposal generation were tested
+- 390 px phone, 768 px tablet and 1024 px laptop layouts pass document-level overflow checks
 - Product-detail and Resources pages contain no customer-facing external pricing links
 - Native Playwright Chrome was used for screenshot and interaction QA because the Chrome extension browser-control runtime was unavailable

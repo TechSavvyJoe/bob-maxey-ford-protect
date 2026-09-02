@@ -1,15 +1,16 @@
 import { useMemo, useState } from 'react';
 import {
-  ArrowLeft, ArrowRight, BookOpen, Check, ChevronDown, CircleAlert,
-  FileCheck2, Search, ShieldCheck, Wrench,
+  ArrowLeft, ArrowRight, Check, ChevronDown, CircleAlert,
+  FileCheck2, Search, ShieldCheck,
 } from 'lucide-react';
 import { productDetails } from '../productDetails';
+import { hiddenCustomerProductIds } from '../data';
 import { assetUrl } from '../paths';
 
+const hiddenCustomerProductIdSet = new Set(hiddenCustomerProductIds);
+
 const topics = [
-  ['overview', 'Overview'],
   ['coverage', 'What it covers'],
-  ['benefits', 'Benefits'],
   ['eligibility', 'Eligibility & options'],
   ['limits', 'Not covered'],
   ['use', 'Using your plan'],
@@ -74,16 +75,28 @@ function BenefitRail({ detail, onQuote, onContact }) {
   const start = () => detail.quoteMode === 'dealer' ? onContact() : onQuote({ planId: detail.id, powertrain: detail.quoteMode === 'electric' ? 'Electric' : undefined });
   return (
     <aside className="detail-benefit-rail">
-      <h2>Your Ford Protect benefits</h2>
-      {detail.benefits.slice(0, 4).map((benefit) => <div key={benefit.title}><ShieldCheck /><span><strong>{benefit.title}</strong><small>{benefit.text}</small></span></div>)}
+      <h2>At a glance</h2>
+      {detail.benefits.slice(0, 3).map((benefit) => <div key={benefit.title}><ShieldCheck /><span><strong>{benefit.title}</strong><small>{benefit.text}</small></span></div>)}
       <div className="detail-benefit-rail__cta"><strong>Ready to protect your Ford?</strong><span>Start with the vehicle so Bob Maxey can verify the correct plan.</span><button type="button" onClick={start}>{detail.quoteMode === 'dealer' ? 'Ask a specialist' : 'Build my quote'} <ArrowRight /></button></div>
     </aside>
   );
 }
 
 export default function ProductDetail({ productId, onBack, onQuote, onContact, onCompare }) {
-  const detail = productDetails[productId] || productDetails.premium;
+  const hiddenFromCustomers = hiddenCustomerProductIdSet.has(productId);
+  const detail = hiddenFromCustomers ? null : productDetails[productId] || productDetails.premium;
   const [topic, setTopic] = useState('coverage');
+  if (hiddenFromCustomers) {
+    return (
+      <article className="product-detail-page">
+        <div className="detail-breadcrumb page-shell"><button type="button" onClick={onBack}><ArrowLeft /> All products</button></div>
+        <section className="page-shell detail-information">
+          <div className="detail-information__heading"><h1>This product is not available in the after-sale catalog.</h1><p>Certified-vehicle upgrades are tied to an eligible certified sale, so they are not shown as normal customer purchase paths.</p></div>
+          <button className="button button--primary" type="button" onClick={onBack}>Explore available products <ArrowRight /></button>
+        </section>
+      </article>
+    );
+  }
   const start = () => detail.quoteMode === 'dealer' ? onContact() : onQuote({ planId: detail.id, powertrain: detail.quoteMode === 'electric' ? 'Electric' : undefined });
 
   return (
@@ -112,17 +125,12 @@ export default function ProductDetail({ productId, onBack, onQuote, onContact, o
 
       <div className="page-shell detail-workspace">
         <main>
-          {topic === 'overview' && <>
-            <section className="detail-overview"><div><BookOpen /><h2>Understand the plan in minutes</h2><p>{detail.coverageModel}</p></div><div><Wrench /><h2>How to choose it</h2><p>{detail.bestFor}</p></div></section>
-            <InformationList title="Coverage at a glance" intro="Open What it covers for the searchable component-level view." items={detail.coverageGroups.map((group) => ({ title: group.title, text: group.summary }))} />
-          </>}
           {topic === 'coverage' && <CoverageBrowser detail={detail} />}
-          {topic === 'benefits' && <InformationList title={`${detail.name} ownership benefits`} intro="Benefits and limits depend on the selected plan and issued agreement." items={detail.benefits} icon={ShieldCheck} />}
           {topic === 'eligibility' && <div className="detail-two-column"><InformationList title="Who may qualify" items={detail.eligibility} icon={Check} /><InformationList title="Choices you can make" items={detail.options} icon={Check} /></div>}
           {topic === 'limits' && <InformationList title="Important limits and exclusions" intro="These are the practical points to understand before purchase." items={detail.limits} icon={CircleAlert} />}
           {topic === 'use' && <>
             <section className="plan-use-flow"><h2>How to use your plan</h2>{detail.useSteps.map((step, index) => <div key={step}><span>{index + 1}</span><p>{step}</p></div>)}</section>
-            <section className="source-documents"><div><FileCheck2 /><span><h2>Exact agreement</h2><p>Approved agreement files will be hosted here when Bob Maxey selects the versions for customer use. Until then, request the vehicle-specific agreement without leaving this site.</p></span></div><button type="button" onClick={() => onContact()}>Request my agreement <ArrowRight /></button></section>
+            <section className="source-documents"><div><FileCheck2 /><span><h2>Your vehicle-specific agreement</h2><p>Request the agreement that applies to your vehicle, selected coverage and state. It confirms covered items, exclusions, limits and claim provisions.</p></span></div><button type="button" onClick={() => onContact()}>Request my agreement <ArrowRight /></button></section>
           </>}
         </main>
         <BenefitRail detail={detail} onQuote={onQuote} onContact={onContact} />

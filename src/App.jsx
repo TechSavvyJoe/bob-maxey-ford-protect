@@ -12,11 +12,12 @@ import FaqSection from './components/FaqSection';
 import QuoteStudio from './components/QuoteStudio';
 import TrustFooter from './components/TrustFooter';
 import { ContactPanel, ResourcePanel, SavedQuotes } from './components/UtilityModal';
-import { afterSaleProductCategories } from './data';
+import { afterSaleProductCategories, hiddenCustomerProductIds } from './data';
 import { appPathname, appUrl } from './paths';
 
 const validPages = ['home', 'products', 'compare', 'eligibility', 'how-it-works', 'resources'];
 const availableProductIds = new Set(afterSaleProductCategories.flatMap((category) => category.products.map((product) => product.id)));
+const hiddenCustomerProductIdSet = new Set(hiddenCustomerProductIds);
 const pageFromPath = () => {
   const slug = appPathname().split('/').filter(Boolean)[0] || 'home';
   return validPages.includes(slug) ? slug : 'home';
@@ -24,6 +25,12 @@ const pageFromPath = () => {
 const productFromPath = () => {
   const parts = appPathname().split('/').filter(Boolean);
   return parts[0] === 'products' && availableProductIds.has(parts[1]) ? parts[1] : '';
+};
+const normalizeHiddenProductPath = () => {
+  const parts = appPathname().split('/').filter(Boolean);
+  if (parts[0] !== 'products' || !hiddenCustomerProductIdSet.has(parts[1])) return false;
+  window.history.replaceState({}, '', appUrl('/products'));
+  return true;
 };
 
 export default function App() {
@@ -42,7 +49,9 @@ export default function App() {
   }, [toast]);
 
   useEffect(() => {
+    normalizeHiddenProductPath();
     const handlePopState = () => {
+      normalizeHiddenProductPath();
       setPage(pageFromPath());
       setProductId(productFromPath());
     };
@@ -96,9 +105,9 @@ export default function App() {
           ? <ProductDetail productId={productId} onBack={() => navigate('products')} onQuote={openQuote} onContact={openContact} onCompare={() => navigate('compare')} />
           : <ProductLibrary onQuote={openQuote} onContact={openContact} onOpenProduct={openProduct} />)}
         {page === 'compare' && <PlanExplorer onQuote={openQuote} onOpenProduct={openProduct} />}
-        {page === 'eligibility' && <EligibilityHub onQuote={openQuote} onContact={openContact} />}
+        {page === 'eligibility' && <EligibilityHub onQuote={openQuote} onContact={openContact} onNavigate={navigate} />}
         {page === 'how-it-works' && <Journey onQuote={openQuote} onContact={openContact} onNavigate={navigate} />}
-        {page === 'resources' && <FaqSection onQuote={openQuote} onContact={openContact} onOpenProduct={openProduct} />}
+        {page === 'resources' && <FaqSection onQuote={openQuote} onContact={openContact} onNavigate={navigate} />}
       </main>
       <TrustFooter compact={page !== 'home'} onQuote={openQuote} onContact={openContact} onResource={openResource} />
 

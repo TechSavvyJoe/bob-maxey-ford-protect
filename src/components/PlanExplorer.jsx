@@ -1,42 +1,36 @@
 import { ArrowRight, Check, CircleAlert, ShieldCheck } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { evPlanData, planData } from '../data';
-import { productDetails } from '../productDetails';
 import { assetUrl } from '../paths';
 
-const sharedBenefits = 'Roadside, rental, Ford/Lincoln dealer support, transfer eligibility';
-
 const mechanicalRows = [
-  { label: 'Coverage model', values: ['Exclusionary—covered unless excluded', '113 listed components', '84 listed components', '29 listed components'] },
-  { label: 'Core systems', values: ['Engine, transmission, axle, steering, brakes, suspension, electrical, climate and more', 'Powertrain + BaseCARE + selected high-tech and climate', 'Powertrain + steering, brakes, suspension, electrical and A/C', 'Engine, transmission and drive axle'] },
+  { label: 'Coverage approach', values: ['Exclusionary—covered unless excluded', '113 listed components', '84 listed components', '29 listed components'] },
+  { label: 'What expands', values: ['The broadest mechanical, electrical and factory-installed technology protection', 'Adds selected high-tech, climate and daily-use systems', 'Adds steering, brakes, suspension, electrical and selected A/C', 'Focuses on engine, transmission and drive axle'] },
   { label: 'High-tech coverage', values: ['Broad factory-installed technology coverage', 'Selected components', 'Not a high-tech plan', 'Not included'] },
-  { label: 'Factory turbo / supercharger', values: [true, true, true, true] },
   { label: 'Electrical coverage', values: ['Broad', 'Selected', 'Selected', 'Not included'] },
   { label: 'Steering / brakes / suspension', values: ['Broad eligible coverage', 'Listed components', 'Listed components', 'Not included'] },
   { label: 'Climate control', values: ['A/C and heating', 'A/C and heating', 'Selected A/C', 'Not included'] },
-  { label: 'Published maximum', values: ['Up to 10 years / 175,000 miles', 'Up to 10 years / 175,000 miles', 'Up to 10 years / 175,000 miles', 'Up to 10 years / 175,000 miles'] },
-  { label: 'Used-plan path', values: ['1 year / 10,000 miles to 6 years / 75,000 miles in published material', '1 year / 10,000 miles to 6 years / 75,000 miles in published material', '6 months / 6,000 miles to 6 years / 75,000 miles in published material', '6 months / 6,000 miles to 6 years / 75,000 miles in published material'] },
-  { label: 'Published deductible choices', values: ['$100 standard; eligible $0, $50, $200 or disappearing', '$100 standard; eligible $0, $50, $200 or disappearing', '$100 standard; eligible $0, $50, $200 or disappearing', '$100 standard; eligible $0, $50, $200 or disappearing'] },
-  { label: 'Ownership benefits', values: [sharedBenefits, sharedBenefits, sharedBenefits, sharedBenefits] },
+  { label: 'Published used-plan range', values: ['1 year / 10,000 miles to 6 years / 75,000 miles', '1 year / 10,000 miles to 6 years / 75,000 miles', '6 months / 6,000 miles to 6 years / 75,000 miles', '6 months / 6,000 miles to 6 years / 75,000 miles'] },
   { label: 'Best fit', values: ['Maximum protection and advanced technology', 'Broad daily-use system protection', 'Practical major-system protection', 'Lowest-scope core powertrain protection'] },
 ];
 
 const evRows = [
-  { label: 'Coverage model', values: ['PremiumCARE EV + Premium Maintenance EV', 'Broad eligible EV component coverage', '113 listed components', '84 listed components'] },
+  { label: 'Coverage approach', values: ['PremiumCARE EV + Premium Maintenance EV', 'Broad eligible EV component coverage', '113 listed components', '84 listed components'] },
   { label: 'Drive motors', values: ['Broad eligible coverage', 'Broad eligible coverage', 'Listed components', 'Listed components'] },
   { label: 'Charging / EV electrical', values: ['Broad eligible coverage', 'Broad eligible coverage', 'Selected electrical', 'Selected electrical'] },
   { label: 'High-tech coverage', values: ['Broad', 'Broad', 'Selected', 'Not included'] },
   { label: 'Steering / brakes / suspension', values: ['Broad eligible coverage', 'Broad eligible coverage', 'Listed components', 'Listed components'] },
   { label: 'Scheduled EV maintenance', values: ['Included', 'Not included', 'Not included', 'Not included'] },
   { label: 'Selected wear items', values: ['Included through maintenance plan', 'Not included', 'Not included', 'Not included'] },
-  { label: 'High-voltage battery assembly', values: ['Not covered—separate manufacturer warranty', 'Not covered—separate manufacturer warranty', 'Not covered—separate manufacturer warranty', 'Not covered—separate manufacturer warranty'] },
-  { label: 'Published maximum', values: ['Up to 10 years / 150,000 miles', 'Up to 10 years / 150,000 miles', 'Up to 10 years / 150,000 miles', 'Up to 10 years / 150,000 miles'] },
-  { label: 'Published deductible choices', values: ['$100 standard; eligible $0, $50, $200 or disappearing', '$100 standard; eligible $0, $50, $200 or disappearing', '$100 standard; eligible $0, $50, $200 or disappearing', '$100 standard; eligible $0, $50, $200 or disappearing'] },
-  { label: 'Ownership benefits', values: [sharedBenefits, sharedBenefits, sharedBenefits, sharedBenefits] },
   { label: 'Best fit', values: ['One plan for EV repairs and scheduled care', 'Maximum eligible EV component protection', 'Enhanced EV drivability and technology', 'Focused major-system EV protection'] },
 ];
 
-const otherProductIds = ['premium-maintenance', 'premium-maintenance-ev', 'continued-service', 'fba-upgrade', 'lincoln-cpo', 'commercial', 'incomplete', 'medium-duty'];
+const commonBenefits = [
+  'Ford and Lincoln dealer service support',
+  'Roadside assistance',
+  'Rental support for eligible covered repairs',
+  'Transfer eligibility when the agreement allows',
+];
 
 function ComparisonCell({ value }) {
   if (value === true) return <Check aria-label="Included" />;
@@ -45,75 +39,49 @@ function ComparisonCell({ value }) {
 }
 
 export default function PlanExplorer({ onQuote, onOpenProduct }) {
-  const [activePlan, setActivePlan] = useState(planData[0]);
   const [mode, setMode] = useState('mechanical');
   const comparisonPlans = mode === 'mechanical' ? planData : evPlanData;
   const rows = mode === 'mechanical' ? mechanicalRows : evRows;
-  const activeDetail = productDetails[activePlan.id];
-  const otherProducts = useMemo(() => otherProductIds.map((id) => productDetails[id]), []);
-
-  const selectMode = (next) => {
-    setMode(next);
-    setActivePlan(next === 'mechanical' ? planData[0] : evPlanData[0]);
-  };
 
   return (
     <section className="plan-explorer section" id="plans">
       <div className="page-shell">
         <div className="plan-explorer__heading">
-          <div><h1>Compare protection without the guesswork.</h1><p>See coverage structure, systems, terms, deductibles, ownership benefits and purchase timing before you choose a plan.</p></div>
+          <div>
+            <h1>Compare only what changes from plan to plan.</h1>
+            <p>Use this page to see the meaningful coverage differences. Open any plan name for its complete coverage guide, or check your vehicle for the combinations Ford currently makes available.</p>
+          </div>
           <img src={assetUrl('/assets/ford-official/ford-protect-logo.png')} alt="Ford Protect" />
         </div>
 
         <div className="compare-mode" role="tablist" aria-label="Comparison type">
-          <button className={mode === 'mechanical' ? 'is-active' : ''} type="button" onClick={() => selectMode('mechanical')}>Gas, hybrid & diesel plans</button>
-          <button className={mode === 'electric' ? 'is-active' : ''} type="button" onClick={() => selectMode('electric')}>Electric-vehicle plans</button>
+          <button className={mode === 'mechanical' ? 'is-active' : ''} type="button" onClick={() => setMode('mechanical')}>Gas, hybrid & diesel plans</button>
+          <button className={mode === 'electric' ? 'is-active' : ''} type="button" onClick={() => setMode('electric')}>Electric-vehicle plans</button>
         </div>
 
-        <div className="plan-feature">
-          <div className="plan-feature__nav" role="tablist" aria-label="Ford Protect plans">
-            {comparisonPlans.map((plan) => (
-              <button key={plan.id} className={activePlan.id === plan.id ? 'is-active' : ''} type="button" role="tab" aria-selected={activePlan.id === plan.id} onClick={() => setActivePlan(plan)}>
-                <span><strong>{plan.name}</strong><small>{plan.label}</small></span><span><strong>{plan.count}</strong><small>components</small></span><ArrowRight />
-              </button>
-            ))}
+        <section className="comparison-common" aria-labelledby="comparison-common-title">
+          <div className="comparison-common__intro">
+            <ShieldCheck />
+            <div><small>WITH EVERY ELIGIBLE PLAN</small><h2 id="comparison-common-title">Core ownership support stays consistent.</h2></div>
           </div>
-
-          <div className="plan-feature__detail" key={activePlan.id}>
-            <div className="plan-feature__copy">
-              <p className="product-type">{mode === 'electric' ? 'Ford Protect EV Extended Service Plan' : 'Ford Protect Extended Service Plan'}</p>
-              <h3>{activePlan.name}</h3>
-              <div className="plan-feature__count"><strong>{activePlan.count}</strong><span>covered<br />components</span></div>
-              <p className="plan-feature__best"><strong>Best for:</strong> {activePlan.bestFor}</p>
-              <p>{activePlan.description}</p>
-              <div className="plan-feature__systems">{activePlan.groups.map((group) => <span key={group}><Check /> {group}</span>)}</div>
-              <div className="plan-feature__actions">
-                <button className="button button--primary" type="button" onClick={() => onQuote({ planId: activePlan.id, powertrain: mode === 'electric' ? 'Electric' : undefined })}>Build a {activePlan.name} quote <ArrowRight /></button>
-                <button className="button button--outline" type="button" onClick={() => onOpenProduct(activePlan.id)}>Full plan details</button>
-              </div>
-            </div>
-            <div className="plan-feature__media"><img src={assetUrl(activeDetail?.image || '/assets/ford-official/ford-why-plan.png')} alt="Official Ford Protect marketing media" /><span>Official Ford Protect marketing media</span></div>
-          </div>
-
-          <div className="plan-feature__examples"><strong>Examples shown in Ford component information</strong><div>{(activePlan.examples || activeDetail?.coverageGroups.flatMap((group) => group.items).slice(0, 5) || []).map((example) => <span key={example}><ShieldCheck /> {example}</span>)}</div></div>
-        </div>
+          <div className="comparison-common__items">{commonBenefits.map((benefit) => <span key={benefit}><Check /> {benefit}</span>)}</div>
+        </section>
 
         <div className="comparison-wrap" id="compare">
-          <div className="comparison-heading"><div><h3>Detailed {mode === 'electric' ? 'EV' : 'mechanical'} plan comparison</h3><p>Swipe horizontally on a phone. Select a plan name to open the full internal coverage guide.</p></div><button type="button" onClick={() => onQuote({ powertrain: mode === 'electric' ? 'Electric' : undefined })}>Check my vehicle <ArrowRight /></button></div>
-          <div className="detailed-comparison" role="table" aria-label={`Detailed Ford Protect ${mode} plan comparison`}>
-            <div className="detailed-comparison__row detailed-comparison__head" role="row"><div role="columnheader">Decision point</div>{comparisonPlans.map((plan) => <button key={plan.id} type="button" role="columnheader" onClick={() => onOpenProduct(plan.id)}><strong>{plan.name}</strong><small>{plan.count} components</small></button>)}</div>
+          <div className="comparison-heading">
+            <div><h3>{mode === 'electric' ? 'EV' : 'Mechanical'} coverage differences</h3><p>Plan names open the complete on-site coverage guide. Swipe the table horizontally on a phone.</p></div>
+            <button type="button" onClick={() => onQuote({ powertrain: mode === 'electric' ? 'Electric' : undefined })}>Check my vehicle <ArrowRight /></button>
+          </div>
+          <div className="detailed-comparison" role="table" aria-label={`Ford Protect ${mode} plan differences`}>
+            <div className="detailed-comparison__row detailed-comparison__head" role="row">
+              <div role="columnheader">Decision point</div>
+              {comparisonPlans.map((plan) => <button key={plan.id} type="button" role="columnheader" onClick={() => onOpenProduct(plan.id)}><strong>{plan.name}</strong><small>{plan.count} components</small></button>)}
+            </div>
             {rows.map((row) => <div className="detailed-comparison__row" role="row" key={row.label}><div role="rowheader">{row.label}</div>{row.values.map((value, index) => <div key={`${row.label}-${comparisonPlans[index].id}`} role="cell"><ComparisonCell value={value} /></div>)}</div>)}
           </div>
-          <p className="comparison-note"><CircleAlert /> Published maximums and brochure choices are not an eligibility promise. VIN, in-service date, mileage, state, use and Ford’s current rules determine the choices returned for a vehicle.</p>
+          {mode === 'electric' && <p className="comparison-note"><CircleAlert /> The high-voltage battery assembly remains under its separate manufacturer warranty and is not included in these plan comparisons.</p>}
+          <p className="comparison-note"><CircleAlert /> Published maximums, deductible choices and used-plan ranges are planning references—not an eligibility promise. VIN, in-service date, mileage, state, use and Ford’s current rules determine the choices returned for a vehicle.</p>
         </div>
-
-        <section className="other-products-compare">
-          <div className="other-products-compare__heading"><h2>Other after-sale Ford Protect paths</h2><p>These products are included because they may be relevant after the original vehicle sale or require a Ford record-level review. GAP, LeaseCARE, RentalCARE and vehicle-care products sold only at the original sale are outside this site’s sales scope.</p></div>
-          <div className="other-products-table" role="table" aria-label="Other Ford Protect products">
-            <div className="other-products-table__head" role="row"><div>Product</div><div>What it does</div><div>When it applies</div><div>Next step</div></div>
-            {otherProducts.map((detail) => <div role="row" key={detail.id}><div><strong>{detail.name}</strong><small>{detail.family}</small></div><div>{detail.tagline}</div><div>{detail.eligibility[0]}</div><div><button type="button" onClick={() => onOpenProduct(detail.id)}>View details <ArrowRight /></button></div></div>)}
-          </div>
-        </section>
       </div>
     </section>
   );

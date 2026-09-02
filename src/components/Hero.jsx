@@ -27,6 +27,10 @@ export default function Hero({ onQuote, onCompare }) {
     onQuote(vehicle);
   };
 
+  const startWithVehicle = () => {
+    document.getElementById('home-vehicle-start')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  };
+
   return (
     <section className="hero" id="top">
       <div className="hero__media" aria-hidden="true" />
@@ -35,8 +39,8 @@ export default function Hero({ onQuote, onCompare }) {
           <h1>Ford ownership,<br />protected.</h1>
           <p>Genuine Ford Protect coverage, personalized for your vehicle and backed by the people who know Ford best.</p>
           <div className="hero__actions">
-            <button className="button button--primary button--large" type="button" onClick={() => onQuote()}>
-              Build My Quote <span aria-hidden="true">→</span>
+            <button className="button button--primary button--large" type="button" onClick={startWithVehicle}>
+              Start With My Vehicle <span aria-hidden="true">→</span>
             </button>
             <button className="button button--outline-light button--large" type="button" onClick={onCompare}>
               Compare Plans
@@ -49,7 +53,7 @@ export default function Hero({ onQuote, onCompare }) {
           </div>
         </div>
       </div>
-      <form className="quote-dock page-shell" onSubmit={submit}>
+      <form className="quote-dock page-shell" id="home-vehicle-start" onSubmit={submit}>
         <label>
           <span>Year</span>
           <select value={vehicle.year} onChange={(event) => update('year', event.target.value)}>

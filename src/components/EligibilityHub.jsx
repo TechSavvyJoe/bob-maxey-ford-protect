@@ -1,51 +1,46 @@
-import { ArrowRight, BriefcaseBusiness, CarFront, Check, ClipboardCheck, Gauge, ShieldCheck, Sparkles, Zap } from 'lucide-react';
+import { ArrowRight, BriefcaseBusiness, Check, ClipboardCheck, Gauge, ShieldCheck, Zap } from 'lucide-react';
 import { assetUrl } from '../paths';
 
-const paths = [
-  { icon: CarFront, title: 'New or still within factory coverage', text: 'The quote uses the original in-service date, current mileage and Ford warranty record to identify the correct new-plan path.' },
-  { icon: Gauge, title: 'Used or higher-mileage vehicle', text: 'Eligible used-plan choices can use different start rules, terms, deductibles and inspection requirements.' },
+const specialProfiles = [
   { icon: Zap, title: 'Electric vehicle', text: 'Powertrain and battery-warranty information route the vehicle to the EV-specific Ford Protect lineup.' },
-  { icon: Sparkles, title: 'Ford Blue Advantage or Lincoln CPO', text: 'Certification records determine whether an upgrade path is available and how it extends included coverage.' },
   { icon: BriefcaseBusiness, title: 'Commercial, snow-plow, upfit or medium duty', text: 'Vehicle class, use, equipment, mileage and hours require dealer review before plan rating.' },
 ];
 
 const ratingInputs = ['VIN', 'Model year & vehicle', 'Current mileage', 'Original in-service date', 'Registration state', 'Personal or business use', 'Gas, hybrid or electric', 'Snow-plow or upfit status'];
 
-const purchaseSteps = [
-  ['1', 'Verify the Ford record', 'VIN, warranty start, mileage, powertrain and vehicle use.'],
-  ['2', 'Return eligible products', 'Only the plans, terms and deductibles available for that vehicle.'],
-  ['3', 'Show the real agreement', 'Coverage, exclusions, benefits, cancellation and transfer terms.'],
-  ['4', 'Select payment', 'Pay in full or use an eligible Ford Protect installment option when available.'],
-  ['5', 'Complete Ford enrollment', 'Bob Maxey submits and confirms the issued contract in the authorized Ford process.'],
-];
-
-export default function EligibilityHub({ onQuote, onContact }) {
+export default function EligibilityHub({ onQuote, onContact, onNavigate }) {
   return (
     <section className="eligibility-hub section" id="eligibility">
       <div className="page-shell eligibility-hub__heading">
-        <div><h1>Know your eligibility path<br />before you compare price.</h1><p>Ford Protect rating is vehicle-specific. The site should identify the right contract path before it shows a term, deductible or final price.</p></div>
+        <div><h1>Know the vehicle’s eligibility path before choosing a plan.</h1><p>Ford Protect eligibility starts with the vehicle record. Warranty status determines the inspection path; VIN, mileage, in-service date, state and use determine the products and combinations Bob Maxey can confirm.</p></div>
         <img src={assetUrl('/assets/ford-official/ford-why-1.png')} alt="Ford F-150 Lightning from official Ford Protect marketing media" />
       </div>
 
+      <section className="page-shell inspection-decision" aria-labelledby="inspection-decision-title">
+        <div className="inspection-decision__heading"><ClipboardCheck /><div><small>INSPECTION DECISION</small><h2 id="inspection-decision-title">Factory-warranty status sets the next step.</h2></div></div>
+        <div className="inspection-decision__grid">
+          <article className="is-covered"><ShieldCheck /><div><small>WITHIN THE NEW VEHICLE LIMITED WARRANTY</small><h3>No used-vehicle inspection is required.</h3><p>For an eligible ESP used-plan enrollment completed while the vehicle remains within the New Vehicle Limited Warranty, no used-vehicle inspection is required. Ford records still confirm final eligibility.</p></div></article>
+          <article className="is-inspection"><Gauge /><div><small>OUTSIDE FACTORY WARRANTY</small><h3>A dealership inspection is required first.</h3><p>Before an eligible Ford Protect sale can be completed, a participating dealership must inspect the vehicle and confirm it meets the current program requirements.</p></div></article>
+        </div>
+      </section>
+
       <div className="page-shell eligibility-hub__grid">
         <div className="eligibility-paths">
-          <h3>Vehicle pathways</h3>
-          {paths.map(({ icon: Icon, title, text }) => <article key={title}><Icon /><div><h4>{title}</h4><p>{text}</p></div></article>)}
+          <h3>Profiles that need added review</h3>
+          {specialProfiles.map(({ icon: Icon, title, text }) => <article key={title}><Icon /><div><h4>{title}</h4><p>{text}</p></div></article>)}
+          <div className="eligibility-paths__links">
+            <button type="button" onClick={() => onNavigate?.('products')}>Review product details <ArrowRight /></button>
+            <button type="button" onClick={() => onNavigate?.('how-it-works')}>See how the process works <ArrowRight /></button>
+          </div>
         </div>
         <aside className="rating-inputs">
           <ClipboardCheck />
           <h3>What the quote needs</h3>
-          <p>These inputs prevent the wrong plan or price from being presented.</p>
+          <p>These details help prevent an ineligible plan, term or deductible from being presented as available.</p>
           <div>{ratingInputs.map((item) => <span key={item}><Check /> {item}</span>)}</div>
           <button className="button button--primary button--full" type="button" onClick={() => onQuote()}>Check my vehicle <ArrowRight /></button>
           <button className="rating-inputs__link" type="button" onClick={() => onContact()}>I have a specialty vehicle</button>
         </aside>
-      </div>
-
-      <div className="page-shell purchase-path">
-        <div className="purchase-path__heading"><ShieldCheck /><div><h3>From quote to an issued Ford Protect contract</h3><p>A complete purchase experience should make each status unmistakable.</p></div></div>
-        <div className="purchase-path__steps">{purchaseSteps.map(([number, title, text]) => <article key={number}><span>{number}</span><h4>{title}</h4><p>{text}</p></article>)}</div>
-        <p className="purchase-path__note">This site prepares the complete selection, proposal and CRM-ready request. Live Ford eligibility and rating, secure payment, contract enrollment and final DealerMail delivery remain dealership-system integrations.</p>
       </div>
     </section>
   );

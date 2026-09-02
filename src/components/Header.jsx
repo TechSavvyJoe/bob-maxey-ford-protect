@@ -34,11 +34,11 @@ export default function Header({ onQuote, onSaved, onNavigate, page }) {
             <button key={id} className={page === id ? 'is-active' : ''} type="button" onClick={() => goTo(id)}>{label}</button>
           ))}
           <button className="nav-saved" type="button" onClick={onSaved}>
-            <Bookmark size={17} strokeWidth={1.9} /> Resume Request
+            <Bookmark size={17} strokeWidth={1.9} /> Resume request
           </button>
         </nav>
         <button className="button button--primary header-cta" type="button" onClick={() => onQuote()}>
-          Check My Vehicle
+          Check my vehicle
         </button>
         <button
           className="menu-button"
@@ -55,9 +55,9 @@ export default function Header({ onQuote, onSaved, onNavigate, page }) {
           {navItems.map(([label, id]) => (
             <button key={id} className={page === id ? 'is-active' : ''} type="button" onClick={() => goTo(id)}>{label}</button>
           ))}
-          <button type="button" onClick={() => { setMenuOpen(false); onSaved(); }}>Resume Request</button>
+          <button type="button" onClick={() => { setMenuOpen(false); onSaved(); }}>Resume request</button>
           <button className="button button--primary" type="button" onClick={() => { setMenuOpen(false); onQuote(); }}>
-            Check My Vehicle
+            Check my vehicle
           </button>
         </div>
       )}

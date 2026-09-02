@@ -1,6 +1,7 @@
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import { assetUrl } from './paths';
 import { buildProposalModel } from './quoteOutput';
+import { getProductTimingPresentation } from './quoteProducts';
 
 const LETTER = [612, 792];
 const PAGE = { width: 612, height: 792, margin: 36, contentWidth: 540, contentTop: 708, footerRule: 43 };
@@ -33,10 +34,19 @@ const safeText = (value = '') => String(value)
   .replace(/[\u00AE\u2122]/g, '')
   .replace(/[^\x09\x0A\x0D\x20-\x7E]/g, '');
 
+const itemText = (value, fallback = '') => {
+  if (value === null || value === undefined) return fallback;
+  if (typeof value !== 'object' || Array.isArray(value)) return safeText(value).trim() || fallback;
+  const title = safeText(value.title || value.name || value.label || value.heading || '').trim();
+  const detail = safeText(value.text || value.summary || value.description || value.detail || '').trim();
+  if (title && detail && normalize(title) !== normalize(detail)) return `${title}: ${detail}`;
+  return title || detail || fallback;
+};
+
 const asArray = (value) => Array.isArray(value) ? value : [];
 const compact = (values) => asArray(values).filter(Boolean);
 const normalize = (value) => safeText(value).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
-const unique = (values) => compact(values).reduce((result, value) => {
+const unique = (values) => compact(values).map((value) => itemText(value)).filter(Boolean).reduce((result, value) => {
   const key = normalize(value);
   if (key && !result.some((entry) => entry.key === key)) result.push({ key, value: safeText(value) });
   return result;
@@ -198,7 +208,7 @@ const drawLabelValue = (page, label, value, { x, y, width }, fonts, options = {}
 
 const drawBullets = (page, items, { x, y, width, fonts, size = 9, lineHeight = 10.9, maxItems = 6, maxLines = 2, color = C.ink }) => {
   let cursor = y;
-  compact(items).slice(0, maxItems).forEach((item) => {
+  compact(items).map((item) => itemText(item)).filter(Boolean).slice(0, maxItems).forEach((item) => {
     const lines = wrap(item, fonts.regular, size, width - 13).slice(0, maxLines);
     page.drawRectangle({ x, y: cursor + 2.1, width: 3, height: 3, color: C.blue });
     lines.forEach((line, index) => page.drawText(line, { x: x + 11, y: cursor - index * lineHeight, size, font: fonts.regular, color }));
@@ -215,8 +225,10 @@ const inspectionPalette = (inspection) => inspection?.required
 
 const inspectionSummary = (inspection, program) => {
   if (program === 'csp') return 'Continued Service Plan requests follow separate eligibility rules and do not require the used-vehicle enrollment inspection.';
-  if (inspection?.required === false) return 'The vehicle appears to remain within New Vehicle Limited Warranty limits. No used-vehicle inspection is expected; Ford records confirm the final status.';
-  if (inspection?.required === true) return 'The vehicle appears outside New Vehicle Limited Warranty limits. A dealership inspection is required before an eligible used ESP can be finalized.';
+  const verifiedSummary = [inspection?.message, inspection?.caveat].map((value) => safeText(value)).filter(Boolean).join(' ');
+  if (verifiedSummary) return verifiedSummary;
+  if (inspection?.required === false) return 'No used-vehicle inspection is shown as required for this quote. Ford records and current program rules confirm final eligibility.';
+  if (inspection?.required === true) return 'Ford records confirm the vehicle is outside New Vehicle Limited Warranty limits. The referenced used-plan rule requires a dealership inspection before an eligible ESP can be finalized.';
   return 'Bob Maxey will verify the Ford warranty record and confirm whether an inspection is required before enrollment.';
 };
 
@@ -242,7 +254,9 @@ const selectedProducts = (model) => {
       value: maintenance.description || 'Plan ahead for scheduled service and eligible maintenance benefits.',
       description: 'Bob Maxey will match the vehicle and current mileage to an eligible plan and service schedule.',
       image: '/assets/ford-official/ford-maintenance-wide.png',
-      purchaseTiming: 'May be available during the applicable New Vehicle Limited Warranty purchase window, including after the sale when eligible.',
+      purchaseTiming: 'vehicle-purchase-or-after-sale-within-nvlw',
+      purchaseTimingLabel: 'At purchase or while in factory warranty',
+      purchaseTimingDetail: 'May be available during the applicable New Vehicle Limited Warranty purchase window, including after the sale when eligible.',
       highlights: [
         'Scheduled maintenance at the requested service interval',
         'Eligible inspections, services, and selected wear items vary by offer',
@@ -296,22 +310,21 @@ const formatDate = (value, fallback = 'To be confirmed') => {
 };
 
 const humanizeTiming = (value) => {
-  const key = safeText(value).toLowerCase();
-  if (!key) return '';
-  if (key === 'original-vehicle-transaction-only') return 'Available only with the eligible original vehicle transaction.';
-  if (key === 'vehicle-purchase-or-after-sale-within-nvlw') return 'May be available at purchase or after sale while within the New Vehicle Limited Warranty.';
-  if (key === 'after-sale') return 'May be requested after the vehicle sale, subject to current eligibility.';
-  return safeText(value).replace(/-/g, ' ');
+  if (!value) return '';
+  if (typeof value === 'object') {
+    return safeText(value.purchaseTimingDetail || value.purchaseTimingLabel || getProductTimingPresentation(value).detail);
+  }
+  return safeText(getProductTimingPresentation(value).label);
 };
 
 const coverageGroups = (snapshot) => asArray(snapshot.coverage.coverageGroups).map((group) => ({
   title: safeText(group.title || group.name || 'Coverage group'),
   summary: safeText(group.summary || group.description || 'Covered components are subject to the issued agreement.'),
-  items: asArray(group.items).map((item) => safeText(item)).filter(Boolean),
+  items: asArray(group.items).map((item) => itemText(item)).filter(Boolean),
 }));
 
 const drawOverviewPage = (pdf, model, assets, fonts) => {
-  const page = addPage(pdf, assets, fonts, 'Personalized protection proposal');
+  const page = addPage(pdf, assets, fonts, model.document.statusLabel);
   const snapshot = model.snapshot;
   const summary = model.requestSummary;
   const products = selectedProducts(model);
@@ -329,7 +342,7 @@ const drawOverviewPage = (pdf, model, assets, fonts) => {
   drawWrapped(page, compact([model.cover.purchaseContextLabel, summary.customer.email, summary.customer.phone]).join('  |  '), { x: 50, y: 473, width: half - 28, font: fonts.regular, size: 9, lineHeight: 10.6, color: C.muted, maxLines: 2 });
   page.drawRectangle({ x: PAGE.margin + half + 12, y: 459, width: half, height: 64, color: C.surface });
   drawLabelValue(page, 'Vehicle', snapshot.vehicle.displayName, { x: PAGE.margin + half + 26, y: 505, width: half - 28 }, fonts, { size: 11.2, maxLines: 1 });
-  drawWrapped(page, compact([snapshot.vehicle.currentMileageLabel, snapshot.vehicle.powertrain, snapshot.vehicle.vin ? `VIN ${snapshot.vehicle.vin}` : 'VIN to be confirmed']).join('  |  '), { x: PAGE.margin + half + 26, y: 473, width: half - 28, font: fonts.regular, size: 9, lineHeight: 10.6, color: C.muted, maxLines: 2 });
+  drawWrapped(page, compact([snapshot.vehicle.currentMileageLabel, snapshot.vehicle.powertrain, snapshot.vehicle.vinComplete ? `VIN ${snapshot.vehicle.vin}` : snapshot.vehicle.vinMessage]).join('  |  '), { x: PAGE.margin + half + 26, y: 473, width: half - 28, font: fonts.regular, size: 9, lineHeight: 10.6, color: snapshot.vehicle.vinComplete ? C.muted : C.amber, maxLines: 2 });
 
   page.drawRectangle({ x: PAGE.margin, y: 365, width: PAGE.contentWidth, height: 78, color: C.navy });
   page.drawText(safeText(snapshot.coverage.programLabel).toUpperCase(), { x: 54, y: 421, size: 8.6, font: fonts.bold, color: C.white });
@@ -341,7 +354,7 @@ const drawOverviewPage = (pdf, model, assets, fonts) => {
 
   const metricValues = snapshot.program === 'enginecare'
     ? [['Term', snapshot.coverage.term.label], ['Mileage', snapshot.coverage.term.mileageLabel], ['Engine hours', snapshot.coverage.term.engineHoursLabel], ['Current mileage', snapshot.vehicle.currentMileageLabel]]
-    : [['Term', snapshot.coverage.term.label], ['Mileage', snapshot.coverage.term.mileageLabel], ['Coverage', snapshot.coverage.componentCount ? `${snapshot.coverage.componentCount} components` : snapshot.coverage.coverageModel], ['Current mileage', snapshot.vehicle.currentMileageLabel]];
+    : [['Term', snapshot.coverage.term.label], ['Mileage', snapshot.coverage.term.mileageLabel], ['Coverage', snapshot.coverage.componentCountLabel || snapshot.coverage.coverageModel], ['Current mileage', snapshot.vehicle.currentMileageLabel]];
   const metricWidth = (PAGE.contentWidth - 3) / 4;
   metricValues.forEach(([label, value], index) => {
     const x = PAGE.margin + index * (metricWidth + 1);
@@ -368,7 +381,7 @@ const drawOverviewPage = (pdf, model, assets, fonts) => {
   drawWrapped(page, productNames.length ? productNames.join('  |  ') : 'No additional products selected in this request.', { x: PAGE.margin, y: 153, width: PAGE.contentWidth, font: fonts.bold, size: 9.2, lineHeight: 11.2, color: C.ink, maxLines: 2 });
 
   page.drawRectangle({ x: PAGE.margin, y: 61, width: PAGE.contentWidth, height: 60, color: C.navySoft });
-  page.drawText('BOB MAXEY SPECIALIST REVIEW', { x: 54, y: 98, size: 8.6, font: fonts.bold, color: C.white });
+  page.drawText(safeText(model.document.statusLabel).toUpperCase(), { x: 54, y: 98, size: 8.6, font: fonts.bold, color: C.white });
   const priceMessage = Number.isFinite(summary.pricing.total)
     ? `$${summary.pricing.total.toLocaleString('en-US')} current quoted total. ${summary.pricing.message}`
     : 'Bob Maxey confirms the Ford record, eligible combinations, exact coverage, current price, and agreement before enrollment.';
@@ -399,7 +412,7 @@ const drawNextSteps = (page, model, { y, height }, fonts) => {
 };
 
 const drawCoveragePage = (pdf, model, assets, fonts) => {
-  const page = addPage(pdf, assets, fonts, 'Plan coverage and next steps');
+  const page = addPage(pdf, assets, fonts, `${model.document.shortStatusLabel || model.document.statusLabel} | Plan coverage`);
   const snapshot = model.snapshot;
   const groups = coverageGroups(snapshot).slice(0, 12);
   let y = drawSectionTitle(page, snapshot.coverage.programLabel, `${snapshot.coverage.planName}: coverage at a glance`, snapshot.coverage.coverageModel || model.coverage.note, fonts);
@@ -451,20 +464,32 @@ const drawCoveragePage = (pdf, model, assets, fonts) => {
   drawWrapped(page, 'This is a coverage request, not a contract. Final eligibility, components, terms, price, exclusions, cancellation terms, and state availability are controlled by the Ford Protect agreement issued for the vehicle. This request does not purchase coverage.', { x: 185, y: Math.max(69, disclaimerTop - 16), width: 374, font: fonts.regular, size: 9, lineHeight: 10.3, color: C.white, maxLines: 3 });
 };
 
+const productTimingText = (product) => safeText(
+  product.purchaseTimingDetail
+  || product.purchaseTimingLabel
+  || humanizeTiming(product),
+);
+
 const productEligibilityText = (product) => compact([
-  humanizeTiming(product.purchaseTiming || product.purchaseTimingLabel),
+  productTimingText(product),
   product.eligibility?.inspectionPolicy,
   product.eligibility?.dealerConfirmation,
   product.eligibility?.headline,
 ]).join(' ');
 
 const compactEligibilityText = (product) => {
-  const timing = safeText(product.purchaseTiming || product.purchaseTimingLabel).toLowerCase();
-  if (timing === 'original-vehicle-transaction-only') return 'Original-transaction product; Bob Maxey confirms eligibility.';
-  if (timing === 'vehicle-purchase-or-after-sale-within-nvlw') return 'May be available after sale while in warranty; Bob Maxey confirms eligibility.';
-  if (timing === 'after-sale') return 'After-sale request; Bob Maxey confirms eligibility and current terms.';
-  return 'Bob Maxey confirms vehicle eligibility and purchase timing.';
+  const timing = product.purchaseTimingShortLabel
+    || getProductTimingPresentation(product.purchaseTiming || product).shortLabel;
+  return `${safeText(timing)}; Bob Maxey confirms VIN-specific eligibility and current terms.`;
 };
+
+const productValueBullets = (product) => unique([
+  ...asArray(product.highlights),
+  ...asArray(product.selectedOptions).map((option) => itemText(option)),
+  ...asArray(product.detailSections)
+    .filter((section) => /cover|benefit|include|protect|service|repair|value/i.test(itemText(section?.title)))
+    .flatMap((section) => asArray(section?.items)),
+]).filter(Boolean);
 
 const drawProductCard = (page, product, image, { x, top, width, height }, fonts) => {
   page.drawRectangle({ x, y: top - height, width, height, color: C.white, borderColor: C.line, borderWidth: 0.8 });
@@ -476,9 +501,10 @@ const drawProductCard = (page, product, image, { x, top, width, height }, fonts)
   drawImageContain(page, image, { x: x + 12, y: top - imageHeight - 13, width: imageWidth, height: imageHeight, background: C.surface });
   const bodyX = x + imageWidth + 23;
   const bodyWidth = width - imageWidth - 35;
+  const valueBullets = productValueBullets(product);
   page.drawText(truncate(product.familyLabel || product.eyebrow || 'Ford Protect product', fonts.bold, 8.4, bodyWidth), { x: bodyX, y: top - 18, size: 8.4, font: fonts.bold, color: C.blueDark });
-  page.drawText(truncate(product.name || product.shortName, fonts.bold, compactCard ? 11.2 : 13, bodyWidth), { x: bodyX, y: top - 38, size: compactCard ? 11.2 : 13, font: fonts.bold, color: C.navy });
-  drawWrapped(page, product.value || product.description, { x: bodyX, y: top - 56, width: bodyWidth, font: fonts.regular, size: 9, lineHeight: 10.4, color: C.muted, maxLines: compactCard ? 1 : mediumCard ? 2 : 3 });
+  page.drawText(truncate(product.name || product.shortName || 'Product selection pending review', fonts.bold, compactCard ? 11.2 : 13, bodyWidth), { x: bodyX, y: top - 38, size: compactCard ? 11.2 : 13, font: fonts.bold, color: C.navy });
+  drawWrapped(page, product.value || product.description || valueBullets[0] || 'Product details require specialist confirmation.', { x: bodyX, y: top - 56, width: bodyWidth, font: fonts.regular, size: 9, lineHeight: 10.4, color: C.muted, maxLines: compactCard ? 1 : mediumCard ? 2 : 3 });
   const ruleY = top - imageHeight - 24;
   drawRule(page, ruleY, x + 12, width - 24);
 
@@ -487,7 +513,7 @@ const drawProductCard = (page, product, image, { x, top, width, height }, fonts)
     page.drawText('REQUESTED', { x: x + 12, y: ruleY - 16, size: 8.1, font: fonts.bold, color: C.blueDark });
     page.drawText(truncate(config.join(' | ') || 'Exact option to confirm', fonts.regular, 9, width - 92), { x: x + 79, y: ruleY - 16, size: 9, font: fonts.regular, color: C.ink });
     page.drawText('VALUE', { x: x + 12, y: ruleY - 33, size: 8.1, font: fonts.bold, color: C.blueDark });
-    page.drawText(truncate(asArray(product.highlights)[0] || product.description || 'Ford-backed product value', fonts.regular, 9, width - 72), { x: x + 59, y: ruleY - 33, size: 9, font: fonts.regular, color: C.ink });
+    page.drawText(truncate(valueBullets[0] || product.description || 'Benefits require specialist confirmation', fonts.regular, 9, width - 72), { x: x + 59, y: ruleY - 33, size: 9, font: fonts.regular, color: C.ink });
     page.drawText('ELIGIBILITY', { x: x + 12, y: ruleY - 50, size: 8.1, font: fonts.bold, color: C.blueDark });
     page.drawText(truncate(compactEligibilityText(product), fonts.regular, 9, width - 93), { x: x + 81, y: ruleY - 50, size: 9, font: fonts.regular, color: C.ink });
     return;
@@ -496,7 +522,7 @@ const drawProductCard = (page, product, image, { x, top, width, height }, fonts)
     page.drawText('REQUESTED CONFIGURATION', { x: x + 12, y: ruleY - 17, size: 8.2, font: fonts.bold, color: C.blueDark });
     drawWrapped(page, config.join('  |  ') || 'Exact option and term to be confirmed', { x: x + 12, y: ruleY - 34, width: width - 24, font: fonts.regular, size: 9, lineHeight: 10.2, color: C.ink, maxLines: 2 });
     page.drawText('VALUE AND ELIGIBILITY', { x: x + 12, y: ruleY - 61, size: 8.2, font: fonts.bold, color: C.blueDark });
-    drawWrapped(page, compact([asArray(product.highlights)[0], productEligibilityText(product)]).join(' '), { x: x + 12, y: ruleY - 78, width: width - 24, font: fonts.regular, size: 9, lineHeight: 10.2, color: C.ink, maxLines: 3 });
+    drawWrapped(page, compact([valueBullets[0], productEligibilityText(product)]).join(' '), { x: x + 12, y: ruleY - 78, width: width - 24, font: fonts.regular, size: 9, lineHeight: 10.2, color: C.ink, maxLines: 3 });
     return;
   }
   const gap = 10;
@@ -506,8 +532,9 @@ const drawProductCard = (page, product, image, { x, top, width, height }, fonts)
     page.drawText(label, { x: columnX[index], y: ruleY - 18, size: 8.2, font: fonts.bold, color: C.blueDark });
   });
   drawWrapped(page, config.join('  |  ') || 'Exact option and term to be confirmed', { x: columnX[0], y: ruleY - 36, width: columnWidth, font: fonts.regular, size: 9, lineHeight: 10.4, color: C.ink, maxLines: 6 });
-  drawWrapped(page, asArray(product.highlights).slice(0, 4).join('; '), { x: columnX[1], y: ruleY - 36, width: columnWidth, font: fonts.regular, size: 9, lineHeight: 10.4, color: C.ink, maxLines: 6 });
-  drawWrapped(page, productEligibilityText(product), { x: columnX[2], y: ruleY - 36, width: columnWidth, font: fonts.regular, size: 9, lineHeight: 10.4, color: C.ink, maxLines: 6 });
+  const detailLines = Math.max(6, Math.min(18, Math.floor((height - 135) / 10.4)));
+  drawWrapped(page, valueBullets.slice(0, 8).join('; ') || 'Product benefits require specialist confirmation.', { x: columnX[1], y: ruleY - 36, width: columnWidth, font: fonts.regular, size: 9, lineHeight: 10.4, color: C.ink, maxLines: detailLines });
+  drawWrapped(page, productEligibilityText(product) || 'Bob Maxey confirms VIN-specific eligibility, timing, and current terms.', { x: columnX[2], y: ruleY - 36, width: columnWidth, font: fonts.regular, size: 9, lineHeight: 10.4, color: C.ink, maxLines: detailLines });
 };
 
 const drawProductsPage = async (pdf, model, assets, fonts) => {
@@ -515,27 +542,37 @@ const drawProductsPage = async (pdf, model, assets, fonts) => {
   if (!products.length) return;
   const imageEntries = await Promise.all(products.map(async (product) => [product.id || product.name, await embedAsset(pdf, product.image)]));
   const images = new Map(imageEntries);
-  const page = addPage(pdf, assets, fonts, 'Selected additional products');
-  const y = drawSectionTitle(page, 'Your selected Ford Protect products', 'Additional protection, clearly organized.', 'Each selection keeps its requested option, value highlights, purchase timing, and eligibility notes together for specialist review.', fonts);
+  const pageSize = 6;
+  const chunks = Array.from({ length: Math.ceil(products.length / pageSize) }, (_, index) => products.slice(index * pageSize, (index + 1) * pageSize));
+  chunks.forEach((pageProducts, pageIndex) => {
+    const page = addPage(pdf, assets, fonts, `${model.document.shortStatusLabel || model.document.statusLabel} | Selected products`);
+    const y = drawSectionTitle(
+      page,
+      'Your selected Ford Protect products',
+      chunks.length > 1 ? `Additional protection, page ${pageIndex + 1} of ${chunks.length}.` : 'Additional protection, clearly organized.',
+      'Requested configuration, product value, exact purchase timing, and VIN-specific eligibility stay together for specialist review.',
+      fonts,
+    );
 
-  const columns = products.length <= 2 ? 1 : 2;
-  const gap = 8;
-  const rows = Math.ceil(products.length / columns);
-  const gridBottom = 174;
-  const availableHeight = y - gridBottom;
-  const cardHeight = Math.max(102, (availableHeight - Math.max(0, rows - 1) * gap) / rows);
-  const cardWidth = (PAGE.contentWidth - gap * (columns - 1)) / columns;
-  products.forEach((product, index) => {
-    const column = index % columns;
-    const row = Math.floor(index / columns);
-    drawProductCard(page, product, images.get(product.id || product.name), { x: PAGE.margin + column * (cardWidth + gap), top: y - row * (cardHeight + gap), width: cardWidth, height: cardHeight }, fonts);
+    const columns = pageProducts.length <= 2 ? 1 : 2;
+    const gap = 8;
+    const rows = Math.ceil(pageProducts.length / columns);
+    const gridBottom = 174;
+    const availableHeight = y - gridBottom;
+    const cardHeight = (availableHeight - Math.max(0, rows - 1) * gap) / rows;
+    const cardWidth = (PAGE.contentWidth - gap * (columns - 1)) / columns;
+    pageProducts.forEach((product, index) => {
+      const column = index % columns;
+      const row = Math.floor(index / columns);
+      drawProductCard(page, product, images.get(product.id || product.name), { x: PAGE.margin + column * (cardWidth + gap), top: y - row * (cardHeight + gap), width: cardWidth, height: cardHeight }, fonts);
+    });
+
+    page.drawRectangle({ x: PAGE.margin, y: 85, width: PAGE.contentWidth, height: 71, color: C.surfaceBlue });
+    page.drawText('BOB MAXEY SUPPORT', { x: 50, y: 136, size: 8.5, font: fonts.bold, color: C.blueDark });
+    drawWrapped(page, 'Your Ford Protect specialist verifies each requested product against the vehicle record, exact purchase window, selected configuration, current program rules, and issued agreement.', { x: 50, y: 117, width: 330, font: fonts.regular, size: 9, lineHeight: 10.7, color: C.ink, maxLines: 3 });
+    drawLabelValue(page, 'Preferred store', model.requestSummary.store.descriptor, { x: 401, y: 136, width: 155 }, fonts, { size: 9.2, maxLines: 2 });
+    page.drawText('Final availability, pricing, and coverage are confirmed for the VIN before purchase.', { x: PAGE.margin, y: 61, size: 8.5, font: fonts.regular, color: C.muted });
   });
-
-  page.drawRectangle({ x: PAGE.margin, y: 85, width: PAGE.contentWidth, height: 71, color: C.surfaceBlue });
-  page.drawText('BOB MAXEY SUPPORT', { x: 50, y: 136, size: 8.5, font: fonts.bold, color: C.blueDark });
-  drawWrapped(page, 'Your Ford Protect specialist will verify each requested product against the vehicle record, purchase timing, current program rules, and the final agreement before purchase.', { x: 50, y: 117, width: 330, font: fonts.regular, size: 9, lineHeight: 10.7, color: C.ink, maxLines: 3 });
-  drawLabelValue(page, 'Preferred store', model.requestSummary.store.descriptor, { x: 401, y: 136, width: 155 }, fonts, { size: 9.2, maxLines: 2 });
-  page.drawText('Final availability, pricing, and coverage are confirmed for the VIN before purchase.', { x: PAGE.margin, y: 61, size: 8.5, font: fonts.regular, color: C.muted });
 };
 
 const guideConfiguration = (product, selection = {}) => unique([
@@ -803,11 +840,11 @@ export async function createProposalPdf({ quote, plan, detail }) {
   const assets = { dealer, protect, hero };
 
   drawOverviewPage(pdf, model, assets, fonts);
-  drawCoveragePage(pdf, model, assets, fonts);
+  if (model.snapshot.coverage.selected) drawCoveragePage(pdf, model, assets, fonts);
   await drawProductsPage(pdf, model, assets, fonts);
 
   const pages = pdf.getPages();
-  pages.forEach((proposalPage, index) => drawFooter(proposalPage, index + 1, pages.length, model.document.quoteId, fonts));
+  pages.forEach((proposalPage, index) => drawFooter(proposalPage, index + 1, pages.length, model.document.quoteId, fonts, model.document.statusLabel));
   return pdf.save();
 }
 

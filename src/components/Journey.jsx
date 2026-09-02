@@ -33,8 +33,8 @@ export default function Journey({ onQuote, onContact }) {
 
       <section className="page-shell journey-final-cta">
         <div><small>READY WHEN YOU ARE</small><h2>Build the request. Review the facts. Decide with confidence.</h2></div>
-        <button className="button button--primary" type="button" onClick={() => onQuote()}>Check My Vehicle <ArrowRight /></button>
-        <button type="button" onClick={() => onContact()}>Talk With a Specialist</button>
+        <button className="button button--primary" type="button" onClick={() => onQuote()}>Check my vehicle <ArrowRight /></button>
+        <button type="button" onClick={() => onContact()}>Talk with a specialist</button>
       </section>
     </section>
   );

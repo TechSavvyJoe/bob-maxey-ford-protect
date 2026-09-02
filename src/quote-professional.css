@@ -1108,3 +1108,1488 @@
     animation-iteration-count: 1 !important;
   }
 }
+
+/* Final decision-state and responsive overrides for the current QuoteStudio markup. */
+.studio-backdrop.studio-v5 .quote-studio :where(
+  .ownership-profile,
+  .studio-step-alert,
+  .coverage-empty-state,
+  .plan-rail-prompt,
+  .options-readiness,
+  .options-decision-grid,
+  .plan-settings-card,
+  .payment-choice--cards,
+  .product-marketplace,
+  .review-summary-card
+) {
+  min-width: 0;
+}
+
+/* Vehicle profile: keep every required choice visible without horizontal scrolling. */
+.studio-backdrop.studio-v5 .quote-studio .ownership-profile--required {
+  margin-top: 14px;
+  border: 1px solid #b8c9d9;
+  border-radius: 6px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .ownership-profile--required.has-error {
+  border-color: #c74a4a;
+  box-shadow: inset 4px 0 0 #c93535;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .ownership-profile__heading {
+  min-width: 0;
+  padding: 11px 14px;
+  border-bottom: 1px solid #d6e1eb;
+  background: #f3f7fb;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .ownership-profile__heading > span {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .ownership-profile__heading small {
+  color: var(--qp-blue-dark);
+  font-size: 10.5px !important;
+  font-weight: 800;
+  letter-spacing: .09em;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .ownership-profile__heading strong {
+  color: var(--qp-ink);
+  font-size: 16px;
+  line-height: 1.25;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .ownership-profile__heading em {
+  color: var(--qp-copy);
+  font-size: 12px !important;
+  font-style: normal;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .ownership-profile .studio-goals-grid {
+  padding: 13px 14px 14px;
+  grid-template-columns: minmax(0, 1.45fr) minmax(250px, .55fr);
+  gap: 14px;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .ownership-profile .vehicle-rating-grid {
+  min-width: 0;
+  grid-template-columns: minmax(145px, .8fr) minmax(250px, 1.35fr) minmax(145px, .8fr);
+  gap: 10px;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .vehicle-rating-grid > div,
+.studio-backdrop.studio-v5 .quote-studio .vehicle-rating-grid > div > div,
+.studio-backdrop.studio-v5 .quote-studio .vehicle-rating-grid button {
+  min-width: 0;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .vehicle-rating-grid > div > div {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+}
+
+.studio-backdrop.studio-v5 .quote-studio .vehicle-rating-grid button {
+  width: 100%;
+  min-height: 40px;
+  padding: 7px 6px;
+  font-size: 12px;
+  line-height: 1.2;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .ownership-profile .ownership-goals {
+  min-width: 0;
+  padding-left: 14px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+/* Required-state messaging stays visible next to the work it blocks. */
+.studio-backdrop.studio-v5 .quote-studio .studio-step-alert {
+  margin: 0 0 10px;
+  padding: 10px 12px;
+  border: 1px solid #e1c37c;
+  border-left: 4px solid #a96b00;
+  border-radius: 5px;
+  background: #fff8e8;
+  color: #5b410d;
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  align-items: start;
+  gap: 9px;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .studio-step-alert > svg {
+  width: 18px;
+  height: 18px;
+  color: #9a6200;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .studio-step-alert > span {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .studio-step-alert strong {
+  font-size: 13px;
+  line-height: 1.3;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .studio-step-alert small {
+  color: #69501b;
+  font-size: 12px !important;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .coverage-empty-state {
+  min-height: 96px;
+  padding: 18px;
+  border: 1px dashed #9db5cb;
+  border-radius: 6px;
+  background: #f6f9fc;
+  color: var(--qp-copy);
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .coverage-empty-state > svg {
+  width: 26px;
+  height: 26px;
+  color: var(--qp-blue);
+}
+
+.studio-backdrop.studio-v5 .quote-studio .coverage-empty-state > span {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .coverage-empty-state strong {
+  color: var(--qp-ink);
+  font-size: 16px;
+  line-height: 1.3;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .coverage-empty-state small,
+.studio-backdrop.studio-v5 .quote-studio .plan-rail-prompt {
+  color: var(--qp-copy);
+  font-size: 12px !important;
+  line-height: 1.45;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .plan-rail-prompt {
+  margin: 8px 0 0;
+  padding: 9px 11px;
+  border-left: 3px solid var(--qp-blue);
+  background: var(--qp-blue-soft);
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .plan-rail-prompt > svg {
+  width: 17px;
+  height: 17px;
+  flex: 0 0 auto;
+}
+
+/* Options readiness and decision cards. */
+.studio-backdrop.studio-v5 .quote-studio .options-readiness {
+  margin: 0 0 12px;
+  padding: 13px 14px;
+  border: 1px solid #9ab8d4;
+  border-left: 4px solid var(--qp-blue);
+  border-radius: 6px;
+  background: #f3f8fd;
+  display: grid;
+  grid-template-columns: minmax(190px, .6fr) minmax(0, 1.4fr);
+  align-items: center;
+  gap: 14px;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .options-readiness > div small {
+  color: var(--qp-blue-dark);
+  font-size: 10.5px !important;
+  font-weight: 800;
+  letter-spacing: .09em;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .options-readiness h2 {
+  margin: 2px 0 0;
+  color: var(--qp-ink);
+  font-size: 18px;
+  line-height: 1.25;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .options-readiness ul {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .options-readiness li {
+  min-width: 0;
+  min-height: 58px;
+  padding: 8px 9px;
+  border: 1px solid #c7d4df;
+  border-radius: 4px;
+  background: #fff;
+  display: grid;
+  grid-template-columns: 19px minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  align-content: center;
+  column-gap: 7px;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .options-readiness li > svg,
+.studio-backdrop.studio-v5 .quote-studio .options-readiness li > span {
+  grid-row: 1 / 3;
+  width: 18px;
+  height: 18px;
+  align-self: center;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .options-readiness li > span {
+  border-radius: 50%;
+  background: #dfe7ee;
+  color: #4f6376;
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .options-readiness li strong {
+  min-width: 0;
+  color: var(--qp-ink);
+  font-size: 12px;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .options-readiness li small {
+  min-width: 0;
+  color: var(--qp-muted);
+  font-size: 11.5px !important;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .options-readiness li.is-complete {
+  border-color: #9bcbbb;
+  background: #f1faf6;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .options-readiness li.is-complete > svg {
+  color: var(--qp-green);
+}
+
+.studio-backdrop.studio-v5 .quote-studio .options-readiness li.is-missing {
+  border-color: #d9bd7b;
+  background: #fffaf0;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .options-decision-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(300px, .55fr);
+  align-items: start;
+  gap: 12px;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .options-decision-grid > * {
+  min-width: 0;
+  height: auto;
+  margin-bottom: 12px;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .plan-settings-card__group {
+  min-width: 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--qp-line-soft);
+}
+
+.studio-backdrop.studio-v5 .quote-studio .plan-settings-card__group:first-of-type {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .plan-settings-card__group + .plan-settings-card__group {
+  margin-top: 13px;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .plan-settings-card__group h3 {
+  margin: 0 0 8px;
+  color: var(--qp-ink);
+  font-size: 14px;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .plan-settings-card__group > p,
+.studio-backdrop.studio-v5 .quote-studio .group-heading p,
+.studio-backdrop.studio-v5 .quote-studio .payment-choice--cards > p {
+  margin: 5px 0 10px;
+  color: var(--qp-copy);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .group-heading {
+  min-width: 0;
+  margin-bottom: 9px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .group-heading > span {
+  min-width: 0;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .group-heading > button {
+  flex: 0 0 auto;
+  min-height: 38px;
+  padding: 7px 10px;
+  border: 1px solid #9eb3c7;
+  border-radius: 4px;
+  background: #fff;
+  color: var(--qp-blue-dark);
+  font-size: 11.5px;
+  font-weight: 750;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .group-heading > button.is-selected {
+  border-color: #79ad9b;
+  background: #eef8f4;
+  color: #075d47;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .group-heading > button svg {
+  width: 15px;
+  height: 15px;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .deductible-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(136px, 1fr));
+  gap: 8px;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .deductible-grid > button {
+  min-width: 0;
+  min-height: 88px;
+  padding: 10px;
+  border: 1px solid #b6c7d6;
+  border-radius: 5px;
+  background: #fff;
+  color: var(--qp-copy);
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  grid-template-rows: auto auto auto;
+  align-content: start;
+  column-gap: 7px;
+  text-align: left;
+  box-shadow: none;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .deductible-grid > button > span {
+  position: static;
+  inset: auto;
+  grid-row: 1 / 4;
+  width: 18px;
+  height: 18px;
+  border: 1px solid #9fb3c5;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .deductible-grid > button > span svg {
+  width: 12px;
+  height: 12px;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .deductible-grid > button strong {
+  color: var(--qp-ink);
+  font-size: 13px;
+  line-height: 1.25;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .deductible-grid > button small {
+  margin-top: 0;
+  color: var(--qp-copy);
+  font-size: 11.5px !important;
+  line-height: 1.35;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .deductible-grid > button em {
+  margin-top: 4px;
+  color: var(--qp-blue-dark);
+  font-size: 10.5px !important;
+  font-style: normal;
+  font-weight: 800;
+  letter-spacing: .05em;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .deductible-grid > button.is-selected {
+  border-color: var(--qp-blue);
+  background: var(--qp-blue-soft);
+  box-shadow: inset 3px 0 0 var(--qp-blue);
+}
+
+.studio-backdrop.studio-v5 .quote-studio .deductible-grid > button.is-selected > span {
+  border-color: var(--qp-blue);
+  background: var(--qp-blue);
+  color: #fff;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .addon-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .addon-grid > button {
+  min-width: 0;
+  min-height: 72px;
+  padding: 10px;
+  border: 1px solid #b6c7d6;
+  border-radius: 5px;
+  background: #fff;
+  color: var(--qp-copy);
+  display: grid;
+  grid-template-columns: 18px 20px minmax(0, 1fr);
+  align-items: center;
+  gap: 7px;
+  text-align: left;
+  box-shadow: none;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .addon-check {
+  position: static;
+  inset: auto;
+  width: 18px;
+  height: 18px;
+  border: 1px solid #9fb3c5;
+  border-radius: 4px;
+  display: grid;
+  place-items: center;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .addon-check svg,
+.studio-backdrop.studio-v5 .quote-studio .addon-grid > button > svg {
+  width: 16px;
+  height: 16px;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .addon-grid > button > svg {
+  color: var(--qp-blue-dark);
+}
+
+.studio-backdrop.studio-v5 .quote-studio .addon-grid > button > span:last-child {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .addon-grid strong {
+  color: var(--qp-ink);
+  font-size: 12px;
+  line-height: 1.25;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .addon-grid small {
+  display: block;
+  color: var(--qp-copy);
+  font-size: 11.5px !important;
+  line-height: 1.3;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .addon-grid > button.is-selected {
+  border-color: var(--qp-blue);
+  background: var(--qp-blue-soft);
+  box-shadow: inset 3px 0 0 var(--qp-blue);
+}
+
+.studio-backdrop.studio-v5 .quote-studio .addon-grid > button.is-selected .addon-check {
+  border-color: var(--qp-blue);
+  background: var(--qp-blue);
+  color: #fff;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .payment-choice--cards {
+  display: block;
+  grid-template-columns: none;
+  padding: 14px;
+  border: 1px solid var(--qp-line);
+  border-radius: 6px;
+  background: #fff;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .payment-choice-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .payment-choice-grid > button {
+  min-width: 0;
+  min-height: 68px;
+  padding: 10px;
+  border: 1px solid #b6c7d6;
+  border-radius: 5px;
+  background: #fff;
+  color: var(--qp-copy);
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  align-content: center;
+  column-gap: 8px;
+  text-align: left;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .payment-choice-grid > button > span {
+  grid-row: 1 / 3;
+  width: 18px;
+  height: 18px;
+  align-self: center;
+  border: 1px solid #9fb3c5;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .payment-choice-grid > button > span svg {
+  width: 12px;
+  height: 12px;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .payment-choice-grid strong {
+  color: var(--qp-ink);
+  font-size: 13px;
+  line-height: 1.25;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .payment-choice-grid small {
+  color: var(--qp-copy);
+  font-size: 11.5px !important;
+  line-height: 1.35;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .payment-choice-grid > button.is-selected {
+  border-color: var(--qp-blue);
+  background: var(--qp-blue-soft);
+  box-shadow: inset 3px 0 0 var(--qp-blue);
+}
+
+.studio-backdrop.studio-v5 .quote-studio .payment-choice-grid > button.is-selected > span {
+  border-color: var(--qp-blue);
+  background: var(--qp-blue);
+  color: #fff;
+}
+
+/* Product decision and confirmation states. */
+.studio-backdrop.studio-v5 .quote-studio .product-decision {
+  min-width: 0;
+  margin: 3px 0 9px;
+  padding: 9px 10px;
+  border: 1px solid #c4d1dc;
+  border-radius: 5px;
+  background: #f7f9fb;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .product-decision > button {
+  min-width: 0;
+  min-height: 38px;
+  padding: 7px 10px;
+  border: 1px solid #aebfd0;
+  border-radius: 4px;
+  background: #fff;
+  color: var(--qp-blue-dark);
+  font-size: 11.5px;
+  font-weight: 750;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  text-align: left;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .product-decision > button svg {
+  width: 15px;
+  height: 15px;
+  flex: 0 0 auto;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .product-decision > button.is-selected {
+  border-color: #79ad9b;
+  background: #eef8f4;
+  color: #075d47;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .product-decision > span {
+  color: var(--qp-muted);
+  font-size: 11.5px;
+  line-height: 1.35;
+  text-align: right;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .view-all-products {
+  width: 100%;
+  min-height: 40px;
+  margin: 0 0 9px;
+  padding: 8px 11px;
+  border: 1px dashed #8eabc5;
+  border-radius: 4px;
+  background: #f4f8fc;
+  color: var(--qp-blue-dark);
+  font-size: 12px;
+  font-weight: 750;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .view-all-products svg {
+  width: 16px;
+  height: 16px;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .product-remove-link {
+  min-height: 36px;
+  padding: 0 9px;
+  border: 1px solid #d7b0b0;
+  border-radius: 4px;
+  background: #fff;
+  color: #a12626;
+  font-size: 11.5px;
+  font-weight: 700;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .product-remove-link:hover {
+  border-color: #bb3e3e;
+  background: #fff5f5;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .quote-product-card__configuration strong {
+  overflow-wrap: anywhere;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .product-configuration-confirm {
+  width: 100%;
+  min-height: 62px;
+  margin: 12px 0 0;
+  padding: 10px 12px;
+  border: 1px solid #8eabc5;
+  border-radius: 5px;
+  background: #eef5fc;
+  color: var(--qp-blue-dark);
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  align-items: center;
+  gap: 9px;
+  text-align: left;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .product-configuration-confirm > svg {
+  width: 20px;
+  height: 20px;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .product-configuration-confirm > span {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .product-configuration-confirm strong {
+  font-size: 13px;
+  line-height: 1.3;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .product-configuration-confirm small {
+  color: var(--qp-copy);
+  font-size: 12px !important;
+  line-height: 1.4;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .product-configuration-confirm.is-confirmed {
+  border-color: #7eaf9e;
+  background: #eef8f4;
+  color: #075d47;
+}
+
+/* Review cards expose the complete request without dense disclosure widgets. */
+.studio-backdrop.studio-v5 .quote-studio .review-section-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .review-summary-card {
+  padding: 13px;
+  border: 1px solid var(--qp-line);
+  border-radius: 5px;
+  background: #fff;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .review-summary-card > header {
+  min-width: 0;
+  padding-bottom: 9px;
+  border-bottom: 1px solid var(--qp-line-soft);
+  display: grid;
+  grid-template-columns: 21px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .review-summary-card > header > svg {
+  width: 19px;
+  height: 19px;
+  color: var(--qp-blue);
+}
+
+.studio-backdrop.studio-v5 .quote-studio .review-summary-card > header > span {
+  min-width: 0;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .review-summary-card > header small {
+  color: var(--qp-blue-dark);
+  font-size: 10.5px !important;
+  font-weight: 800;
+  letter-spacing: .07em;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .review-summary-card > header h2 {
+  margin: 1px 0 0;
+  color: var(--qp-ink);
+  font-size: 15px;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .review-summary-card > header button {
+  min-height: 32px;
+  padding: 0 9px;
+  border: 1px solid #aebfd0;
+  border-radius: 4px;
+  background: #fff;
+  color: var(--qp-blue-dark);
+  font-size: 11.5px;
+  font-weight: 750;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .review-summary-card dl {
+  margin: 0;
+  padding-top: 3px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.studio-backdrop.studio-v5 .quote-studio .review-summary-card dl > div {
+  min-width: 0;
+  padding: 8px 9px 7px 0;
+  border-bottom: 1px solid var(--qp-line-soft);
+}
+
+.studio-backdrop.studio-v5 .quote-studio .review-summary-card dt {
+  margin-bottom: 2px;
+  color: var(--qp-muted);
+  font-size: 10.5px;
+  font-weight: 750;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .review-summary-card dd {
+  margin: 0;
+  color: var(--qp-ink);
+  font-size: 12px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .review-product-list {
+  margin-top: 9px;
+  display: grid;
+  gap: 6px;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .review-product-list > div {
+  min-width: 0;
+  min-height: 48px;
+  padding: 6px 8px;
+  border: 1px solid var(--qp-line-soft);
+  background: #f7f9fb;
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr) 18px;
+  align-items: center;
+  gap: 8px;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .review-product-list img {
+  width: 48px;
+  height: 36px;
+  object-fit: cover;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .review-product-list span {
+  min-width: 0;
+  display: grid;
+  gap: 1px;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .review-product-list strong {
+  color: var(--qp-ink);
+  font-size: 12px;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .review-product-list small {
+  color: var(--qp-muted);
+  font-size: 11.5px !important;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .review-product-list > div > svg {
+  width: 17px;
+  color: var(--qp-green);
+}
+
+.studio-backdrop.studio-v5 .quote-studio .review-empty-choice {
+  margin: 9px 0 0;
+  padding: 9px 10px;
+  border-left: 3px solid var(--qp-green);
+  background: #f1faf6;
+  color: #165e4b;
+  font-size: 12px;
+  line-height: 1.4;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .review-empty-choice svg {
+  width: 17px;
+  flex: 0 0 auto;
+}
+
+/* Footer readiness is visible; disabled actions look intentionally unavailable. */
+.studio-backdrop.studio-v5 .quote-studio .studio-footer {
+  grid-template-columns: 130px 185px minmax(220px, 1fr) 224px;
+  grid-template-rows: 46px;
+  gap: 8px 14px;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .studio-footer__back { grid-column: 1; }
+.studio-backdrop.studio-v5 .quote-studio .studio-footer__save { grid-column: 2; }
+.studio-backdrop.studio-v5 .quote-studio .studio-footer__continue { grid-column: 4; }
+
+.studio-backdrop.studio-v5 .quote-studio .studio-footer > small {
+  grid-column: 3;
+  grid-row: 1;
+  min-width: 0;
+  justify-self: end;
+  color: var(--qp-muted);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  font-size: 11.5px !important;
+  line-height: 1.35;
+  text-align: right;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .studio-footer > small svg {
+  width: 15px;
+  height: 15px;
+  flex: 0 0 auto;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .studio-footer > small.is-pending {
+  color: #735315;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .studio-footer > small.is-ready {
+  color: #086b50;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .studio-footer__continue:disabled {
+  border-color: #b8c4cf;
+  background: #e5eaef;
+  color: #627486;
+  opacity: 1;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .studio-footer__continue:disabled:hover {
+  border-color: #b8c4cf;
+  background: #e5eaef;
+  color: #627486;
+}
+
+/* Tablet composition. */
+@media (max-width: 1100px) {
+  .studio-backdrop.studio-v5 .quote-studio .ownership-profile .studio-goals-grid {
+    grid-template-columns: minmax(0, 1.5fr) minmax(240px, .5fr);
+  }
+
+  .studio-backdrop.studio-v5 .quote-studio .options-readiness {
+    grid-template-columns: minmax(180px, .45fr) minmax(0, 1.55fr);
+  }
+
+  .studio-backdrop.studio-v5 .quote-studio .options-readiness ul {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .studio-backdrop.studio-v5 .quote-studio .options-decision-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(275px, .55fr);
+  }
+
+  .studio-backdrop.studio-v5 .quote-studio .studio-footer {
+    grid-template-columns: 100px 150px minmax(170px, 1fr) 220px;
+    gap: 8px 10px;
+  }
+}
+
+@media (max-width: 900px) {
+  .studio-backdrop.studio-v5 .quote-studio .studio-plan-rail {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    overflow: visible;
+  }
+
+  .studio-backdrop.studio-v5 .quote-studio .studio-plan-rail > button,
+  .studio-backdrop.studio-v5 .quote-studio .studio-plan-rail > button:not(.is-selected) {
+    display: grid !important;
+    min-width: 0;
+    min-height: 58px;
+  }
+
+  .studio-backdrop.studio-v5 .quote-studio .ownership-profile .studio-goals-grid,
+  .studio-backdrop.studio-v5 .quote-studio .options-decision-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .studio-backdrop.studio-v5 .quote-studio .ownership-profile .ownership-goals {
+    padding-top: 12px;
+    padding-left: 0;
+    border-top: 1px solid var(--qp-line-soft);
+    border-left: 0;
+  }
+
+  .studio-backdrop.studio-v5 .quote-studio .options-readiness {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .studio-backdrop.studio-v5 .quote-studio .review-section-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .studio-backdrop.studio-v5 .quote-studio .payment-choice-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .studio-backdrop.studio-v5 .quote-studio .studio-footer {
+    grid-template-columns: 92px 135px minmax(150px, 1fr) 210px;
+  }
+}
+
+/* Phone composition. */
+@media (max-width: 760px) {
+  .studio-backdrop.studio-v5 .quote-studio {
+    grid-template-rows: 56px 42px minmax(0, 1fr) 82px;
+  }
+
+  .studio-backdrop.studio-v5 .quote-studio .ownership-profile__heading {
+    padding: 10px 11px;
+  }
+
+  .studio-backdrop.studio-v5 .quote-studio .ownership-profile .studio-goals-grid {
+    padding: 11px;
+  }
+
+  .studio-backdrop.studio-v5 .quote-studio .ownership-profile .vehicle-rating-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 9px;
+  }
+
+  .studio-backdrop.studio-v5 .quote-studio .ownership-profile .vehicle-rating-grid > div:first-child {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .studio-backdrop.studio-v5 .quote-studio .ownership-profile .vehicle-rating-grid > div:nth-child(2) {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
+  .studio-backdrop.studio-v5 .quote-studio .ownership-profile .vehicle-rating-grid > div:nth-child(3) {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .studio-backdrop.studio-v5 .quote-studio .vehicle-rating-grid button {
+    min-height: 42px;
+    padding-inline: 4px;
+    font-size: 11.5px;
+  }
+
+  .studio-backdrop.studio-v5 .quote-studio .options-readiness {
+    padding: 11px;
+  }
+
+  .studio-backdrop.studio-v5 .quote-studio .options-readiness ul,
+  .studio-backdrop.studio-v5 .quote-studio .addon-grid,
+  .studio-backdrop.studio-v5 .quote-studio .payment-choice-grid,
+  .studio-backdrop.studio-v5 .quote-studio .review-summary-card dl {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .studio-backdrop.studio-v5 .quote-studio .deductible-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .studio-backdrop.studio-v5 .quote-studio .group-heading,
+  .studio-backdrop.studio-v5 .quote-studio .product-decision {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .studio-backdrop.studio-v5 .quote-studio .group-heading > button,
+  .studio-backdrop.studio-v5 .quote-studio .product-decision > button {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .studio-backdrop.studio-v5 .quote-studio .product-decision > span {
+    text-align: left;
+  }
+
+  .studio-backdrop.studio-v5 .quote-studio .quote-product-card__actions {
+    align-items: stretch;
+  }
+
+  .studio-backdrop.studio-v5 .quote-studio .quote-product-card__actions .button {
+    min-width: 0;
+  }
+
+  .studio-backdrop.studio-v5 .quote-studio .studio-footer {
+    min-height: 82px;
+    padding: 7px 10px max(7px, env(safe-area-inset-bottom));
+    grid-template-columns: 82px minmax(0, 1fr);
+    grid-template-rows: 48px 18px;
+    gap: 2px 8px;
+  }
+
+  .studio-backdrop.studio-v5 .quote-studio .studio-footer__back {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .studio-backdrop.studio-v5 .quote-studio .studio-footer__continue {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .studio-backdrop.studio-v5 .quote-studio .studio-footer > small {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    justify-self: center;
+    justify-content: center;
+    font-size: 11.5px !important;
+    line-height: 1.2;
+    text-align: center;
+  }
+
+  .studio-backdrop.studio-v5 .quote-studio .studio-footer.is-first-step .studio-footer__continue {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 430px) {
+  .studio-backdrop.studio-v5 .quote-studio .ownership-profile__heading strong {
+    font-size: 15px;
+  }
+
+  .studio-backdrop.studio-v5 .quote-studio .ownership-profile .ownership-goals,
+  .studio-backdrop.studio-v5 .quote-studio .deductible-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .studio-backdrop.studio-v5 .quote-studio .options-readiness li {
+    min-height: 54px;
+  }
+
+  .studio-backdrop.studio-v5 .quote-studio .review-summary-card > header {
+    grid-template-columns: 20px minmax(0, 1fr) auto;
+  }
+}
+
+/* Production-flow QA closure: keep actions in document flow and remove
+   residual clipping without hiding any required decision content. */
+.studio-backdrop.studio-v5 .quote-studio {
+  grid-template-rows: auto auto minmax(min-content, 1fr) auto !important;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-color: #7895b2 transparent;
+  scrollbar-width: thin;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .studio-layout {
+  min-height: min-content;
+  overflow: visible;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .studio-main,
+.studio-backdrop.studio-v5 .quote-studio .studio-summary {
+  min-height: auto;
+  overflow: visible;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .studio-footer {
+  position: relative;
+  inset: auto;
+  z-index: 8;
+  flex: 0 0 auto;
+}
+
+/* Product descriptions and decision facts must remain complete at every size. */
+.studio-backdrop.studio-v5 .quote-studio .quote-product-card,
+.studio-backdrop.studio-v5 .quote-studio .quote-product-card__body,
+.studio-backdrop.studio-v5 .quote-studio .quote-product-card.is-featured .quote-product-card__body {
+  height: auto;
+  max-height: none;
+  overflow: visible;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .quote-product-card__body > p {
+  display: block;
+  min-height: 0;
+  max-height: none;
+  overflow: visible;
+  -webkit-box-orient: initial;
+  -webkit-line-clamp: unset;
+  line-clamp: unset;
+  text-overflow: clip;
+  white-space: normal;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .quote-product-card__highlights {
+  display: grid;
+  min-height: 0;
+  max-height: none;
+  overflow: visible;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .quote-product-card__highlights span {
+  min-width: 0;
+  max-width: none;
+  overflow: visible;
+  line-height: 1.35;
+  text-overflow: clip;
+  white-space: normal;
+  overflow-wrap: break-word;
+}
+
+/* Review values get the majority of each row so VINs, terms, and email
+   addresses stay intact instead of breaking into narrow letter columns. */
+.studio-backdrop.studio-v5 .quote-studio .review-summary-card dl > div {
+  grid-template-columns: minmax(76px, .38fr) minmax(0, 1.62fr);
+  gap: 8px;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .review-summary-card dd {
+  word-break: normal;
+  overflow-wrap: break-word;
+}
+
+/* Product configuration is a deliberate full-width decision, not a native-looking control. */
+.studio-backdrop.studio-v5 .quote-studio .product-configuration-confirm {
+  appearance: none;
+  min-height: 76px;
+  padding: 12px 14px;
+  border: 1px solid #8aaed0;
+  border-left: 4px solid var(--qp-blue);
+  border-radius: 6px;
+  background: linear-gradient(135deg, #f1f7fd, #fff);
+  color: var(--qp-blue-dark);
+  grid-template-columns: 36px minmax(0, 1fr);
+  gap: 11px;
+  box-shadow: 0 4px 12px rgba(0, 66, 128, .08);
+  cursor: pointer;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .product-configuration-confirm > svg {
+  width: 36px;
+  height: 36px;
+  padding: 8px;
+  border-radius: 50%;
+  background: #dceeff;
+  color: var(--qp-blue-dark);
+}
+
+.studio-backdrop.studio-v5 .quote-studio .product-configuration-confirm > span,
+.studio-backdrop.studio-v5 .quote-studio .product-configuration-confirm strong,
+.studio-backdrop.studio-v5 .quote-studio .product-configuration-confirm small {
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: break-word;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .product-configuration-confirm strong {
+  display: block;
+  color: inherit;
+  font-size: 14px;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .product-configuration-confirm small {
+  display: block;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .product-configuration-confirm:hover {
+  border-color: var(--qp-blue);
+  background: #eaf4fe;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .product-configuration-confirm:focus-visible {
+  outline: 3px solid rgba(0, 104, 217, .28);
+  outline-offset: 2px;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .product-configuration-confirm.is-confirmed {
+  border-color: #69a995;
+  border-left-color: var(--qp-green);
+  background: linear-gradient(135deg, #eaf8f3, #fff);
+  color: #075d47;
+  box-shadow: 0 4px 12px rgba(7, 93, 71, .08);
+}
+
+.studio-backdrop.studio-v5 .quote-studio .product-configuration-confirm.is-confirmed > svg {
+  background: #d7f0e7;
+  color: #087451;
+}
+
+/* The modal header sits on white in the professional theme. */
+.studio-backdrop.studio-v5 .quote-studio .product-detail-modal__brand small {
+  color: #0057a8;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .product-detail-modal__brand strong {
+  color: var(--qp-navy);
+}
+
+@media (max-width: 900px) {
+  /* At tablet width the recommendation follows the complete term picker,
+     leaving 150k and 175k mileage choices fully visible. */
+  .studio-backdrop.studio-v5 .quote-studio .term-configurator {
+    display: flex;
+    flex-direction: column;
+    border: 0;
+    overflow: visible;
+  }
+
+  .studio-backdrop.studio-v5 .quote-studio .guided-term-picker {
+    order: 1;
+    border: 1px solid var(--qp-line);
+    border-radius: 4px;
+    overflow: visible;
+  }
+
+  .studio-backdrop.studio-v5 .quote-studio .term-recommendation {
+    position: static;
+    order: 2;
+    width: 100%;
+    min-height: 0;
+    padding: 12px;
+    border: 0;
+    border-radius: 4px;
+    grid-template-columns: 28px minmax(0, 1fr) auto;
+    align-items: center;
+  }
+
+  .studio-backdrop.studio-v5 .quote-studio .term-recommendation > button {
+    width: auto;
+    min-width: 0;
+    min-height: 38px;
+    margin-top: 0;
+  }
+}
+
+@media (max-width: 760px) {
+  .studio-backdrop.studio-v5 .quote-studio {
+    grid-template-rows: auto auto minmax(min-content, 1fr) auto !important;
+  }
+
+  /* Four readiness decisions remain visible in a compact, readable 2x2. */
+  .studio-backdrop.studio-v5 .quote-studio .options-readiness ul {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .studio-backdrop.studio-v5 .quote-studio .options-readiness li {
+    min-height: 62px;
+    padding: 7px;
+    column-gap: 6px;
+  }
+
+  .studio-backdrop.studio-v5 .quote-studio .options-readiness li strong {
+    font-size: 11.5px;
+  }
+
+  .studio-backdrop.studio-v5 .quote-studio .product-configuration-confirm {
+    min-height: 82px;
+    padding: 11px 12px;
+    grid-template-columns: 34px minmax(0, 1fr);
+  }
+
+  .studio-backdrop.studio-v5 .quote-studio .product-configuration-confirm > svg {
+    width: 34px;
+    height: 34px;
+  }
+}
+
+@media (max-width: 430px) {
+  .studio-backdrop.studio-v5 .quote-studio .options-readiness {
+    padding: 9px;
+  }
+
+  .studio-backdrop.studio-v5 .quote-studio .options-readiness li {
+    min-height: 60px;
+  }
+
+  .studio-backdrop.studio-v5 .quote-studio .review-summary-card dl > div {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 3px;
+  }
+}
+
+/* Product dialogs are portal siblings of .quote-studio, so mirror the
+   confirmation treatment at the modal boundary as well. */
+.studio-backdrop.studio-v5 .product-detail-modal .product-configuration-confirm {
+  appearance: none;
+  width: 100%;
+  min-height: 76px;
+  margin: 12px 0 0;
+  padding: 12px 14px;
+  border: 1px solid #8aaed0;
+  border-left: 4px solid var(--qp-blue);
+  border-radius: 6px;
+  background: linear-gradient(135deg, #f1f7fd, #fff);
+  color: var(--qp-blue-dark);
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr);
+  align-items: center;
+  gap: 11px;
+  box-shadow: 0 4px 12px rgba(0, 66, 128, .08);
+  text-align: left;
+  cursor: pointer;
+}
+
+.studio-backdrop.studio-v5 .product-detail-modal .product-configuration-confirm > svg {
+  width: 36px;
+  height: 36px;
+  padding: 8px;
+  border-radius: 50%;
+  background: #dceeff;
+  color: var(--qp-blue-dark);
+}
+
+.studio-backdrop.studio-v5 .product-detail-modal .product-configuration-confirm > span {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.studio-backdrop.studio-v5 .product-detail-modal .product-configuration-confirm strong,
+.studio-backdrop.studio-v5 .product-detail-modal .product-configuration-confirm small {
+  min-width: 0;
+  display: block;
+  white-space: normal;
+  overflow-wrap: break-word;
+}
+
+.studio-backdrop.studio-v5 .product-detail-modal .product-configuration-confirm strong {
+  color: inherit;
+  font-size: 14px;
+  line-height: 1.3;
+}
+
+.studio-backdrop.studio-v5 .product-detail-modal .product-configuration-confirm small {
+  color: var(--qp-copy);
+  font-size: 12px !important;
+  line-height: 1.4;
+}
+
+.studio-backdrop.studio-v5 .product-detail-modal .product-configuration-confirm:hover {
+  border-color: var(--qp-blue);
+  background: #eaf4fe;
+}
+
+.studio-backdrop.studio-v5 .product-detail-modal .product-configuration-confirm:focus-visible {
+  outline: 3px solid rgba(0, 104, 217, .28);
+  outline-offset: 2px;
+}
+
+.studio-backdrop.studio-v5 .product-detail-modal .product-configuration-confirm.is-confirmed {
+  border-color: #69a995;
+  border-left-color: var(--qp-green);
+  background: linear-gradient(135deg, #eaf8f3, #fff);
+  color: #075d47;
+  box-shadow: 0 4px 12px rgba(7, 93, 71, .08);
+}
+
+.studio-backdrop.studio-v5 .product-detail-modal .product-configuration-confirm.is-confirmed > svg {
+  background: #d7f0e7;
+  color: #087451;
+}
+
+.studio-backdrop.studio-v5 .product-detail-modal__brand small {
+  color: #0057a8;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.studio-backdrop.studio-v5 .product-detail-modal__brand strong {
+  color: var(--qp-navy);
+}
+
+@media (max-width: 760px) {
+  .studio-backdrop.studio-v5 .product-detail-modal .product-configuration-confirm {
+    min-height: 82px;
+    padding: 11px 12px;
+    grid-template-columns: 34px minmax(0, 1fr);
+  }
+
+  .studio-backdrop.studio-v5 .product-detail-modal .product-configuration-confirm > svg {
+    width: 34px;
+    height: 34px;
+  }
+}

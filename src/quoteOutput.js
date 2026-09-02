@@ -5,7 +5,7 @@ import {
   maintenanceChoices,
   protectionOptions,
 } from './quoteData';
-import { quoteProducts } from './quoteProducts';
+import { getProductTimingPresentation, quoteProducts } from './quoteProducts';
 
 const CONSENT_TEXT = 'I agree Bob Maxey may contact me about this Ford Protect request.';
 const AGREEMENT_DISCLAIMER = 'This personalized proposal is a request for review, not a service contract, price, eligibility approval, or promise of coverage. Vehicle eligibility, covered components, options, term, deductible, price, exclusions, cancellation provisions, and state availability must match the Ford Protect agreement issued for the vehicle. The executed agreement controls.';
@@ -43,15 +43,35 @@ const safeIso = (value) => {
 };
 const firstDefined = (...values) => values.find((value) => value !== undefined && value !== null);
 
+const normalizeDisplayItem = (value, fallback = '') => {
+  if (typeof value === 'string' || typeof value === 'number') {
+    const text = cleanText(value, fallback);
+    return text ? { title: text, text: '', displayText: text } : null;
+  }
+  if (!isObject(value)) return fallback ? { title: fallback, text: '', displayText: fallback } : null;
+  const title = cleanText(value.title || value.name || value.label || value.heading);
+  const detail = cleanText(value.text || value.summary || value.description || value.detail);
+  const displayText = title && detail && title.toLowerCase() !== detail.toLowerCase()
+    ? `${title}: ${detail}`
+    : title || detail || fallback;
+  return displayText ? { title: title || displayText, text: detail && detail !== title ? detail : '', displayText } : null;
+};
+
+const displayText = (value, fallback = '') => normalizeDisplayItem(value, fallback)?.displayText || fallback;
+
 const resolveEngineCareLevel = (quote = {}, plan = {}) => {
-  const requested = cleanText(quote.engineCareLevel || quote.planId || plan.id).toLowerCase();
-  return ENGINECARE_LEVELS[requested] || ENGINECARE_LEVELS['diesel-enginecare-plus'];
+  const requested = cleanText(quote.engineCareLevel || quote.planId).toLowerCase();
+  if (!requested) return null;
+  return ENGINECARE_LEVELS[requested] || (plan.id === requested ? ENGINECARE_LEVELS[plan.id] : null);
 };
 
 const normalizeProgram = (quote = {}, plan = {}) => {
-  const value = cleanText(quote.program || plan.program || plan.id).toLowerCase();
+  const value = cleanText(quote.program || quote.engineCareLevel || quote.planId || (quote.planId ? plan.program : '')).toLowerCase();
+  if (!value) return '';
   if (value === 'enginecare' || value === 'diesel-enginecare' || value === 'diesel-enginecare-plus') return 'enginecare';
-  return value === 'csp' || value === 'continued-service' || value === 'continued service plan' ? 'csp' : 'esp';
+  if (value === 'csp' || value === 'continued-service' || value === 'continued service plan') return 'csp';
+  if (value === 'esp' || quote.planId) return 'esp';
+  return '';
 };
 
 const normalizeBooleanState = (value) => {
@@ -107,10 +127,44 @@ export function getInspectionStatus(input = {}) {
       inspectionRequired: false,
       inspectionRequiredForUsedEsp: false,
       likelyWithinNewVehicleLimitedWarranty: null,
-      label: 'No inspection required for the CSP request',
-      message: 'Continued Service Plan requests do not use the used-vehicle inspection step in the current Ford guide.',
+      label: 'No CSP enrollment inspection required',
+      message: 'Ford’s current Continued Service Plan buyer guide states that CSP has no waiting period or vehicle-inspection requirement.',
       caveat: 'Ford plan-record eligibility and the returned CSP agreement still require specialist confirmation.',
       basis: 'program',
+      limits,
+    };
+  }
+
+  const planPath = cleanText(quote.planPath).toLowerCase();
+
+  if (program === 'esp' && planPath === 'new') {
+    return {
+      code: 'not-applicable-new-plan',
+      tone: 'positive',
+      required: false,
+      inspectionRequired: false,
+      inspectionRequiredForUsedEsp: false,
+      likelyWithinNewVehicleLimitedWarranty: null,
+      label: 'Used-plan inspection not applicable',
+      message: 'The Used Vehicle Inspection Checklist rule applies to used-plan ESP enrollment outside the New Vehicle Limited Warranty—not this new-plan path.',
+      caveat: 'Ford warranty records must still confirm the VIN, original in-service date, and new-plan eligibility.',
+      basis: 'new-plan-path',
+      limits,
+    };
+  }
+
+  if (program !== 'esp' || planPath !== 'used') {
+    return {
+      code: 'inspection-path-not-selected',
+      tone: 'review',
+      required: null,
+      inspectionRequired: null,
+      inspectionRequiredForUsedEsp: null,
+      likelyWithinNewVehicleLimitedWarranty: null,
+      label: 'Inspection path determined after plan selection',
+      message: 'Select the Ford Protect program and plan path before evaluating any enrollment-inspection requirement.',
+      caveat: 'Bob Maxey will use Ford records and the current product rules for the selected vehicle and program.',
+      basis: 'plan-path-pending',
       limits,
     };
   }
@@ -131,19 +185,28 @@ export function getInspectionStatus(input = {}) {
   const withinMiles = mileage === null ? null : mileage <= limits.miles;
   const calculatedWithin = withinTime === null || withinMiles === null ? null : withinTime && withinMiles;
   const likelyWithin = explicitWithin ?? calculatedWithin;
+  const warrantyRecordConfirmed = Boolean(firstDefined(
+    quote.warrantyRecordConfirmed,
+    quote.vehicle?.warrantyRecordConfirmed,
+    quote.newVehicleLimitedWarranty?.confirmed,
+    false,
+  ));
   const basis = explicitWithin !== null ? 'explicit-quote-status' : calculatedWithin !== null ? 'in-service-date-and-mileage' : 'insufficient-vehicle-data';
 
   if (likelyWithin === true) {
     return {
       code: 'not-required-within-nvlw',
-      tone: 'positive',
-      required: false,
-      inspectionRequired: false,
-      inspectionRequiredForUsedEsp: false,
+      tone: warrantyRecordConfirmed ? 'positive' : 'review',
+      required: warrantyRecordConfirmed ? false : null,
+      inspectionRequired: warrantyRecordConfirmed ? false : null,
+      inspectionRequiredForUsedEsp: warrantyRecordConfirmed ? false : null,
       likelyWithinNewVehicleLimitedWarranty: true,
-      label: 'No used-vehicle inspection expected',
-      message: `The vehicle appears to remain within the ${limits.label} New Vehicle Limited Warranty window, so the current guide does not call for the used-vehicle inspection.`,
-      caveat: 'Ford warranty records, not this estimate, determine the final inspection requirement.',
+      warrantyRecordConfirmed,
+      label: warrantyRecordConfirmed ? 'No ESP used-plan inspection required' : 'Used-plan inspection likely not required',
+      message: warrantyRecordConfirmed
+        ? 'Ford records confirm the vehicle remains within the New Vehicle Limited Warranty, so the referenced used-plan checklist condition does not apply.'
+        : 'If Ford records confirm the vehicle remains within the New Vehicle Limited Warranty, the referenced used-plan checklist condition does not apply.',
+      caveat: warrantyRecordConfirmed ? 'The current Ford offer and issued agreement still control final eligibility.' : 'Bob Maxey will confirm the VIN, original in-service date, and remaining warranty in Ford records before finalizing coverage.',
       basis,
       limits,
     };
@@ -153,13 +216,16 @@ export function getInspectionStatus(input = {}) {
     return {
       code: 'required-outside-nvlw',
       tone: 'review',
-      required: true,
-      inspectionRequired: true,
-      inspectionRequiredForUsedEsp: true,
+      required: warrantyRecordConfirmed ? true : null,
+      inspectionRequired: warrantyRecordConfirmed ? true : null,
+      inspectionRequiredForUsedEsp: warrantyRecordConfirmed ? true : null,
       likelyWithinNewVehicleLimitedWarranty: false,
-      label: 'Inspection required before ESP enrollment',
-      message: 'The vehicle appears to be outside the New Vehicle Limited Warranty window. The current guide requires the applicable used-vehicle inspection before an eligible ESP can be enrolled.',
-      caveat: 'Bob Maxey must verify the Ford record, inspection form, timing, and any exceptions before enrollment.',
+      warrantyRecordConfirmed,
+      label: warrantyRecordConfirmed ? 'Dealer inspection required for this used ESP path' : 'Inspection may be required after Ford record review',
+      message: warrantyRecordConfirmed
+        ? 'Ford records confirm the vehicle is outside the New Vehicle Limited Warranty. The referenced used-plan rule requires a completed Used Vehicle Inspection Checklist before enrollment.'
+        : 'If Ford records confirm the vehicle is outside the New Vehicle Limited Warranty, the referenced used-plan rule requires a completed Used Vehicle Inspection Checklist before enrollment.',
+      caveat: warrantyRecordConfirmed ? 'Bob Maxey will arrange the applicable dealership inspection before enrollment.' : 'Bob Maxey will verify the Ford record before describing the vehicle-specific inspection requirement as confirmed.',
       basis,
       limits,
     };
@@ -172,9 +238,9 @@ export function getInspectionStatus(input = {}) {
     inspectionRequired: null,
     inspectionRequiredForUsedEsp: null,
     likelyWithinNewVehicleLimitedWarranty: null,
-    label: 'Inspection status needs Ford record review',
-    message: 'The in-service date and current mileage are not complete enough to determine whether the New Vehicle Limited Warranty inspection exception applies.',
-    caveat: 'Bob Maxey will confirm the warranty record and any inspection requirement before enrollment.',
+    label: 'Warranty record check needed',
+    message: 'The VIN and original in-service date are needed to confirm whether this used-plan ESP requires a Used Vehicle Inspection Checklist.',
+    caveat: 'Bob Maxey will confirm the Ford warranty record and any inspection requirement before enrollment.',
     basis,
     limits,
   };
@@ -187,15 +253,16 @@ const normalizeCoverageGroup = (group) => {
   return {
     title: cleanText(group?.title || group?.name, 'Coverage group'),
     summary: cleanText(group?.summary || group?.description),
-    items: asArray(group?.items || group?.examples).map((item) => cleanText(item)).filter(Boolean),
+    items: asArray(group?.items || group?.examples).map((item) => displayText(item)).filter(Boolean),
   };
 };
 
 const normalizeBenefit = (benefit) => {
   if (typeof benefit === 'string') return { title: benefit, text: '' };
+  const normalized = normalizeDisplayItem(benefit, 'Plan benefit');
   return {
-    title: cleanText(benefit?.title || benefit?.name, 'Plan benefit'),
-    text: cleanText(benefit?.text || benefit?.summary || benefit?.description),
+    title: normalized?.title || 'Plan benefit',
+    text: normalized?.text || '',
   };
 };
 
@@ -272,6 +339,11 @@ const normalizeProductConfiguration = (quote, product, productId) => {
     engineHoursLabel,
     benefitAmountLabel,
   ]);
+  const timing = getProductTimingPresentation(selectedVariant || product, {
+    purchaseTiming: raw.purchaseTiming,
+    purchaseWindow: raw.purchaseWindowLabel || selectedVariant?.purchaseWindowLabel,
+    coverageStart: raw.startBasisLabel || selectedVariant?.startBasisLabel || product?.configuration?.startBasisLabel,
+  });
 
   return {
     optionId: optionId || null,
@@ -289,8 +361,11 @@ const normalizeProductConfiguration = (quote, product, productId) => {
     benefitAmountLabel: benefitAmountLabel || null,
     startBasis: cleanText(raw.startBasis || selectedVariant?.startBasis),
     startBasisLabel: cleanText(raw.startBasisLabel || selectedVariant?.startBasisLabel || product?.configuration?.startBasisLabel),
-    purchaseWindowLabel: cleanText(raw.purchaseWindowLabel || selectedVariant?.purchaseWindowLabel),
-    purchaseTiming: cleanText(raw.purchaseTiming || selectedVariant?.purchaseTiming),
+    purchaseWindowLabel: cleanText(raw.purchaseWindowLabel || selectedVariant?.purchaseWindowLabel || timing.purchaseWindow),
+    purchaseTiming: timing.code,
+    purchaseTimingLabel: timing.label,
+    purchaseTimingShortLabel: timing.shortLabel,
+    purchaseTimingDetail: timing.detail,
     purchaseContext: cleanText(raw.purchaseContext || quote.purchaseContext, 'owner'),
     status: cleanText(raw.status, 'requested-specialist-confirmation'),
     labels,
@@ -306,7 +381,13 @@ const resolveAdditionalProducts = (quote) => {
       return {
         id,
         resolved: false,
-        name: id,
+        name: 'Product selection pending catalog review',
+        shortName: 'Product pending review',
+        value: `The saved product reference "${id}" requires Bob Maxey catalog review before customer presentation.`,
+        description: 'A specialist will match the saved reference to the current Ford Protect product and eligible configuration.',
+        highlights: ['Saved product reference retained', 'Current name, benefits, timing, and terms require dealer confirmation'],
+        purchaseTimingLabel: 'Dealer confirmation required',
+        purchaseTimingDetail: 'The saved reference could not be matched to the current customer-facing catalog.',
         status: 'requested-catalog-review',
         selectedOptionIds: [],
         selectedOptions: [],
@@ -315,8 +396,26 @@ const resolveAdditionalProducts = (quote) => {
     const selectedOptionIds = selectedOptionIdsFor(quote, id);
     const selectedOptions = [...asArray(product.planOptions), ...asArray(product.configuration?.variants)]
       .filter((option) => selectedOptionIds.includes(option.id))
-      .map((option) => ({ id: option.id, name: cleanText(option.name || option.label), summary: cleanText(option.summary) }));
+      .map((option) => ({ id: option.id, name: displayText(option.name || option.label), summary: displayText(option.summary || option.description) }))
+      .reduce((options, option) => {
+        const existing = options.find((item) => item.id === option.id);
+        if (!existing) options.push(option);
+        else if (!existing.summary && option.summary) Object.assign(existing, option);
+        return options;
+      }, []);
     const configuration = normalizeProductConfiguration(quote, product, id);
+    const detailSections = asArray(product.detailSections).map((section) => ({
+      title: displayText(section?.title, 'Product detail'),
+      items: asArray(section?.items).map((item) => displayText(item)).filter(Boolean),
+    })).filter((section) => section.title || section.items.length);
+    const coverageSectionItems = detailSections
+      .filter((section) => /cover|benefit|include|protect|service|repair/i.test(section.title))
+      .flatMap((section) => section.items);
+    const highlights = unique([
+      ...asArray(product.highlights).map((item) => displayText(item)),
+      ...asArray(product.planOptions).map((item) => displayText(item)),
+      ...coverageSectionItems,
+    ]).filter(Boolean);
     return {
       id: product.id,
       resolved: true,
@@ -332,24 +431,24 @@ const resolveAdditionalProducts = (quote) => {
       badge: cleanText(product.badge),
       requestMode: cleanText(product.requestMode, 'specialist-review'),
       purchaseTiming: cleanText(configuration.purchaseTiming || product.purchaseTiming || product.saleTiming),
+      purchaseTimingLabel: cleanText(configuration.purchaseTimingLabel || product.purchaseTimingLabel, 'Purchase timing requires dealer confirmation'),
+      purchaseTimingShortLabel: cleanText(configuration.purchaseTimingShortLabel || product.purchaseTimingShortLabel, 'Dealer confirmation required'),
+      purchaseTimingDetail: cleanText(configuration.purchaseTimingDetail || product.purchaseTimingDetail || configuration.purchaseWindowLabel),
       purchaseContexts: asArray(product.purchaseContexts).map((item) => cleanText(item)).filter(Boolean),
       powertrains: asArray(product.powertrains).map((item) => cleanText(item)).filter(Boolean),
       warrantyApplicability: asArray(product.warrantyApplicability).map((item) => cleanText(item)).filter(Boolean),
-      highlights: asArray(product.highlights).map((item) => cleanText(item)).filter(Boolean),
-      detailSections: asArray(product.detailSections).map((section) => ({
-        title: cleanText(section?.title),
-        items: asArray(section?.items).map((item) => cleanText(item)).filter(Boolean),
-      })).filter((section) => section.title || section.items.length),
+      highlights: highlights.length ? highlights : [
+        cleanText(product.value || product.description, 'Product benefits require specialist confirmation.'),
+        'The current Ford offer and issued agreement control coverage and limits.',
+      ],
+      detailSections,
       eligibility: {
         headline: cleanText(product.eligibility?.headline),
-        requirements: asArray(product.eligibility?.requirements).map((item) => cleanText(item)).filter(Boolean),
+        requirements: asArray(product.eligibility?.requirements).map((item) => displayText(item)).filter(Boolean),
         dealerConfirmation: cleanText(product.eligibility?.dealerConfirmation),
         inspectionPolicy: cleanText(product.eligibility?.inspectionPolicy),
       },
-      cautions: asArray(product.cautions).map((item) => cleanText(item)).filter(Boolean),
-      officialSources: asArray(product.officialSources).map((source) => isObject(source)
-        ? { label: cleanText(source.label || source.title), url: cleanText(source.url) }
-        : { label: cleanText(source), url: cleanText(source) }),
+      cautions: asArray(product.cautions).map((item) => displayText(item)).filter(Boolean),
       selectedOptionIds,
       selectedOptions,
       configuration,
@@ -414,7 +513,8 @@ const buildDeductible = (quote, program) => {
   if (program === 'csp') {
     return { id: null, label: 'Confirmed with the CSP offer', status: 'specialist-confirmation' };
   }
-  const id = cleanText(quote.deductible, '100');
+  const id = cleanText(quote.deductible);
+  if (!id) return { id: null, label: 'Deductible not selected', status: 'selection-required' };
   return {
     id,
     label: id === 'disappearing' ? 'Disappearing deductible' : `$${id}`,
@@ -452,13 +552,20 @@ const normalizeStatusBlock = (value, defaults) => {
 export function buildQuoteSnapshot({ quote = {}, plan = {}, detail = {} } = {}) {
   const program = normalizeProgram(quote, plan);
   const engineCareLevel = program === 'enginecare' ? resolveEngineCareLevel(quote, plan) : null;
+  const primaryCoverageSelected = program === 'csp'
+    ? Boolean(cleanText(quote.cspLevel))
+    : program === 'enginecare'
+      ? Boolean(engineCareLevel)
+      : program === 'esp' && Boolean(cleanText(quote.planId));
   const customer = isObject(quote.customer) ? quote.customer : {};
   const fullName = [customer.firstName, customer.lastName].map((value) => cleanText(value)).filter(Boolean).join(' ');
   const mileage = finiteNumber(quote.mileage || quote.currentMileage);
   const vehicleName = [quote.year, quote.make, quote.model].map((value) => cleanText(value)).filter(Boolean).join(' ') || 'Vehicle to be confirmed';
-  const coverageGroups = asArray(detail.coverageGroups?.length ? detail.coverageGroups : plan.groups).map(normalizeCoverageGroup);
-  const selectedPlanBenefits = asArray(detail.benefits).map(normalizeBenefit);
-  const selectedPlanOptions = program === 'enginecare'
+  const coverageGroups = primaryCoverageSelected
+    ? asArray(detail.coverageGroups?.length ? detail.coverageGroups : plan.groups).map(normalizeCoverageGroup)
+    : [];
+  const selectedPlanBenefits = primaryCoverageSelected ? asArray(detail.benefits).map(normalizeBenefit) : [];
+  const selectedPlanOptions = !primaryCoverageSelected || program === 'enginecare'
     ? []
     : protectionOptions
       .filter((option) => asArray(quote.addOns).includes(option.id))
@@ -466,15 +573,66 @@ export function buildQuoteSnapshot({ quote = {}, plan = {}, detail = {} } = {}) 
   const store = resolveStore(quote.store);
   const term = buildTerm(quote, program);
   const deductible = buildDeductible(quote, program);
-  const inspection = getInspectionStatus({ quote, plan });
+  const inspectionStatus = getInspectionStatus({ quote, plan });
+  const inspection = {
+    ...inspectionStatus,
+    title: inspectionStatus.title || inspectionStatus.label,
+  };
+  const maintenance = buildMaintenance(quote);
   const additionalProducts = resolveAdditionalProducts(quote)
     .filter((product) => !(program === 'enginecare' && product.id === 'diesel-enginecare'));
   const now = new Date().toISOString();
+  const vin = cleanText(quote.vin).toUpperCase();
+  const vinValid = /^[A-HJ-NPR-Z0-9]{17}$/.test(vin);
+  const receipt = isObject(quote.submissionReceipt)
+    ? quote.submissionReceipt
+    : isObject(quote.submission)
+      ? quote.submission
+      : {};
+  const submittedAt = safeIso(quote.submittedAt || receipt.receivedAt || receipt.submittedAt);
+  const submissionAccepted = Boolean(submittedAt || receipt.accepted === true || (receipt.leadId && receipt.receivedAt));
+  const finalConfirmed = Boolean(quote.finalConfirmed || quote.finalConfirmation)
+    && vinValid
+    && Boolean(quote.eligibility?.confirmed || quote.eligibilityStatus?.confirmed)
+    && Boolean(quote.pricing?.confirmed || quote.priceStatus?.confirmed);
+  const lifecycle = finalConfirmed
+    ? { status: 'dealer-confirmed-offer', label: 'Dealer-confirmed offer', shortLabel: 'Confirmed offer', isDraft: false, isSubmitted: true, isFinal: true }
+    : submissionAccepted
+      ? { status: 'submitted-request', label: 'Submitted request summary', shortLabel: 'Submitted request', isDraft: false, isSubmitted: true, isFinal: false }
+      : { status: 'draft-request', label: 'Draft request - not submitted', shortLabel: 'Draft request', isDraft: true, isSubmitted: false, isFinal: false };
+  const rawComponentCount = primaryCoverageSelected ? engineCareLevel?.componentCount || cleanText(plan.count || detail.stat) : '';
+  const componentCountLabel = rawComponentCount
+    ? /\bcomponents?\b/i.test(rawComponentCount) ? rawComponentCount : `${rawComponentCount} covered components`
+    : '';
+  const planPath = program === 'csp'
+    ? 'continued'
+    : program === 'enginecare'
+      ? 'diesel-specialist-review'
+      : primaryCoverageSelected ? cleanText(quote.planPath) : '';
+  const planPathLabel = program === 'csp'
+    ? 'Continued coverage'
+    : program === 'enginecare'
+      ? 'Diesel specialist record review'
+      : planPath === 'used' ? 'Used plan' : planPath === 'new' ? 'New plan' : 'Plan path not selected';
+  const programLabel = program === 'csp'
+    ? 'Continued Service Plan'
+    : program === 'enginecare'
+      ? 'Diesel EngineCARE'
+      : program === 'esp' ? 'Extended Service Plan' : 'Primary coverage not selected';
+  const planName = primaryCoverageSelected
+    ? engineCareLevel?.name || cleanText(plan.name || quote.planName || quote.planId, 'Coverage selection pending review')
+    : 'Primary coverage not selected';
 
   return {
-    schemaVersion: '1.1',
+    schemaVersion: '1.2',
     quoteId: cleanText(quote.id, 'Pending'),
-    purchaseContext: cleanText(quote.purchaseContext, 'owner'),
+    lifecycle,
+    submission: {
+      accepted: submissionAccepted,
+      leadId: cleanText(receipt.leadId || receipt.id),
+      receivedAt: submittedAt,
+    },
+    purchaseContext: cleanText(quote.purchaseContext),
     program,
     customer: {
       firstName: cleanText(customer.firstName),
@@ -485,7 +643,12 @@ export function buildQuoteSnapshot({ quote = {}, plan = {}, detail = {} } = {}) 
       city: cleanText(customer.city),
     },
     vehicle: {
-      vin: cleanText(quote.vin),
+      vin,
+      vinStatus: vinValid ? 'provided' : vin ? 'invalid' : 'missing',
+      vinComplete: vinValid,
+      vinMessage: vinValid
+        ? 'VIN provided for Ford record review.'
+        : vin ? 'VIN is incomplete or invalid; a valid 17-character VIN is required for final Ford record review.' : 'VIN is still required for final Ford record and rating review.',
       year: cleanText(quote.year),
       make: cleanText(quote.make),
       model: cleanText(quote.model),
@@ -503,22 +666,31 @@ export function buildQuoteSnapshot({ quote = {}, plan = {}, detail = {} } = {}) 
       imageAlt: cleanText(quote.vehicleImageAlt, vehicleName),
     },
     coverage: {
+      selected: primaryCoverageSelected,
       program,
-      programLabel: program === 'csp' ? 'Continued Service Plan' : program === 'enginecare' ? 'Diesel EngineCARE' : 'Extended Service Plan',
-      planId: engineCareLevel?.id || cleanText(plan.id || quote.planId),
-      planName: engineCareLevel?.name || cleanText(plan.name || quote.planName || quote.planId, 'Plan to be confirmed'),
-      planPath: program === 'csp' ? 'continued' : program === 'enginecare' ? 'diesel-specialist-review' : cleanText(quote.planPath, 'new'),
-      planPathLabel: program === 'csp' ? 'Continued coverage' : program === 'enginecare' ? 'Diesel specialist record review' : quote.planPath === 'used' ? 'Used plan' : 'New plan',
-      description: program === 'enginecare'
+      programLabel,
+      planId: primaryCoverageSelected ? engineCareLevel?.id || cleanText(quote.planId || plan.id) : null,
+      planName,
+      planPath: planPath || null,
+      planPathLabel,
+      selection: {
+        programSelected: Boolean(program),
+        planSelected: primaryCoverageSelected,
+        pathSelected: program !== 'esp' || Boolean(planPath),
+        termSelected: program === 'csp' || program === 'enginecare' || Boolean(term.months && term.mileage),
+        deductibleSelected: program === 'csp' || program === 'enginecare' || Boolean(deductible.id),
+      },
+      description: !primaryCoverageSelected ? '' : program === 'enginecare'
         ? cleanText(plan.description || detail.tagline, 'Focused Ford-backed protection for eligible factory-installed Power Stroke diesel engine components.')
         : cleanText(plan.description || detail.tagline),
-      bestFor: program === 'enginecare'
+      bestFor: !primaryCoverageSelected ? '' : program === 'enginecare'
         ? cleanText(plan.bestFor || detail.bestFor, 'Eligible Power Stroke diesel owners seeking focused engine protection.')
         : cleanText(plan.bestFor || detail.bestFor),
-      coverageModel: program === 'enginecare'
+      coverageModel: !primaryCoverageSelected ? 'Choose a primary Ford Protect coverage path before submitting the request.' : program === 'enginecare'
         ? cleanText(detail.coverageModel || plan.description, 'Listed-component diesel engine protection, subject to specialist record review and the issued agreement.')
         : cleanText(detail.coverageModel || plan.description),
-      componentCount: engineCareLevel?.componentCount || cleanText(plan.count || detail.stat),
+      componentCount: rawComponentCount,
+      componentCountLabel,
       engineCareLevel: engineCareLevel?.id || null,
       term,
       deductible,
@@ -527,8 +699,13 @@ export function buildQuoteSnapshot({ quote = {}, plan = {}, detail = {} } = {}) 
       selectedPlanBenefits,
       selectedPlanOptions,
     },
-    maintenance: buildMaintenance(quote),
+    maintenance,
     additionalProducts,
+    counts: {
+      additionalProducts: additionalProducts.length,
+      planBenefits: selectedPlanOptions.length,
+      maintenanceProducts: additionalProducts.some((product) => product.id === maintenance.id) ? 0 : maintenance.selected ? 1 : 0,
+    },
     ownership: {
       keepYears: finiteNumber(quote.keepYears),
       annualMiles: finiteNumber(quote.annualMiles),
@@ -567,7 +744,7 @@ export function buildQuoteSnapshot({ quote = {}, plan = {}, detail = {} } = {}) 
       text: cleanText(quote.consentText, CONSENT_TEXT),
       version: cleanText(quote.consentVersion, 'ford-protect-request-v1'),
       acceptedAt: safeIso(quote.consentAcceptedAt || quote.consentAt),
-      finalConfirmed: Boolean(quote.finalConfirmed || quote.finalConfirmation),
+      finalConfirmed,
       finalConfirmedAt: safeIso(quote.finalConfirmedAt || quote.finalConfirmationAt),
     },
     source: {
@@ -580,7 +757,7 @@ export function buildQuoteSnapshot({ quote = {}, plan = {}, detail = {} } = {}) 
     timestamps: {
       createdAt: safeIso(quote.createdAt),
       savedAt: safeIso(quote.savedAt),
-      submittedAt: safeIso(quote.submittedAt),
+      submittedAt,
       generatedAt: safeIso(quote.generatedAt) || now,
     },
   };
@@ -591,10 +768,18 @@ export function buildProposalModel(input = {}) {
   const snapshot = input.schemaVersion && input.coverage
     ? input
     : buildQuoteSnapshot(input);
+  const lifecycle = snapshot.lifecycle || {
+    status: 'draft-request',
+    label: 'Draft request - not submitted',
+    shortLabel: 'Draft request',
+    isDraft: true,
+    isSubmitted: false,
+    isFinal: false,
+  };
   const representativeImage = !snapshot.vehicle.image;
   const additionalNames = snapshot.additionalProducts.map((product) => product.name);
   const selectedProductNames = [
-    snapshot.coverage.planName,
+    snapshot.coverage.selected ? snapshot.coverage.planName : null,
     snapshot.maintenance.selected ? snapshot.maintenance.name : null,
     ...additionalNames,
   ].filter(Boolean).reduce((names, name) => {
@@ -606,8 +791,14 @@ export function buildProposalModel(input = {}) {
 
   return {
     document: {
-      title: `${snapshot.quoteId} - Bob Maxey Ford Protect proposal`,
-      subject: 'Personalized Ford Protect coverage request',
+      title: `${snapshot.quoteId} - ${lifecycle.label}`,
+      subject: lifecycle.isSubmitted ? 'Submitted Bob Maxey Ford Protect request summary' : 'Draft Bob Maxey Ford Protect request',
+      status: lifecycle.status,
+      statusLabel: lifecycle.label,
+      shortStatusLabel: lifecycle.shortLabel,
+      isDraft: lifecycle.isDraft,
+      isSubmitted: lifecycle.isSubmitted,
+      isFinal: lifecycle.isFinal,
       pageSize: 'LETTER_PORTRAIT',
       quoteId: snapshot.quoteId,
       generatedAt: snapshot.timestamps.generatedAt,
@@ -619,13 +810,15 @@ export function buildProposalModel(input = {}) {
       },
     },
     cover: {
-      eyebrow: snapshot.program === 'enginecare' ? 'DIESEL ENGINECARE SPECIALIST REQUEST' : 'PERSONALIZED FORD PROTECT REQUEST',
+      eyebrow: `${lifecycle.shortLabel.toUpperCase()} | ${snapshot.program === 'enginecare' ? 'DIESEL ENGINECARE SPECIALIST REQUEST' : 'PERSONALIZED FORD PROTECT REQUEST'}`,
       headline: 'Protect the Ford you chose.',
-      subhead: 'Ford-backed protection with support from Bob Maxey.',
+      subhead: lifecycle.isSubmitted
+        ? 'Request received for Bob Maxey specialist review. This is not a contract or final offer.'
+        : 'Draft selections for Ford-backed protection with support from Bob Maxey.',
       purchaseContext: snapshot.purchaseContext,
       purchaseContextLabel: snapshot.purchaseContext === 'shopping'
         ? 'Planned with your Bob Maxey vehicle purchase'
-        : 'After-sale protection request for a vehicle you own',
+        : snapshot.purchaseContext === 'owner' ? 'After-sale protection request for a vehicle you own' : 'Purchase context not selected',
       preparedFor: snapshot.customer.fullName,
       vehicle: snapshot.vehicle.displayName,
       vehicleImage: snapshot.vehicle.image || '/assets/ford-official/ford-protect.jpg',
@@ -650,7 +843,7 @@ export function buildProposalModel(input = {}) {
       pricing: snapshot.pricing,
     },
     coverage: {
-      headline: `What ${snapshot.coverage.planName} is designed to cover`,
+      headline: snapshot.coverage.selected ? `What ${snapshot.coverage.planName} is designed to cover` : 'Primary coverage selection still required',
       groups: snapshot.coverage.coverageGroups,
       note: 'Coverage groups and component examples are a planning summary. The issued agreement controls the exact covered components and exclusions.',
     },
@@ -661,10 +854,12 @@ export function buildProposalModel(input = {}) {
       emptyMessage: 'No additional Ford Protect products were requested.',
     },
     requestSummary: {
+      lifecycle,
+      submission: snapshot.submission,
       purchaseContext: snapshot.purchaseContext,
       purchaseContextLabel: snapshot.purchaseContext === 'shopping'
         ? 'Vehicle purchase + protection planning'
-        : 'After-sale owner protection request',
+        : snapshot.purchaseContext === 'owner' ? 'After-sale owner protection request' : 'Purchase context not selected',
       customer: snapshot.customer,
       vehicle: snapshot.vehicle,
       coverage: snapshot.coverage,
@@ -676,6 +871,7 @@ export function buildProposalModel(input = {}) {
       store: snapshot.store,
       contact: snapshot.contact,
       consent: snapshot.consent,
+      counts: snapshot.counts,
     },
     nextSteps: [
       { number: 1, title: 'Verify the vehicle', text: 'Bob Maxey confirms the VIN, in-service date, current mileage, use, state, and Ford record.' },
@@ -686,8 +882,10 @@ export function buildProposalModel(input = {}) {
       { number: 4, title: 'Approve and enroll', text: 'Coverage is issued only after you choose the final offer and approve enrollment.' },
     ],
     confirmation: {
-      headline: 'Your Ford Protect request is on its way.',
-      message: `A Bob Maxey specialist will review the vehicle and selections and follow up by ${snapshot.contact.preferredMethod}.`,
+      headline: lifecycle.isSubmitted ? 'Your Ford Protect request was submitted.' : 'This request is still a draft.',
+      message: lifecycle.isSubmitted
+        ? `A Bob Maxey specialist will review the vehicle and selections and follow up by ${snapshot.contact.preferredMethod}.`
+        : 'Submit the completed request before treating this document as delivered to Bob Maxey.',
       reference: snapshot.quoteId,
     },
     disclaimer: AGREEMENT_DISCLAIMER,

@@ -333,6 +333,101 @@ export const FORD_PROTECT_PRODUCT_RULES = Object.freeze({
   }),
 });
 
+const PRODUCT_TIMING_PRESENTATIONS = Object.freeze({
+  'vehicle-purchase-or-after-sale': Object.freeze({
+    shortLabel: 'At purchase or eligible after-sale',
+    label: 'May be available with the vehicle purchase or after the sale',
+    detail: 'Ford records and the current dealer rating result determine the available enrollment path and timing.',
+  }),
+  'after-sale-when-prior-coverage-is-ending': Object.freeze({
+    shortLabel: 'As prior coverage is ending',
+    label: 'After-sale continuation when eligible prior coverage is ending',
+    detail: 'Continued Service Plan availability depends on the prior Ford Protect record and the current vehicle-specific offer.',
+  }),
+  'vehicle-purchase-or-after-sale-within-nvlw': Object.freeze({
+    shortLabel: 'At purchase or while in factory warranty',
+    label: 'May be available at purchase or after the sale during the New Vehicle Limited Warranty window',
+    detail: 'The original in-service date, mileage, warranty record, vehicle, state, and current program rules determine the remaining purchase window.',
+  }),
+  'dealer-confirmed-after-sale-window': Object.freeze({
+    shortLabel: 'Dealer-confirmed purchase window',
+    label: 'May be available after the sale within a dealer-confirmed enrollment window',
+    detail: 'Bob Maxey must confirm the current product, vehicle, mileage, state, and purchase window before enrollment.',
+  }),
+  'historically-any-time-during-ownership': Object.freeze({
+    shortLabel: 'Current availability must be verified',
+    label: 'Historical materials allowed purchase during ownership; current availability requires confirmation',
+    detail: 'Historical guide timing is not a current offer. Bob Maxey must verify that the product remains available for the VIN.',
+  }),
+  'vehicle-purchase-or-after-sale-within-diesel-warranty': Object.freeze({
+    shortLabel: 'Within the eligible diesel warranty window',
+    label: 'May be available at purchase or after the sale within the eligible diesel engine warranty window',
+    detail: 'Power Stroke engine, time, mileage, engine hours, use, state, and current Diesel EngineCARE rules require specialist review.',
+  }),
+  'original-vehicle-transaction-only': Object.freeze({
+    shortLabel: 'Original vehicle transaction only',
+    label: 'Must be selected with the eligible original vehicle transaction',
+    detail: 'This product is not presented as a separate after-sale purchase. The current transaction and issued agreement control eligibility.',
+  }),
+  'original-finance-transaction-only': Object.freeze({
+    shortLabel: 'Original finance contract only',
+    label: 'Must be selected with an eligible original finance contract',
+    detail: 'Lender, state, vehicle, and transaction rules determine whether the product can be included in the original finance contract.',
+  }),
+  'original-lease-signing-only': Object.freeze({
+    shortLabel: 'Original lease signing only',
+    label: 'Must be selected when the eligible original lease is signed',
+    detail: 'This lease product is not a separate post-sale enrollment. The original lease and issued agreement control.',
+  }),
+  'vehicle-purchase-or-after-sale-before-3yr-36k': Object.freeze({
+    shortLabel: 'Before 3 years / 36,000 miles',
+    label: 'May be available at purchase or after the sale before the earlier of 3 years or 36,000 miles',
+    detail: 'The warranty start date, current mileage, vehicle, state, product compatibility, and current dealer rating result control.',
+  }),
+  'agreement-option-not-standalone': Object.freeze({
+    shortLabel: 'Parent-plan option only',
+    label: 'Available only as an eligible option within a parent agreement',
+    detail: 'This is not a standalone Ford Protect product. Availability and limits follow the parent plan and issued agreement.',
+  }),
+  'after-sale': Object.freeze({
+    shortLabel: 'Eligible after-sale request',
+    label: 'May be requested after the vehicle sale',
+    detail: 'VIN-specific eligibility, purchase timing, available terms, and price require Bob Maxey confirmation.',
+  }),
+});
+
+/**
+ * One source for purchase-timing copy across cards, proposals, PDFs, and CRM
+ * output. The rule code remains canonical; labels never widen its eligibility.
+ */
+export const getProductTimingPresentation = (source, overrides = {}) => {
+  const selectedVariantId = overrides.variantId || overrides.selectedVariantId;
+  const variants = source && typeof source === 'object' && Array.isArray(source.configuration?.variants)
+    ? source.configuration.variants
+    : [];
+  const variant = variants.find((item) => item.id === selectedVariantId)
+    || variants.find((item) => item.customerSelectable !== false)
+    || variants[0];
+  const code = typeof source === 'string'
+    ? source
+    : source?.purchaseTiming || variant?.purchaseTiming || overrides.purchaseTiming || '';
+  const presentation = PRODUCT_TIMING_PRESENTATIONS[code] || Object.freeze({
+    shortLabel: 'Dealer confirmation required',
+    label: 'Purchase timing requires current dealer confirmation',
+    detail: 'Bob Maxey must verify the current VIN-specific product availability and enrollment timing.',
+  });
+  const purchaseWindow = overrides.purchaseWindow || source?.purchaseWindow || variant?.purchaseWindowLabel || '';
+  const coverageStart = overrides.coverageStart || source?.coverageStart || variant?.startBasisLabel || '';
+  return Object.freeze({
+    code,
+    shortLabel: presentation.shortLabel,
+    label: presentation.label,
+    detail: [presentation.detail, purchaseWindow].filter(Boolean).join(' '),
+    purchaseWindow,
+    coverageStart,
+  });
+};
+
 export const getFordProtectProductRule = (id) => FORD_PROTECT_PRODUCT_RULES[id] || null;
 
 export const getProductConfigurationOptions = (id) => {
@@ -506,40 +601,36 @@ export function getWarrantyInspectionStatus(quote = {}) {
   const facts = resolveQuoteFacts(quote);
   const limits = facts.make.toLowerCase() === 'lincoln' ? LINCOLN_NVLW : FORD_NVLW;
   const evaluated = evaluateWindow({ facts, ...limits });
-  let code = evaluated.code === 'within' ? 'within-nvlw' : evaluated.code === 'outside' ? 'outside-nvlw' : 'unknown';
-  let likelyWithin = evaluated.within;
-
-  // Model year is used only for a conservative fallback when the in-service
-  // date is missing. Boundary years remain unknown because vehicles can be sold
-  // before or after their model year.
-  if (evaluated.code === 'unknown' && !facts.inService && facts.year) {
-    const warrantyYears = limits.months / 12;
-    const modelAge = facts.asOf.getFullYear() - facts.year;
-    if (modelAge > warrantyYears + 1) {
-      code = 'likely-outside-nvlw';
-      likelyWithin = false;
-    } else if (modelAge <= 1 && (facts.mileage === null || facts.mileage < limits.miles)) {
-      code = 'likely-within-nvlw';
-      likelyWithin = true;
-    }
-  }
-
-  const inspectionRequired = likelyWithin === false ? true : likelyWithin === true ? false : null;
+  const code = evaluated.code === 'within' ? 'within-nvlw-estimate' : evaluated.code === 'outside' ? 'outside-nvlw-estimate' : 'unknown';
+  const likelyWithin = evaluated.within;
+  const warrantyRecordConfirmed = Boolean(
+    quote.warrantyRecordConfirmed
+    || quote.vehicle?.warrantyRecordConfirmed
+    || quote.newVehicleLimitedWarranty?.confirmed,
+  );
+  const inspectionRequired = warrantyRecordConfirmed
+    ? likelyWithin === false ? true : likelyWithin === true ? false : null
+    : null;
   const label = likelyWithin === true
-    ? 'Likely within factory warranty'
+    ? warrantyRecordConfirmed ? 'No ESP used-plan inspection required' : 'Used-plan inspection likely not required'
     : likelyWithin === false
-      ? 'Likely outside factory warranty'
+      ? warrantyRecordConfirmed ? 'Dealer inspection required for this used ESP path' : 'Inspection may be required after Ford record review'
       : 'Warranty record review needed';
   const message = likelyWithin === true
-    ? 'For an ESP used-plan enrollment completed while the vehicle remains within the New Vehicle Limited Warranty, no used-vehicle inspection is required.'
+    ? warrantyRecordConfirmed
+      ? 'Ford records confirm the vehicle remains within the New Vehicle Limited Warranty, so the referenced used-plan checklist condition does not apply.'
+      : 'If Ford records confirm the vehicle remains within the New Vehicle Limited Warranty, the referenced used-plan checklist condition does not apply.'
     : likelyWithin === false
-      ? 'For an ESP used-plan enrollment outside the New Vehicle Limited Warranty, a Bob Maxey Used Vehicle Inspection Checklist is required before coverage can be finalized.'
+      ? warrantyRecordConfirmed
+        ? 'Ford records confirm the vehicle is outside the New Vehicle Limited Warranty. The referenced used-plan rule requires a completed Used Vehicle Inspection Checklist before enrollment.'
+        : 'If Ford records confirm the vehicle is outside the New Vehicle Limited Warranty, the referenced used-plan rule requires a completed Used Vehicle Inspection Checklist before enrollment.'
       : 'Bob Maxey must confirm the original in-service date and current Ford warranty record. The result determines whether an ESP used-plan inspection is required.';
 
   return {
     code,
     label,
-    tone: likelyWithin === true ? 'positive' : likelyWithin === false ? 'warning' : 'review',
+    tone: warrantyRecordConfirmed && likelyWithin === true ? 'positive' : likelyWithin === false ? 'warning' : 'review',
+    warrantyRecordConfirmed,
     likelyWithinNewVehicleLimitedWarranty: likelyWithin,
     inspectionRequiredForUsedEsp: inspectionRequired,
     message,
@@ -1112,8 +1203,22 @@ const espStatus = (facts, warranty) => {
     if (warranty.inspectionRequiredForUsedEsp === true) return status('inspection-required', null, 'Used path · inspection required', 'warning', warranty.message, true);
     return status('record-review', null, 'Used path · warranty review', 'review', warranty.message, null);
   }
-  if (warranty.likelyWithinNewVehicleLimitedWarranty === true) return status('likely-fit', true, 'Likely new-plan fit', 'positive', 'The vehicle appears to be within the public new-plan purchase window. Ford records must confirm the exact plan and combinations.', false);
-  if (warranty.likelyWithinNewVehicleLimitedWarranty === false) return status('used-path-review', null, 'Explore the used-plan path', 'warning', 'The vehicle appears outside the public new-plan window. A used ESP may still be requestable, and the Bob Maxey Used Vehicle Inspection Checklist is required before coverage can be finalized.', true);
+  if (warranty.likelyWithinNewVehicleLimitedWarranty === true) return status(
+    warranty.warrantyRecordConfirmed ? 'confirmed-fit' : 'likely-fit',
+    warranty.warrantyRecordConfirmed ? true : null,
+    warranty.warrantyRecordConfirmed ? 'Confirmed new-plan fit' : 'Likely new-plan fit · Ford record review',
+    warranty.warrantyRecordConfirmed ? 'positive' : 'review',
+    warranty.message,
+    warranty.inspectionRequiredForUsedEsp,
+  );
+  if (warranty.likelyWithinNewVehicleLimitedWarranty === false) return status(
+    warranty.warrantyRecordConfirmed ? 'used-path-review' : 'record-review',
+    null,
+    warranty.warrantyRecordConfirmed ? 'Explore the used-plan path' : 'Used path · Ford record review',
+    'warning',
+    warranty.message,
+    warranty.inspectionRequiredForUsedEsp,
+  );
   return status('record-review', null, 'Ford record review', 'review', 'The in-service date or mileage is incomplete. Bob Maxey will determine whether the new- or used-plan path applies.', null);
 };
 
@@ -1195,8 +1300,15 @@ export function getQuoteProductCatalog(quote = {}, options = {}) {
       || (product.id === 'continued-service-plan' && facts.program === 'csp')
       || (product.id === 'diesel-enginecare' && facts.powertrain === 'diesel')
     );
+    const selectedVariantId = quote.productSelections?.[product.id]?.variantId;
+    const timing = getProductTimingPresentation(product, { selectedVariantId });
     return {
       ...product,
+      purchaseTiming: timing.code,
+      purchaseTimingLabel: timing.shortLabel,
+      purchaseTimingDetail: timing.detail,
+      purchaseWindow: timing.purchaseWindow,
+      coverageStart: timing.coverageStart,
       purchaseContext: facts.purchaseContext,
       recommended,
       status: productStatus,

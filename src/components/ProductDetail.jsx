@@ -214,7 +214,7 @@ export default function ProductDetail({ productId, onBack, onQuote, onContact, o
   const purchaseWindow = variant?.purchaseWindowLabel || detail.maxTerm;
   const requestableDealerProduct = detail.quoteMode === 'dealer' && Boolean(quoteProduct?.purchaseContexts?.length);
   const requiredPurchaseContext = quoteProduct?.purchaseContexts?.length === 1 ? quoteProduct.purchaseContexts[0] : undefined;
-  const primaryActionLabel = requestableDealerProduct ? 'Add to My Request' : detail.quoteMode === 'dealer' ? 'Talk With a Specialist' : 'Check My Vehicle';
+  const primaryActionLabel = requestableDealerProduct ? 'Add to my request' : detail.quoteMode === 'dealer' ? 'Talk with a specialist' : 'Check my vehicle';
   const start = () => requestableDealerProduct
     ? onQuote({ purchaseContext: requiredPurchaseContext, productId: quoteProduct.id })
     : detail.quoteMode === 'dealer'

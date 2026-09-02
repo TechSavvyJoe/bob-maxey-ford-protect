@@ -91,7 +91,7 @@ export default function HomeOverview({ onNavigate, onQuote }) {
         <div className="ownership-process__heading">
           <span>Simple by design</span>
           <h2 id="ownership-process-title">From vehicle details to a confirmed Ford Protect offer.</h2>
-          <button className="button button--primary" type="button" onClick={() => onQuote()}>Check My Vehicle <ArrowRight /></button>
+          <button className="button button--primary" type="button" onClick={() => onQuote()}>Check my vehicle <ArrowRight /></button>
         </div>
         <div className="ownership-process__steps">
           {steps.map(({ icon: Icon, title, text }, index) => (

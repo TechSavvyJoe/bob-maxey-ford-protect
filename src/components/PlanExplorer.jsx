@@ -14,11 +14,12 @@ const mechanicalRows = [
 ];
 
 const evRows = [
-  { label: 'Coverage approach', values: ['PremiumCARE EV + eligible maintenance', 'Broad eligible EV component coverage', '113 listed components', '84 listed components'] },
-  { label: 'Drive motors', values: ['Broad eligible coverage', 'Broad eligible coverage', 'Listed components', 'Listed components'] },
-  { label: 'Charging & EV electrical', values: ['Broad eligible coverage', 'Broad eligible coverage', 'Selected electrical', 'Selected electrical'] },
-  { label: 'High-tech', values: ['Broad', 'Broad', 'Selected', 'Not included'] },
-  { label: 'Steering, brakes & suspension', values: ['Broad eligible coverage', 'Broad eligible coverage', 'Listed components', 'Listed components'] },
+  { label: 'Coverage structure', values: ['PremiumCARE EV plus scheduled maintenance', '1,000+ eligible EV components', '113 listed EV components', '84 listed EV components'] },
+  { label: 'Drive motors', values: ['Included where eligible', 'Included where eligible', 'Selected components', 'Selected components'] },
+  { label: 'Charging & electrical', values: ['Broad eligible electrical systems', 'Broad eligible electrical systems', 'Selected electrical components', 'Selected electrical components'] },
+  { label: 'Factory-installed technology', values: ['Broad eligible coverage', 'Broad eligible coverage', 'Not listed as a category', 'Not listed as a category'] },
+  { label: 'Steering, brakes & suspension', values: ['Broad eligible coverage', 'Broad eligible coverage', 'Selected components', 'Selected components'] },
+  { label: 'Climate control', values: ['Included where eligible', 'Included where eligible', 'Selected components', 'Not listed as a category'] },
   { label: 'Scheduled EV maintenance', values: ['Included', 'Not included', 'Not included', 'Not included'] },
   { label: 'Best for', values: ['EV repair coverage plus scheduled care', 'Maximum eligible EV component protection', 'Enhanced EV drivability and technology', 'Focused major-system EV protection'] },
 ];
@@ -46,7 +47,7 @@ export default function PlanExplorer({ onQuote, onOpenProduct }) {
   return (
     <section className="plan-explorer plan-explorer--professional" id="plans">
       <div className="page-shell plan-explorer__heading">
-        <div><span>Ford Protect plan comparison</span><h1>Compare the coverage differences that matter.</h1><p>See how each level expands—from powertrain essentials to Ford Protect’s broadest eligible mechanical and technology coverage.</p></div>
+        <div><span>Ford Protect plan comparison</span><h1>Compare Ford Protect plans.</h1><p>Review coverage structure, component counts and key system differences before Bob Maxey confirms the plan available for your VIN.</p></div>
         <img src={assetUrl('/assets/ford-official/ford-protect-logo.png')} alt="Ford Protect" />
       </div>
 
@@ -55,7 +56,7 @@ export default function PlanExplorer({ onQuote, onOpenProduct }) {
           <button className={mode === 'mechanical' ? 'is-active' : ''} type="button" onClick={() => switchMode('mechanical')}>Gas, hybrid & diesel</button>
           <button className={mode === 'electric' ? 'is-active' : ''} type="button" onClick={() => switchMode('electric')}>Electric vehicles</button>
         </div>
-        <button className="button button--primary" type="button" onClick={() => onQuote({ powertrain: mode === 'electric' ? 'Electric' : undefined })}>Check My Vehicle <ArrowRight /></button>
+        <button className="button button--primary" type="button" onClick={() => onQuote({ powertrain: mode === 'electric' ? 'Electric' : undefined })}>Check my vehicle <ArrowRight /></button>
       </div>
 
       <section className="page-shell comparison-common" aria-label="Shared Ford Protect support">
@@ -66,12 +67,12 @@ export default function PlanExplorer({ onQuote, onOpenProduct }) {
       </section>
 
       <div className="page-shell comparison-wrap">
-        <div className="comparison-heading"><div><h2>{mode === 'electric' ? 'EV coverage levels' : 'Mechanical coverage levels'}</h2><p>Select any plan name for its complete on-site coverage guide.</p></div></div>
+        <div className="comparison-heading"><div><h2>{mode === 'electric' ? 'Compare EV plan coverage' : 'Compare mechanical plan coverage'}</h2><p>Select a plan name to open its complete on-site coverage guide.</p></div></div>
 
         <div className="detailed-comparison detailed-comparison--desktop" role="table" aria-label={`Ford Protect ${mode} plan differences`}>
           <div className="detailed-comparison__row detailed-comparison__head" role="row">
-            <div role="columnheader">Decision point</div>
-            {plans.map((plan) => <button key={plan.id} type="button" role="columnheader" onClick={() => onOpenProduct(plan.id)}><strong>{plan.name}</strong><small>{plan.count} components</small><span>See details <ArrowRight /></span></button>)}
+            <div role="columnheader">Coverage area</div>
+            {plans.map((plan) => <button key={plan.id} type="button" role="columnheader" aria-label={`View ${plan.name} details`} onClick={() => onOpenProduct(plan.id)}><strong>{plan.name}</strong><small>{plan.count} components</small><span>View plan details <ArrowRight /></span></button>)}
           </div>
           {rows.map((row) => <div className="detailed-comparison__row" role="row" key={row.label}><div role="rowheader">{row.label}</div>{row.values.map((value, index) => <div key={`${row.label}-${plans[index].id}`} role="cell">{value}</div>)}</div>)}
         </div>

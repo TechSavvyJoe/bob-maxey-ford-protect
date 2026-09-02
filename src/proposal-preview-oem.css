@@ -1096,6 +1096,35 @@
   .studio-v5 .proposal-preview--handoff .proposal-preview__page { padding-top: 18px; }
 }
 
+@media (min-width: 761px) and (max-width: 1050px) {
+  .studio-v5 .proposal-preview--handoff .proposal-preview__workspace > nav {
+    overflow: hidden;
+  }
+  .studio-v5 .proposal-preview--handoff .proposal-preview__workspace > nav button {
+    flex: 0 0 54px;
+    width: 54px;
+    min-width: 54px;
+    padding-inline: 6px;
+    grid-template-columns: 1fr;
+    justify-items: center;
+    gap: 0;
+  }
+  .studio-v5 .proposal-preview--handoff .proposal-preview__workspace > nav button > i { display: none; }
+  .studio-v5 .proposal-preview--handoff .proposal-preview__workspace > nav button.is-current {
+    flex: 1 1 auto;
+    width: auto;
+    min-width: 210px;
+    padding-inline: 12px;
+    grid-template-columns: 26px minmax(0, 1fr);
+    justify-items: start;
+    gap: 9px;
+  }
+  .studio-v5 .proposal-preview--handoff .proposal-preview__workspace > nav button.is-current > i {
+    display: block;
+    min-width: 0;
+  }
+}
+
 @media (max-width: 760px) {
   .studio-v5 .proposal-preview--handoff { grid-template-rows: 60px minmax(0, 1fr) 64px; }
   .studio-v5 .proposal-preview--handoff > .proposal-preview__header {
@@ -1211,7 +1240,39 @@
   .studio-v5 .proposal-preview--handoff .proposal-preview__header .brand img.brand__protect { width: 61px; }
   .studio-v5 .proposal-preview__heading { display: none; }
   .studio-v5 .proposal-preview--handoff > .proposal-preview__header { grid-template-columns: minmax(0, 1fr) 36px; }
-  .studio-v5 .proposal-preview--handoff .proposal-preview__workspace > nav button { min-width: 105px; }
+  .studio-v5 .proposal-preview--handoff .proposal-preview__workspace > nav {
+    padding-inline: 6px;
+    overflow: hidden;
+  }
+  .studio-v5 .proposal-preview--handoff .proposal-preview__workspace > nav button {
+    flex: 0 0 44px;
+    width: 44px;
+    min-width: 44px;
+    padding: 6px 3px;
+    grid-template-columns: 1fr;
+    justify-items: center;
+    gap: 0;
+  }
+  .studio-v5 .proposal-preview--handoff .proposal-preview__workspace > nav button.is-current {
+    flex: 1 1 auto;
+    width: auto;
+    min-width: 132px;
+    padding-inline: 8px;
+    grid-template-columns: 24px minmax(0, 1fr);
+    justify-items: start;
+    gap: 7px;
+  }
+  .studio-v5 .proposal-preview--handoff .proposal-preview__workspace > nav button > i { display: none; }
+  .studio-v5 .proposal-preview--handoff .proposal-preview__workspace > nav button.is-current > i {
+    display: block;
+    min-width: 0;
+  }
+  .studio-v5 .proposal-preview--handoff .proposal-preview__workspace > nav button.is-current strong {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
   .studio-v5 .proposal-document__masthead > div { max-width: 110px; }
   .studio-v5 .proposal-document__masthead strong { overflow-wrap: anywhere; text-align: right; }
   .studio-v5 .proposal-preview--handoff .proposal-document > .proposal-document__title-band { grid-template-columns: minmax(0, 1fr) !important; }

@@ -51,7 +51,7 @@ export default function FaqSection({ onQuote, onContact, onNavigate }) {
       </section>
 
       <section className="page-shell help-faq" id="faq-list" aria-labelledby="faq-title">
-        <div className="help-faq__intro"><MessageCircleQuestion /><span>Frequently asked questions</span><h2 id="faq-title">Clear answers for choosing and using Ford Protect.</h2><p>Final availability, pricing and coverage are confirmed for your VIN before purchase.</p><button className="button button--primary" type="button" onClick={() => onQuote()}>Check My Vehicle <ArrowRight /></button><button type="button" onClick={() => onContact()}>Talk With a Specialist</button></div>
+        <div className="help-faq__intro"><MessageCircleQuestion /><span>Frequently asked questions</span><h2 id="faq-title">Clear answers for choosing and using Ford Protect.</h2><p>Final availability, pricing and coverage are confirmed for your VIN before purchase.</p><button className="button button--primary" type="button" onClick={() => onQuote()}>Check my vehicle <ArrowRight /></button><button type="button" onClick={() => onContact()}>Talk with a specialist</button></div>
         <div className="help-faq__groups">
           {Object.entries(grouped).map(([group, items]) => <section key={group}><h3>{group}</h3>{items.map(([question, answer], index) => <details key={question} open={!query && group === 'Choosing Ford Protect' && index === 0}><summary>{question}<span aria-hidden="true">+</span></summary><p>{answer}</p></details>)}</section>)}
           {Object.keys(grouped).length === 0 && <p className="help-faq__empty">No exact match. Try a product name, “inspection,” “deductible,” or “repair.”</p>}

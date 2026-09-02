@@ -36,8 +36,8 @@ function ProductRow({ category, product, context, onOpenProduct, onStart }) {
       </div>
       <div className="product-row__actions">
         {product.count && <strong><b>{product.count}</b><small>{product.countLabel || 'covered components'}</small></strong>}
-        <button className="button button--primary" type="button" onClick={() => onOpenProduct(product.id)}>See Coverage Details <ArrowRight /></button>
-        <button type="button" onClick={() => onStart(product)}>Add to My Request</button>
+        <button className="button button--primary" type="button" onClick={() => onOpenProduct(product.id)}>See coverage details <ArrowRight /></button>
+        <button type="button" onClick={() => onStart(product)}>Add to my request</button>
       </div>
     </article>
   );
@@ -68,18 +68,18 @@ export default function ProductLibrary({ onQuote, onOpenProduct }) {
       <div className="page-shell product-library__hero">
         <div>
           <span>Ford Protect plans and products</span>
-          <h1>Choose protection for the way you own—or plan to buy—your Ford.</h1>
-          <p>Select your ownership stage first. We’ll show the products that belong in that journey and keep purchase-day-only choices clearly separated from after-sale coverage.</p>
+          <h1>Find Ford Protect coverage for where you are in ownership.</h1>
+          <p>Start with whether you own the vehicle or are buying it from Bob Maxey. We’ll show only products that fit that purchase timing.</p>
         </div>
         <ShieldCheck aria-hidden="true" />
       </div>
 
       <div className="page-shell product-context-switch" aria-label="Choose ownership stage">
-        <button className={context === 'owner' ? 'is-active' : ''} type="button" onClick={() => { setContext('owner'); setQuery(''); }}>
-          <ShieldCheck /><span><strong>I already own this vehicle</strong><small>Products Ford may permit after the original sale—including vehicles bought elsewhere.</small></span><ArrowRight />
+        <button className={context === 'owner' ? 'is-active' : ''} type="button" aria-pressed={context === 'owner'} onClick={() => { setContext('owner'); setQuery(''); }}>
+          <ShieldCheck /><span><strong>I already own a Ford</strong><small>Explore coverage Ford may permit after the original sale, including vehicles bought elsewhere.</small></span><ArrowRight />
         </button>
-        <button className={context === 'shopping' ? 'is-active' : ''} type="button" onClick={() => { setContext('shopping'); setQuery(''); }}>
-          <CarFront /><span><strong>I’m choosing protection with a Bob Maxey vehicle</strong><small>Include eligible purchase-day products before delivery, financing or lease signing.</small></span><ArrowRight />
+        <button className={context === 'shopping' ? 'is-active' : ''} type="button" aria-pressed={context === 'shopping'} onClick={() => { setContext('shopping'); setQuery(''); }}>
+          <CarFront /><span><strong>I’m buying a vehicle from Bob Maxey</strong><small>Explore products that must be selected before delivery, financing or lease signing.</small></span><ArrowRight />
         </button>
       </div>
 
@@ -104,7 +104,7 @@ export default function ProductLibrary({ onQuote, onOpenProduct }) {
           {products.map(({ category: item, product }) => <ProductRow key={`${item.id}-${product.id}`} category={item} product={product} context={context} onOpenProduct={onOpenProduct} onStart={startProduct} />)}
         </div>
 
-        <div className="product-library__confirmation"><ShieldCheck /><p><strong>One rule across every product:</strong> final availability, pricing, term choices and coverage are confirmed for your VIN before purchase.</p><button type="button" onClick={() => onQuote({ purchaseContext: context })}>Check My Vehicle <ArrowRight /></button></div>
+        <div className="product-library__confirmation"><ShieldCheck /><p><strong>One rule across every product:</strong> final availability, pricing, term choices and coverage are confirmed for your VIN before purchase.</p><button type="button" onClick={() => onQuote({ purchaseContext: context })}>Check my vehicle <ArrowRight /></button></div>
       </div>
     </section>
   );

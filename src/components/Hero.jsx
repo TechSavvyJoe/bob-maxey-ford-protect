@@ -11,10 +11,10 @@ export default function Hero({ onQuote, onCompare }) {
           <p>Compare Ford-backed coverage, match it to your vehicle, and have Bob Maxey confirm the exact options and price.</p>
           <div className="hero__actions">
             <button className="button button--primary button--large" type="button" onClick={() => onQuote()}>
-              Check My Vehicle <ArrowRight />
+              Check my vehicle <ArrowRight />
             </button>
             <button className="button button--outline-light button--large" type="button" onClick={onCompare}>
-              Compare Coverage
+              Compare coverage
             </button>
           </div>
           <div className="hero__trust" aria-label="Ford Protect benefits">
@@ -30,13 +30,13 @@ export default function Hero({ onQuote, onCompare }) {
           <strong>Which best describes you?</strong>
         </div>
         <button type="button" onClick={() => onQuote({ purchaseContext: 'owner' })}>
-          <span><Check /><b>I already own this vehicle</b></span>
+          <span><Check /><b>I already own a Ford</b></span>
           <small>See protection that may still be available after the sale.</small>
           <ArrowRight />
         </button>
         <button type="button" onClick={() => onQuote({ purchaseContext: 'shopping' })}>
-          <span><Check /><b>I’m buying from Bob Maxey</b></span>
-          <small>Plan eligible protection before vehicle delivery.</small>
+          <span><Check /><b>I’m buying a vehicle from Bob Maxey</b></span>
+          <small>Plan eligible protection before delivery or signing.</small>
           <ArrowRight />
         </button>
       </div>

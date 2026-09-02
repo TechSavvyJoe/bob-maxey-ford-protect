@@ -145,7 +145,7 @@ export default function App() {
           <CheckCircle2 /> <span>{toast}</span><button type="button" onClick={() => setToast('')} aria-label="Dismiss"><X /></button>
         </div>
       )}
-      <button className="mobile-sticky-cta" type="button" onClick={() => openQuote()}>Get My Price <span>→</span></button>
+      {!productId && <button className="mobile-sticky-cta" type="button" onClick={() => openQuote()}>Get My Price <span>→</span></button>}
     </div>
   );
 }

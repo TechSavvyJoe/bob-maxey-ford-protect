@@ -487,15 +487,15 @@ function ProductDetail({ product, selected, selection, powertrain, purchaseConte
           </div>
           <div className="product-detail-modal__value"><ShieldCheck /><span><small>WHY CUSTOMERS CONSIDER IT</small><strong>{product.customerValue || product.value || product.valueStatement || product.description}</strong></span></div>
           <div className="product-detail-modal__columns">
-            <section><h3>What it can help with</h3><ul>{benefits.map((item) => <li key={typeof item === 'string' ? item : item.title}><CheckCircle2 /><span><strong>{typeof item === 'string' ? item : item.title}</strong>{typeof item === 'object' && item.text && <small>{item.text}</small>}</span></li>)}</ul></section>
-            <section><h3>Coverage highlights</h3><ul>{covered.map((item) => <li key={typeof item === 'string' ? item : item.title}><Check /><span>{typeof item === 'string' ? item : item.title}</span></li>)}</ul></section>
+            <section><h3>What it can help with</h3><ul>{benefits.map((item, index) => <li key={`${product.id}-benefit-${index}-${typeof item === 'string' ? item : item.title || item.text || 'item'}`}><CheckCircle2 /><span><strong>{typeof item === 'string' ? item : item.title}</strong>{typeof item === 'object' && item.text && <small>{item.text}</small>}</span></li>)}</ul></section>
+            <section><h3>Coverage highlights</h3><ul>{covered.map((item, index) => <li key={`${product.id}-coverage-${index}-${typeof item === 'string' ? item : item.title || item.text || 'item'}`}><Check /><span>{typeof item === 'string' ? item : item.title}</span></li>)}</ul></section>
           </div>
           <div className="product-detail-modal__eligibility">
             <ClipboardCheck /><span><small>PURCHASE TIMING &amp; ELIGIBILITY</small><strong>{eligibilityTitle}</strong><p>{eligibilityText}</p></span>
           </div>
           <ProductConfigurator product={product} selection={draft} powertrain={powertrain} onChange={setDraft} />
           {product.eligibility?.inspectionPolicy && <div className="product-detail-modal__inspection is-clear"><ClipboardCheck /><span><small>INSPECTION / RECORD REVIEW</small><strong>Product-specific rule</strong><p>{product.eligibility.inspectionPolicy}</p></span></div>}
-          {considerations.length > 0 && <section className="product-detail-modal__important"><h3>Important to know</h3><ul>{considerations.map((item) => <li key={typeof item === 'string' ? item : item.title}>{typeof item === 'string' ? item : `${item.title}${item.text ? ` — ${item.text}` : ''}`}</li>)}</ul></section>}
+          {considerations.length > 0 && <section className="product-detail-modal__important"><h3>Important to know</h3><ul>{considerations.map((item, index) => <li key={`${product.id}-consideration-${index}-${typeof item === 'string' ? item : item.title || item.text || 'item'}`}>{typeof item === 'string' ? item : `${item.title}${item.text ? ` — ${item.text}` : ''}`}</li>)}</ul></section>}
           {!validation.valid && <p className="product-configurator__error" role="alert">{validation.message}</p>}
           <p className="product-detail-modal__agreement">The current Ford offer and issued agreement control eligibility, covered services, limits, exclusions, term, and price.</p>
         </div>
@@ -532,7 +532,7 @@ function ProductCard({ product, selected, selection, featured = false, onDetails
   const availableAfterSale = getProductPurchaseContexts(product).includes('owner');
   const timingLabel = product.purchaseTimingLabel || (availableAfterSale ? 'Available after purchase' : 'Vehicle-purchase only');
   return (
-    <article className={`quote-product-card ${selected ? 'is-selected' : ''}`}>
+    <article className={`quote-product-card ${selected ? 'is-selected' : ''}`} data-product-id={product.id}>
       <div className="quote-product-card__media">
         {product.image && <img src={assetUrl(product.image)} alt={product.imageAlt || product.name || product.title} />}
         {selected && <span className="quote-product-card__selected"><Check /> Selected</span>}
@@ -1069,6 +1069,25 @@ export default function QuoteStudio({ initial = {}, onClose, onToast, onSaved })
     }
   };
 
+  const downloadSelectedProductGuide = async (product) => {
+    const busyKey = `guide-${product.id}`;
+    setBusy(busyKey);
+    try {
+      const { downloadProductGuidePdf } = await import('../proposalPdf');
+      await downloadProductGuidePdf({
+        product,
+        selection: quote.productSelections?.[product.id] || {},
+        quote: quoteForOutput(),
+      });
+      onToast(`${product.name} product guide is ready.`);
+    } catch (error) {
+      console.error(error);
+      onToast('The product guide could not be created. Please try again.');
+    } finally {
+      setBusy('');
+    }
+  };
+
   const leadXml = () => createAdfXml({ quote: quoteForOutput(), plan, pageUrl: window.location.href, referrer: document.referrer });
 
   const downloadXml = () => {
@@ -1273,6 +1292,7 @@ export default function QuoteStudio({ initial = {}, onClose, onToast, onSaved })
                   <div className="studio-success__reference"><span><small>REFERENCE</small><strong>{quote.id}</strong></span><span><small>CRM RECEIPT</small><strong>{submissionReceipt.leadId}</strong></span></div>
                   <div className="studio-success__next"><h2>What happens next</h2><div><span><strong>1</strong><p>We verify the VIN, warranty status, inspection path, and current Ford eligibility.</p></span><span><strong>2</strong><p>Your specialist confirms the exact plan, selected products, and Bob Maxey price.</p></span><span><strong>3</strong><p>You review the issued agreement before deciding whether to purchase coverage.</p></span></div></div>
                   <div className="studio-success__actions"><button className="button button--secondary" type="button" onClick={() => setProposalPreview(true)}><Eye /> Preview proposal</button><button className="button button--primary" type="button" onClick={downloadProposal} disabled={busy === 'pdf'}>{busy === 'pdf' ? 'Preparing…' : 'Download personalized proposal'} <Download /></button></div>
+                  {selectedProducts.length > 0 && <section className="selected-product-guides selected-product-guides--success"><div><small>DETAILED PRODUCT GUIDES</small><h2>Keep the details for every product you requested.</h2><p>Your personalized proposal stays concise. These separate guides explain each product in more depth.</p></div><div>{selectedProducts.map((product) => <button key={product.id} type="button" onClick={() => downloadSelectedProductGuide(product)} disabled={busy === `guide-${product.id}`}><FileText /><span><strong>{product.name}</strong><small>{busy === `guide-${product.id}` ? 'Preparing guide…' : 'Download product guide'}</small></span><Download /></button>)}</div></section>}
                 </section>
               ) : (
                 <section className="studio-step studio-review">
@@ -1284,7 +1304,8 @@ export default function QuoteStudio({ initial = {}, onClose, onToast, onSaved })
                     <details className="review-disclosure review-products"><summary><PackagePlus /><span><small>ADDITIONAL PRODUCTS</small><h2>{selectedProducts.length ? `${selectedProducts.length} requested` : 'No additions yet'}</h2></span><button type="button" onClick={(event) => { event.preventDefault(); event.stopPropagation(); goTo(3); }}>Edit</button><ChevronDown className="review-chevron" /></summary>{selectedProducts.length ? <div>{selectedProducts.map((product) => <article key={product.id}><img src={assetUrl(product.image)} alt="" /><span><strong>{product.name}</strong><small>{productSelectionLabel(product, quote.productSelections?.[product.id])}</small></span><CheckCircle2 /></article>)}</div> : <p>Return to Options to explore the products available for this purchase journey.</p>}</details>
                     <details className="review-disclosure"><summary><UserRound /><span><small>CUSTOMER &amp; FOLLOW-UP</small><h2>{quote.customer.firstName} {quote.customer.lastName}</h2></span><button type="button" onClick={(event) => { event.preventDefault(); event.stopPropagation(); goTo(4); }}>Edit</button><ChevronDown className="review-chevron" /></summary><dl><div><dt>Contact</dt><dd>{quote.customer.email}<br />{quote.customer.phone}</dd></div><div><dt>Preference</dt><dd>{quote.preferredContact === 'text' ? 'Text message' : quote.preferredContact === 'email' ? 'Email' : 'Phone call'}</dd></div><div><dt>Bob Maxey location</dt><dd>{locations.find((item) => item.name === quote.store)?.descriptor || quote.store}</dd></div></dl></details>
                   </div>
-                  <div className="review-action-panel"><div><FileText /><span><small>PERSONALIZED CUSTOMER PROPOSAL</small><h2>Take the full plan story with you.</h2><p>Preview the branded portrait proposal with your vehicle, coverage, selected products, inspection path, and next steps.</p></span></div><button className="button button--secondary" type="button" onClick={() => setProposalPreview(true)}><Eye /> Preview proposal</button></div>
+                  <div className="review-action-panel"><div><FileText /><span><small>PERSONALIZED CUSTOMER PROPOSAL</small><h2>A concise record of your protection request.</h2><p>Preview the branded portrait proposal with your vehicle, selections, inspection path, and next steps.</p></span></div><button className="button button--secondary" type="button" onClick={() => setProposalPreview(true)}><Eye /> Preview proposal</button></div>
+                  {selectedProducts.length > 0 && <section className="selected-product-guides"><div><small>OPTIONAL DOWNLOADS</small><h2>Detailed guides for your selected products</h2><p>Download only the deeper product information you want to keep.</p></div><div>{selectedProducts.map((product) => <button key={product.id} type="button" onClick={() => downloadSelectedProductGuide(product)} disabled={busy === `guide-${product.id}`}><FileText /><span><strong>{product.name}</strong><small>{productSelectionLabel(product, quote.productSelections?.[product.id])}</small></span><Download /></button>)}</div></section>}
                   {crmStatus && <div className={`crm-status ${crmStatus.tone}`}><CheckCircle2 /><span><strong>{crmStatus.title}</strong><small>{crmStatus.text}</small></span></div>}
                   <div className="review-notice"><ShieldCheck /><span><strong>Ready for specialist review—not a purchase</strong><small>Submitting sends this request to Bob Maxey. Coverage is issued only after eligibility, price, and the Ford Protect agreement are confirmed and you approve the final offer.</small></span></div>
                   <details className="crm-test-tools"><summary><span><Download /> CRM testing tools</span><small>For dealership setup only</small></summary><div><p>Download an ADF/XML test file for the {CRM_DESTINATION} DealerMail route. This does not send customer data.</p><button className="button button--secondary" type="button" onClick={downloadXml}><Download /> Download CRM test</button></div></details>
@@ -1292,6 +1313,7 @@ export default function QuoteStudio({ initial = {}, onClose, onToast, onSaved })
               )
             )}
           </main>
+          <Summary quote={quote} plan={plan} eligibility={eligibility} selectedProducts={selectedProducts} inspection={inspection} />
         </div>
         {!submissionReceipt && <StudioFooter step={step} quote={quote} saved={saved} onBack={() => goTo(Math.max(0, step - 1))} onContinue={continueQuote} onSave={saveQuote} onSubmit={sendLead} submitting={busy === 'crm'} />}
       </div>

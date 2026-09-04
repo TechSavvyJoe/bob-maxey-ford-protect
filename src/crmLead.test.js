@@ -28,10 +28,14 @@ test('CRM delivery accepts only a complete server receipt', async () => {
     xml: '<adf />',
     quote: consentedQuote,
     endpoint: 'https://dealer.example.test/leads',
-    fetchImpl: async () => ({
+    fetchImpl: async (_url, options) => {
+      assert.equal(options.redirect, 'error');
+      assert.equal(options.referrerPolicy, 'no-referrer');
+      return {
       ok: true,
       json: async () => ({ accepted: true, leadId: 'DM-123', receivedAt: '2026-09-03T12:01:00.000Z' }),
-    }),
+      };
+    },
   });
   assert.deepEqual(result, {
     configured: true,
@@ -131,4 +135,26 @@ test('an unconfigured CRM returns a non-success result without attempting delive
   });
   assert.deepEqual(result, { configured: false, sent: false });
   assert.equal(called, false);
+});
+
+test('CRM output does not invent absent mileage, deductible, or invalid coverage', () => {
+  const comments = buildLeadComments({ program: 'esp', planId: 'premium', store: 'howell' }, { name: 'PremiumCARE' });
+  assert.match(comments, /CURRENT MILEAGE: Mileage to be confirmed/);
+  assert.match(comments, /COVERAGE: Selection needs attention/);
+  assert.match(comments, /STORE: Bob Maxey Ford of Howell/);
+  assert.doesNotMatch(comments, /DEDUCTIBLE REQUEST: \$100/);
+  assert.doesNotMatch(comments, /TERM: 0/);
+});
+
+test('XML escapes customer markup and removes illegal XML control characters', () => {
+  const xml = createAdfXml({ quote: { customer: { firstName: 'A\u0000&B<test>', lastName: 'Name\u000B' } } });
+  assert.match(xml, /A&amp;B&lt;test&gt;/);
+  assert.doesNotMatch(xml, /[\u0000\u000B]/);
+});
+
+test('ADF uses the normalized dealership and distinguishes missing mileage from a new zero-mile vehicle', () => {
+  const missing = createAdfXml({ quote: { store: 'howell' } });
+  assert.match(missing, /<vendorname>Bob Maxey Ford of Howell<\/vendorname>/);
+  assert.doesNotMatch(missing, /<odometer /);
+  assert.match(createAdfXml({ quote: { mileage: 0 } }), /<odometer status="current" units="mi">0<\/odometer>/);
 });

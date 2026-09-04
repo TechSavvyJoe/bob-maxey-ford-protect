@@ -18,7 +18,7 @@ function ModalShell({ title, children, onClose }) {
   return (
     <div className="utility-backdrop">
       <div ref={dialogRef} className="utility-modal" role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex="-1">
-        <div className="utility-modal__header"><Brand /><strong id={titleId}>{title}</strong><button type="button" onClick={onClose} aria-label={`Close ${title}`} data-dialog-initial-focus><X /></button></div>
+        <div className="utility-modal__header"><Brand interactive={false} /><strong id={titleId}>{title}</strong><button type="button" onClick={onClose} aria-label={`Close ${title}`} data-dialog-initial-focus><X /></button></div>
         {children}
       </div>
     </div>
@@ -29,15 +29,21 @@ export function SavedQuotes({ onClose, onLoad }) {
   const [search, setSearch] = useState('');
   const [quotes, setQuotes] = useState(() => loadDrafts());
   const [confirmingClear, setConfirmingClear] = useState(false);
+  const [storageError, setStorageError] = useState('');
   const filtered = useMemo(() => quotes.filter((quote) => String(quote.id || '').toLowerCase().includes(search.toLowerCase())), [quotes, search]);
 
-  const removeQuote = (id) => setQuotes(deleteDraft(id));
+  const removeQuote = (id) => {
+    const remaining = deleteDraft(id);
+    setQuotes(remaining);
+    setStorageError(remaining.some((quote) => quote.id === id) ? 'This browser could not delete the saved request. Check your browser storage settings and try again.' : '');
+  };
   const removeAll = () => {
     if (!confirmingClear) {
       setConfirmingClear(true);
       return;
     }
-    if (clearDrafts()) setQuotes([]);
+    if (clearDrafts()) { setQuotes([]); setStorageError(''); }
+    else setStorageError('This browser could not clear the saved requests. Check your browser storage settings and try again.');
     setConfirmingClear(false);
   };
 
@@ -45,6 +51,7 @@ export function SavedQuotes({ onClose, onLoad }) {
     <ModalShell title="Find a saved request" onClose={onClose}>
       <div className="utility-modal__body">
         <h1>Find a saved request</h1>
+        {storageError && <p role="alert">{storageError}</p>}
         <p>Saved drafts keep planning selections in this browser for up to {DRAFT_TTL_DAYS} days. VIN, decoded NHTSA facts, ZIP code, contact details, notes and consent are never included.</p>
         <label className="search-field"><Search /><span className="sr-only">Search saved requests</span><input aria-label="Search saved requests" placeholder="Enter request number" value={search} onChange={(event) => setSearch(event.target.value)} /></label>
         <div className="saved-list" aria-live="polite">

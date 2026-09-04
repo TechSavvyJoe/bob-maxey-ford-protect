@@ -1,0 +1,9 @@
+.recovery-page { padding: clamp(24px, 5vw, 64px) 20px; }
+.recovery-panel { width: min(100%, 620px); margin: auto; padding: clamp(24px, 4vw, 40px); color: #001f49; background: #fff; border: 1px solid #b9c9da; border-radius: 8px; }
+.recovery-panel small { color: #005bbd; font-size: 13px; font-weight: 700; letter-spacing: .08em; }
+.recovery-panel h2 { margin: 14px 0; font-size: clamp(24px, 3vw, 32px); line-height: 1.2; }
+.recovery-panel p { margin: 0 0 24px; color: #415773; font-size: 16px; line-height: 1.55; }
+.recovery-panel > div { display: flex; flex-wrap: wrap; gap: 12px; }
+.recovery-backdrop { position: fixed; inset: 0; z-index: 300; display: grid; place-items: center; padding: 20px; background: #00172dcc; overflow: auto; }
+.recovery-backdrop .recovery-panel { max-height: calc(100dvh - 40px); overflow: auto; }
+.site-page:focus:not(:focus-visible) { outline: none; }

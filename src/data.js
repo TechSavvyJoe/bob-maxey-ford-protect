@@ -320,9 +320,9 @@ export const productCategories = [
   },
   {
     id: 'specialty',
-    label: 'Certified & commercial',
+    label: 'Commercial & specialty',
     title: 'Dealer-assisted Ford Protect pathways',
-    intro: 'Specialty vehicles and certified pre-owned programs need record-level eligibility review before plan selection.',
+    intro: 'Business use and specialty vehicles need record-level eligibility review before plan selection.',
     image: '/assets/ford-official/ford-why-3.png',
     imageAlt: 'Ford Ranger on an off-road trail from official Ford Protect media',
     products: [

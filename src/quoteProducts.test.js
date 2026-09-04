@@ -9,6 +9,7 @@ import {
   validateQuoteProductSelection,
 } from './quoteProducts.js';
 import { getInspectionStatus } from './quoteOutput.js';
+import { productDetails } from './productDetails.js';
 
 const vehicle = {
   year: '2024',
@@ -25,6 +26,120 @@ const vehicle = {
 };
 
 const byId = (quote, id) => getQuoteProductCatalog(quote).find((product) => product.id === id);
+
+test('narrower coverage guides do not inherit PremiumCARE-only component examples', () => {
+  for (const planId of ['base', 'base-ev', 'extra', 'extra-ev']) {
+    const items = productDetails[planId].coverageGroups.flatMap((group) => group.items).join(' ');
+    assert.doesNotMatch(items, /MacPherson struts|Roll Stability Control|Instrument-panel registers|Release hubs/);
+    if (planId.startsWith('base')) assert.doesNotMatch(items, /accumulator|Automatic temperature control|Transmission linkage/);
+  }
+  assert.match(productDetails.extra.coverageGroups.flatMap((group) => group.items).join(' '), /A\/C accumulator/);
+});
+
+test('rental overlap is blocked even without optional rental upgrades', () => {
+  for (const program of ['esp', 'csp', 'enginecare']) {
+    const quote = { ...vehicle, vehicleSituation: 'owned-after-sale', program, addOns: [], requestedProductIds: ['rentalcare'], productSelections: { rentalcare: { variantId: 'rentalcare', termMonths: 36, termMiles: 36000, confirmed: true } } };
+    assert.equal(byId(quote, 'rentalcare').status.code, 'rentalcare-benefit-conflict');
+    assert.equal(validateQuoteProductRequests(quote).acceptedProductIds.includes('rentalcare'), false);
+  }
+  assert.notEqual(byId({ ...vehicle, program: 'products-only', vehicleSituation: 'owned-after-sale' }, 'rentalcare').status.eligible, false);
+});
+
+test('bundled EV maintenance cannot be requested twice', () => {
+  const quote = { ...vehicle, powertrain: 'Electric', planId: 'premium-plus-ev', vehicleSituation: 'owned-after-sale', requestedProductIds: ['premium-maintenance'], productSelections: { 'premium-maintenance': { variantId: 'premium-maintenance-ev', termMonths: 60, termMiles: 75000, serviceInterval: 10000, confirmed: true } } };
+  assert.equal(byId(quote, 'premium-maintenance').status.code, 'maintenance-already-included');
+  assert.deepEqual(validateQuoteProductRequests(quote).acceptedProductIds, []);
+});
+
+test('Florida cannot add Off-Road to an existing TripleCARE parent', () => {
+  const quote = { ...vehicle, state: 'FL', program: 'products-only', vehicleSituation: 'owned-after-sale', requestedProductIds: ['off-road-coverage'], existingProductIds: ['triplecare-plus'], productSelections: { 'off-road-coverage': { variantId: 'off-road-coverage', confirmed: true } } };
+  assert.ok(validateQuoteProductRequests(quote).issues.some((issue) => issue.code === 'off-road-parent-state-unavailable'));
+  assert.deepEqual(validateQuoteProductRequests({ ...quote, existingProductIds: ['tirecare-plus'] }).acceptedProductIds, ['off-road-coverage']);
+});
+
+test('new-plan validation rejects unlisted and malformed term pairs', () => {
+  for (const planId of ['premium', 'extra', 'base', 'powertrain', 'premium-plus-ev', 'premium-ev', 'extra-ev', 'base-ev']) {
+    const matrix = getTermMatrix({ planId, planPath: 'new' });
+    for (const [months, miles] of [[999, 100000], [60, 999999], [60.5, 75000], [-1, 75000], [NaN, 75000], [60, NaN]]) {
+      assert.equal(matrix.isAvailable(months, miles), false, `${planId} must reject ${months}/${miles}`);
+    }
+    assert.equal(matrix.isAvailable(60, 75000), true);
+  }
+  assert.equal(getTermMatrix({ planId: 'premium', planPath: 'typo' }).isAvailable(36, 36000), false);
+});
+
+test('historical short used-plan exclusion preserves both AND conditions and exact boundaries', () => {
+  const known = { planId: 'premium', planPath: 'used', mileage: 10000, make: 'Ford', inService: '2025-01-02', now: '2026-01-01' };
+  const restricted = getTermMatrix(known);
+  assert.equal(restricted.historicalWarrantyRestriction.applies, true);
+  assert.equal(restricted.isAvailable(12, 10000), false);
+  assert.equal(restricted.months.includes(12), false);
+  assert.equal(restricted.isAvailable(24, 10000), true, '24 months is not below the historical threshold');
+  assert.equal(restricted.isAvailable(36, 18000), true, 'less mileage alone is not the literal AND exclusion');
+  assert.equal(restricted.isAvailable(24, 24000), true);
+  for (const changes of [{ inService: '2024-01-01' }, { mileage: 24000 }]) {
+    const boundary = getTermMatrix({ ...known, ...changes });
+    assert.equal(boundary.historicalWarrantyRestriction.applies, false);
+    assert.equal(boundary.isAvailable(12, 10000), true);
+  }
+  const lincoln = getTermMatrix({ ...known, make: 'Lincoln', inService: '2024-01-02', mileage: 37000 });
+  assert.equal(lincoln.historicalWarrantyRestriction.applies, true);
+  for (const changes of [{ inService: '' }, { inService: '2025-02-30' }, { inService: '2026-02-01' }, { make: 'Toyota' }]) {
+    const unknown = getTermMatrix({ ...known, ...changes });
+    assert.equal(unknown.historicalWarrantyRestriction.applies, null);
+    assert.equal(unknown.isAvailable(12, 10000), true, 'unknown warranty facts stay subject to dealer verification');
+  }
+  const rejected = validatePrimaryPlanEligibility({ ...vehicle, vehicleSituation: 'owned-after-sale', planId: 'premium', planPath: 'used', mileage: 10000, inService: '2025-01-02', asOfDate: '2026-01-01', termMonths: 12, termMiles: 10000, deductible: '100' });
+  assert.ok(rejected.blockingIssues.some((issue) => issue.code === 'used-short-term-warranty-restriction'));
+});
+
+test('invalid or future dates and nonnumeric mileage do not imply an active warranty', () => {
+  for (const inService of ['2025-02-30', '2026-02-01', 'not-a-date']) {
+    assert.equal(getWarrantyInspectionStatus({ ...vehicle, inService }).likelyWithinNewVehicleLimitedWarranty, null);
+  }
+  for (const mileage of ['unknown', ' ', '25k', '-1']) {
+    assert.equal(getWarrantyInspectionStatus({ ...vehicle, mileage }).likelyWithinNewVehicleLimitedWarranty, null);
+  }
+  assert.equal(getWarrantyInspectionStatus({ ...vehicle, mileage: '25,000' }).likelyWithinNewVehicleLimitedWarranty, true);
+  for (const make of ['Toyota', 'BMW', '']) {
+    const result = getWarrantyInspectionStatus({ ...vehicle, make, warrantyRecordConfirmed: true });
+    assert.equal(result.likelyWithinNewVehicleLimitedWarranty, null);
+    assert.equal(result.inspectionRequiredForUsedEsp, null);
+  }
+  assert.equal(getWarrantyInspectionStatus({ ...vehicle, warrantyRecordConfirmed: 'false' }).warrantyRecordConfirmed, false);
+  assert.equal(getWarrantyInspectionStatus({ ...vehicle, warrantyRecordConfirmed: 'true' }).warrantyRecordConfirmed, false);
+});
+
+test('primary plans reject mismatched powertrains and California state aliases', () => {
+  const esp = { ...vehicle, vehicleSituation: 'owned-after-sale', planPath: 'new', planId: 'premium', termMonths: 60, termMiles: 75000, deductible: '100' };
+  assert.equal(validatePrimaryPlanEligibility({ ...esp, powertrain: 'Electric' }).blockingIssues.some((issue) => issue.code === 'plan-powertrain-mismatch'), true);
+  assert.equal(validatePrimaryPlanEligibility({ ...esp, planId: 'premium-ev' }).blockingIssues.some((issue) => issue.code === 'plan-powertrain-mismatch'), true);
+  assert.equal(validatePrimaryPlanEligibility({ ...esp, powertrain: 'Plug-in Hybrid Electric' }).blockingIssues.some((issue) => issue.code === 'plan-powertrain-mismatch'), false);
+  const csp = { ...vehicle, vehicleSituation: 'owned-after-sale', program: 'csp', cspLevel: 'ultimate', cspPriorCoverageStatus: 'ending' };
+  for (const state of ['CA', 'California', 'ca']) {
+    assert.equal(validatePrimaryPlanEligibility({ ...csp, state }).status.code, 'state-unavailable');
+  }
+  assert.equal(validatePrimaryPlanEligibility({ ...csp, powertrain: 'Electric' }).status.eligible, false);
+});
+
+test('ancillary requests validate variant and state against actual vehicle facts', () => {
+  const quote = {
+    ...vehicle, vehicleSituation: 'new-purchase', program: 'products-only',
+    requestedProductIds: ['premium-maintenance'],
+    productSelections: { 'premium-maintenance': { variantId: 'premium-maintenance-ev', termMonths: 60, termMiles: 75000, serviceInterval: 10000, confirmed: true } },
+  };
+  assert.equal(validateQuoteProductRequests(quote).valid, false);
+  assert.equal(validateQuoteProductRequests({ ...quote, powertrain: 'Electric' }).valid, true);
+  assert.equal(validateQuoteProductRequests({ ...quote, powertrain: 'Plug-in Hybrid Electric' }).valid, false);
+  const glass = {
+    ...quote, requestedProductIds: ['windshieldcare'],
+    productSelections: { windshieldcare: { variantId: 'windshieldcare-plus-ev', termMonths: 60, termMiles: null, confirmed: true } },
+  };
+  assert.equal(validateQuoteProductRequests(glass).valid, false);
+  assert.equal(validateQuoteProductRequests({ ...glass, powertrain: 'Electric' }).valid, true);
+  assert.equal(validateQuoteProductRequests({ ...glass, powertrain: 'Electric', state: 'TX', requestedProductConfigurations: glass.productSelections, productSelections: undefined }).valid, false);
+  assert.equal(byId({ ...glass, powertrain: 'Electric', state: 'TX', productSelections: undefined }, 'windshieldcare').status.eligible, false);
+});
 
 test('used ESP planning matrices stay plan- and odometer-band specific', () => {
   const premium = getTermMatrix({ planId: 'premium', planPath: 'used', mileage: 0 });
@@ -143,10 +258,10 @@ test('every quote additional-product card has an explicit posture in all three v
   }
 
   for (const id of ['rentalcare', 'leasecare']) {
-    assert.equal(byId(scenarios.newPurchase, id).status.eligible, null);
-    assert.equal(byId(scenarios.recentUsedPurchase, id).status.eligible, null);
+    assert.equal(byId({ ...scenarios.newPurchase, program: 'products-only' }, id).status.eligible, null);
+    assert.equal(byId({ ...scenarios.recentUsedPurchase, program: 'products-only' }, id).status.eligible, null);
     assert.equal(byId(scenarios.olderUsedPurchase, id).status.eligible, false);
-    assert.equal(byId(scenarios.recentOwner, id).status.eligible, null);
+    assert.equal(byId({ ...scenarios.recentOwner, program: 'products-only' }, id).status.eligible, null);
     assert.equal(byId(scenarios.olderOwner, id).status.eligible, false);
     assert.equal(byId(scenarios.olderUsedPurchase, id).status.code, 'outside-reference-window');
     assert.match(byId(scenarios.olderUsedPurchase, id).status.message, /Bob Maxey.*confirm current availability/i);
@@ -173,7 +288,7 @@ test('purchase-only state restrictions disable only the affected current or hist
 });
 
 test('RentalCARE and LeaseCARE are verification-only and disabled outside the historical window', () => {
-  const withinReference = { ...vehicle, purchaseContext: 'owner', vehicleSituation: 'owned-after-sale' };
+  const withinReference = { ...vehicle, program: 'products-only', purchaseContext: 'owner', vehicleSituation: 'owned-after-sale' };
   const outsideReference = { ...withinReference, inService: '2020-01-01', mileage: '80000' };
 
   for (const id of ['rentalcare', 'leasecare']) {

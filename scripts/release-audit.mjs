@@ -2,6 +2,8 @@ import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { hiddenCustomerProductIds, productCategories } from '../src/data.js';
+import { publicRouteEntries } from '../src/routes.js';
+import { routeDocumentTitle } from '../src/routeAccessibility.js';
 
 const distRoot = fileURLToPath(new URL('../dist/', import.meta.url));
 
@@ -40,12 +42,13 @@ for (const hiddenRoute of ['fba-upgrade', 'lincoln-cpo']) {
 
 const appSource = readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8');
 const catalogSource = readFileSync(new URL('../src/components/ProductLibrary.jsx', import.meta.url), 'utf8');
-const deployWorkflow = readFileSync(new URL('../.github/workflows/deploy-pages.yml', import.meta.url), 'utf8');
-const generatedProductRoutes = deployWorkflow.match(/product_routes=\([\s\S]*?\n\s*\)/)?.[0] || '';
-const generatedProductRouteIds = new Set(generatedProductRoutes
-  .split(/\r?\n/)
-  .map((line) => line.trim())
-  .filter((line) => /^[a-z0-9][a-z0-9-]*$/i.test(line)));
+const generatedProductRouteIds = new Set(publicRouteEntries.filter((entry) => entry.productName).map((entry) => entry.path.split('/').at(-1)));
+for (const entry of publicRouteEntries) {
+  const routeFile = join(distRoot, entry.path.replace(/^\//, ''), 'index.html');
+  if (!existsSync(routeFile)) throw new Error(`Missing built page: ${entry.path}`);
+  if (!readFileSync(routeFile, 'utf8').includes(routeDocumentTitle(entry.page, entry.productName).replaceAll('&', '&amp;'))) throw new Error(`Missing page title: ${entry.path}`);
+}
+if (!existsSync(join(distRoot, '404.html'))) throw new Error('Missing not-found entry point.');
 const hiddenProductIdSet = new Set(hiddenCustomerProductIds);
 const visibleProductRouteIds = productCategories
   .flatMap((category) => category.products)
@@ -56,7 +59,7 @@ if (missingProductRoutes.length) {
   throw new Error(`Deployment workflow is missing visible product routes: ${missingProductRoutes.join(', ')}.`);
 }
 for (const hiddenRoute of ['fba-upgrade', 'lincoln-cpo']) {
-  if (generatedProductRoutes.includes(hiddenRoute)) throw new Error(`Deployment workflow exposes hidden certified-product route: ${hiddenRoute}`);
+  if (generatedProductRouteIds.has(hiddenRoute)) throw new Error(`Build exposes hidden certified-product route: ${hiddenRoute}`);
 }
 if (!appSource.includes('normalizeHiddenProductPath()') || !appSource.includes('!hiddenCustomerProductIdSet.has(product.id)')) {
   throw new Error('Application routing is missing its hidden certified-product guard.');

@@ -26,6 +26,7 @@ import { CONTACT_CONSENT_TEXT, CONTACT_CONSENT_VERSION, createConsentMetadata } 
 import { createQuoteId, deleteDraft, saveDraft } from '../draftStorage';
 import { decodeVinWithVpic, normalizeVin, VIN_PATTERN } from '../vinDecoder';
 import { handleRovingChoiceKeyDown, useDialogFocus } from '../useDialogFocus';
+import { vehicleFormErrors } from '../quoteFormValidation';
 
 const stepNames = ['Vehicle', 'Coverage', 'Term', 'Options', 'Contact', 'Review'];
 const optionIcons = {
@@ -275,7 +276,9 @@ function PurchaseContextSelector({ value, error, onSelect }) {
   );
 }
 
-function Field({ label, hint, error, children }) {
+function Field({ label, hint, error, validationMessage, forceError = false, children }) {
+  const [touched, setTouched] = useState(false);
+  error = error || ((touched || forceError) ? validationMessage : '');
   const labelId = useId();
   const descriptionId = useId();
   let primaryControlFound = false;
@@ -285,11 +288,11 @@ function Field({ label, hint, error, children }) {
     return cloneElement(child, {
       'aria-labelledby': [child.props['aria-labelledby'], labelId].filter(Boolean).join(' '),
       'aria-describedby': [child.props['aria-describedby'], (error || hint) ? descriptionId : ''].filter(Boolean).join(' ') || undefined,
-      'aria-invalid': child.props['aria-invalid'] ?? Boolean(error),
+      'aria-invalid': Boolean(error) || child.props['aria-invalid'] || undefined,
     });
   });
   return (
-    <div className={`studio-field ${error ? 'has-error' : ''}`}>
+    <div className={`studio-field ${error ? 'has-error' : ''}`} onBlurCapture={() => setTouched(true)}>
       <span id={labelId}>{label}</span>
       {labelledChildren}
       {error ? <small id={descriptionId} className="field-error" role="alert">{error}</small> : hint ? <small id={descriptionId}>{hint}</small> : null}
@@ -406,7 +409,7 @@ function Summary({ quote, plan, eligibility, selectedProducts = [], inspection }
     : quote.program === 'enginecare'
       ? '7 years / 200,000 total miles / 8,000 engine hours'
     : quote.termMonths && quote.termMiles
-      ? `${formatTerm(quote.termMonths)} / ${formatMiles(quote.termMiles)} ${quote.planPath === 'used' ? 'additional' : 'total'} miles`
+      ? `${formatTerm(quote.termMonths)} / ${formatMiles(quote.termMiles)} ${quote.planPath === 'used' ? 'plan' : 'total'} miles`
       : 'Choose term & mileage';
   const deductible = productsOnly
     ? (extras.length ? 'Reviewed product by product' : 'Confirmed after product selection')
@@ -439,12 +442,12 @@ function Summary({ quote, plan, eligibility, selectedProducts = [], inspection }
     : quote.program === 'enginecare'
       ? '7 years · 200,000 miles · 8,000 hours'
     : quote.termMonths && quote.termMiles
-      ? `${formatTerm(quote.termMonths)} · ${formatMiles(quote.termMiles)} ${quote.planPath === 'used' ? 'additional' : 'total'} miles`
+      ? `${formatTerm(quote.termMonths)} · ${formatMiles(quote.termMiles)} ${quote.planPath === 'used' ? 'plan' : 'total'} miles`
       : 'Term not selected';
   const vehicleLabel = vehicle;
 
   return (
-    <aside className="studio-summary">
+    <aside className="studio-summary" tabIndex={0} aria-label="Current request summary">
       <div className="studio-summary__desktop">
         <div className="studio-summary__eyebrow"><span>Your request</span><strong>{quote.id}</strong></div>
         <h2>Your request</h2>
@@ -509,7 +512,7 @@ function PlanHelp({ plan, detail, onClose }) {
           <span><small>Ford Protect coverage</small><strong>Complete plan guide</strong></span>
           <button type="button" onClick={onClose} aria-label="Close plan details" data-dialog-initial-focus><X /></button>
         </header>
-        <div className="context-modal__body">
+        <div className="context-modal__body" tabIndex={0} role="region" aria-label="Plan coverage guide">
           <p>{detail.type}</p>
           <h2 id="plan-help-title">{plan.name}</h2>
           <strong>{detail.tagline}</strong>
@@ -579,7 +582,7 @@ function ProductConfigurator({ product, selection, powertrain, onChange }) {
   );
 }
 
-function ProductDetail({ product, selected, selection, powertrain, purchaseContext, onConfigure, onClose }) {
+function ProductDetail({ product, selected, selection, powertrain, purchaseContext, quoteContext, onConfigure, onClose }) {
   const modalRef = useDialogFocus({ onClose });
   const [draft, setDraft] = useState(() => normalizedProductSelection(product, selection, powertrain));
   const [configurationConfirmed, setConfigurationConfirmed] = useState(Boolean(selected && selection?.confirmed));
@@ -598,6 +601,15 @@ function ProductDetail({ product, selected, selection, powertrain, purchaseConte
   const eligibilityTitle = product.eligibilityTitle || product.eligibility?.headline || product.status?.label || 'Bob Maxey confirms the current Ford offer';
   const eligibilityText = product.status?.message || product.eligibility?.dealerConfirmation || product.saleWindow || 'Availability depends on the VIN, state, current mileage, warranty status, vehicle use, and current Ford program rules.';
   const validation = validateQuoteProductSelection(product.id, draft || {}, { includeDealerOnly: false });
+  const maintenanceIds = quoteProducts.filter((item) => item.familyId === 'maintenance' || item.category === 'maintenance').map((item) => item.id);
+  const isMaintenance = maintenanceIds.includes(product.id);
+  const prospectiveIds = [...new Set([...(quoteContext.requestedProductIds || []).filter((id) => !isMaintenance || !maintenanceIds.includes(id)), product.id])];
+  const prospective = validateQuoteProductRequests({
+    ...quoteContext,
+    requestedProductIds: prospectiveIds,
+    productSelections: { ...quoteContext.productSelections, [product.id]: { ...draft, confirmed: true } },
+  });
+  const contextIssue = prospective.issues.find((issue) => issue.productId === product.id || issue.type === 'conflict');
   const dependencyValid = product.id !== 'off-road-coverage' || Boolean(draft?.underlyingProductId);
   return (
     <div className="product-detail-backdrop">
@@ -611,7 +623,7 @@ function ProductDetail({ product, selected, selection, powertrain, purchaseConte
             {product.image && <img src={assetUrl(product.image)} alt={product.imageAlt || product.name || product.title} />}
             <div><small>{product.eyebrow || product.familyLabel || 'FORD PROTECT PRODUCT'}</small><h2 id="product-detail-title">{product.name || product.title}</h2><p>{product.value || product.valueStatement || product.description || product.short}</p>{product.badge && <span className="product-badge">{product.badge}</span>}</div>
           </div>
-          <div className="product-detail-modal__value"><ShieldCheck /><span><small>WHY CUSTOMERS CONSIDER IT</small><strong>{product.customerValue || product.value || product.valueStatement || product.description}</strong></span></div>
+          {(product.customerValue || product.value || product.valueStatement || product.description) !== (product.value || product.valueStatement || product.description || product.short) && <div className="product-detail-modal__value"><ShieldCheck /><span><small>WHY CUSTOMERS CONSIDER IT</small><strong>{product.customerValue || product.value || product.valueStatement || product.description}</strong></span></div>}
           <div className="product-detail-modal__columns">
             <section><h3>What it can help with</h3><ul>{benefits.map((item, index) => <li key={`${product.id}-benefit-${index}-${item.title}`}><CheckCircle2 /><span><strong>{item.title}</strong>{item.text && <small>{item.text}</small>}</span></li>)}</ul></section>
             <section><h3>{covered.length ? 'Coverage highlights' : 'Key product facts'}</h3><ul>{covered.map((item, index) => <li key={`${product.id}-coverage-${index}-${item.title}`}><Check /><span><strong>{item.title}</strong>{item.text && <small>{item.text}</small>}</span></li>)}</ul></section>
@@ -625,10 +637,10 @@ function ProductDetail({ product, selected, selection, powertrain, purchaseConte
           </> : <div className="product-configurator__returned"><Info /><span><strong>This product cannot be configured for the selected vehicle situation.</strong><small>{product.status?.message || 'Review the purchase-timing explanation above. Bob Maxey can answer questions, but this product cannot be added to this request.'}</small></span></div>}
           {product.eligibility?.inspectionPolicy && <div className="product-detail-modal__inspection is-clear"><ClipboardCheck /><span><small>INSPECTION / RECORD REVIEW</small><strong>Product-specific rule</strong><p>{product.eligibility.inspectionPolicy}</p></span></div>}
           {considerations.length > 0 && <section className="product-detail-modal__important"><h3>Important to know</h3><ul>{considerations.map((item, index) => <li key={`${product.id}-consideration-${index}-${typeof item === 'string' ? item : item.title || item.text || 'item'}`}>{typeof item === 'string' ? item : `${item.title}${item.text ? ` — ${item.text}` : ''}`}</li>)}</ul></section>}
-          {selectable && (!validation.valid || !dependencyValid) && <p className="product-configurator__error" role="alert">{!dependencyValid ? 'Choose the eligible TireCARE or TripleCARE product this Off-Road request should be paired with.' : validation.message}</p>}
+          {selectable && (!validation.valid || !dependencyValid || contextIssue) && <p className="product-configurator__error" role="alert">{!dependencyValid ? 'Choose the eligible TireCARE or TripleCARE product this Off-Road request should be paired with.' : contextIssue?.message || validation.message}</p>}
           <p className="product-detail-modal__agreement">The current Ford offer and issued agreement control eligibility, covered services, limits, exclusions, term, and price.</p>
         </div>
-        <footer><button className="button button--secondary" type="button" onClick={onClose}>Back to product choices</button>{selectable ? <button className={`button ${selected ? 'button--selected' : 'button--primary'}`} type="button" disabled={!validation.valid || !configurationConfirmed || !dependencyValid} onClick={() => { onConfigure(product.id, draft); onClose(); }}>{selected ? <><CheckCircle2 /> {verificationOnly ? `Save ${product.name} verification request` : `Save ${product.name} changes`}</> : <>{verificationOnly ? `Request ${product.name} dealer verification` : `Add ${product.name}`} <PackagePlus /></>}</button> : <button className="button button--secondary" type="button" disabled aria-disabled="true">Not available for this request</button>}</footer>
+        <footer><button className="button button--secondary" type="button" onClick={onClose}>Back to product choices</button>{selectable ? <button className={`button ${selected ? 'button--selected' : 'button--primary'}`} type="button" disabled={!validation.valid || !configurationConfirmed || !dependencyValid || Boolean(contextIssue)} onClick={() => { onConfigure(product.id, draft); onClose(); }}>{selected ? <><CheckCircle2 /> {verificationOnly ? `Save ${product.name} verification request` : `Save ${product.name} changes`}</> : <>{verificationOnly ? `Request ${product.name} dealer verification` : `Add ${product.name}`} <PackagePlus /></>}</button> : <button className="button button--secondary" type="button" disabled aria-disabled="true">Not available for this request</button>}</footer>
       </article>
     </div>
   );
@@ -783,9 +795,9 @@ function ProposalPreview({ quote, plan, detail, onClose, onDownload, busy }) {
   return (
     <div className="proposal-backdrop proposal-backdrop--handoff">
       <div ref={modalRef} className="proposal-preview proposal-preview--handoff" role="dialog" aria-modal="true" aria-label="Personalized Ford Protect proposal preview" tabIndex="-1">
-        <header className="proposal-preview__header"><Brand /><div className="proposal-preview__heading"><small>{documentStatus}</small><strong>{vehicle.displayName}</strong><span>Page {pageIndex + 1} of {pages.length} · {model.document.quoteId}</span></div><button type="button" onClick={onClose} aria-label="Close preview" data-dialog-initial-focus><X /></button></header>
+        <header className="proposal-preview__header"><Brand interactive={false} /><div className="proposal-preview__heading"><small>{documentStatus}</small><strong>{vehicle.displayName}</strong><span>Page {pageIndex + 1} of {pages.length} · {model.document.quoteId}</span></div><button type="button" onClick={onClose} aria-label="Close preview" data-dialog-initial-focus><X /></button></header>
         <span className="sr-only" role="status" aria-live="polite" aria-atomic="true">Showing proposal page {pageIndex + 1} of {pages.length}: {pages[pageIndex].title}.</span>
-        <div className="proposal-preview__workspace"><nav aria-label="Proposal pages">{pages.map((page, index) => <button key={page.title} type="button" aria-current={pageIndex === index ? 'page' : undefined} className={pageIndex === index ? 'is-current' : ''} onClick={() => setPageIndex(index)}><span>{index + 1}</span><i><strong>{page.title}</strong><small>{page.description}</small></i><ChevronRight /></button>)}</nav><div className="proposal-preview__page" role="region" aria-label={`Proposal page ${pageIndex + 1} of ${pages.length}: ${pages[pageIndex].title}`} key={pageIndex}>{pages[pageIndex].content}</div></div>
+        <div className="proposal-preview__workspace"><nav aria-label="Proposal pages">{pages.map((page, index) => <button key={page.title} type="button" aria-current={pageIndex === index ? 'page' : undefined} className={pageIndex === index ? 'is-current' : ''} onClick={() => setPageIndex(index)}><span>{index + 1}</span><i><strong>{page.title}</strong><small>{page.description}</small></i><ChevronRight /></button>)}</nav><div className="proposal-preview__page" role="region" tabIndex={0} aria-label={`Proposal page ${pageIndex + 1} of ${pages.length}: ${pages[pageIndex].title}`} key={pageIndex}>{pages[pageIndex].content}</div></div>
         <footer className="proposal-preview__footer"><button className="button button--secondary" type="button" onClick={() => setPageIndex(Math.max(0, pageIndex - 1))} disabled={pageIndex === 0}><ArrowLeft /> Previous</button><div><button className="button button--primary" type="button" onClick={onDownload} disabled={busy}>{busy ? 'Preparing PDF…' : submitted ? 'Download request summary' : 'Download draft proposal'} <Download /></button></div><button className="button button--secondary" type="button" onClick={() => setPageIndex(Math.min(pages.length - 1, pageIndex + 1))} disabled={pageIndex === pages.length - 1}>Next <ArrowRight /></button></footer>
       </div>
     </div>
@@ -866,10 +878,10 @@ function TermMatrix({ matrix, quote, recommendation, onOpenMatrix, onMonth, onMi
 
         <section className="term-dimension" aria-labelledby="term-mileage-label">
           <header className="term-row-heading">
-            <span><Gauge /><span><small>{quote.planPath === 'used' ? 'FROM CONTRACT START' : 'ODOMETER LIMIT'}</small><strong id="term-mileage-label">{quote.planPath === 'used' ? 'Additional mileage' : 'Mileage limit'}</strong></span></span>
+            <span><Gauge /><span><small>{quote.planPath === 'used' ? 'USED-PLAN ALLOWANCE' : 'ODOMETER LIMIT'}</small><strong id="term-mileage-label">{quote.planPath === 'used' ? 'Plan mileage allowance' : 'Mileage limit'}</strong></span></span>
             <output aria-live="polite">{quote.termMiles ? `${formatMiles(quote.termMiles)} miles` : 'Select after term'}</output>
           </header>
-          <div className="term-choice-rail" ref={mileageRailRef} role="radiogroup" aria-label={quote.planPath === 'used' ? 'Additional mileage' : 'Total mileage limit'} onKeyDown={handleRovingChoiceKeyDown}>
+          <div className="term-choice-rail" ref={mileageRailRef} role="radiogroup" aria-label={quote.planPath === 'used' ? 'Plan mileage allowance' : 'Total mileage limit'} onKeyDown={handleRovingChoiceKeyDown}>
             {validMiles.map((miles) => {
               const selected = quote.termMiles === miles;
               const matched = recommendation?.miles === miles && recommendation?.months === quote.termMonths;
@@ -885,7 +897,7 @@ function TermMatrix({ matrix, quote, recommendation, onOpenMatrix, onMonth, onMi
         </section>
 
         <footer className="term-configurator__footer">
-          <p><Info /> {quote.planPath === 'used' ? 'Mileage is added from the odometer reading when coverage begins.' : 'Mileage is the total odometer limit for the plan.'}</p>
+          <p><Info /> {quote.planPath === 'used' ? 'Used-plan expiration depends on the agreement and any remaining factory warranty. Bob Maxey confirms the final time and odometer limits.' : 'Mileage is the total odometer limit for the plan.'}</p>
           <button className="matrix-toggle" type="button" onClick={onOpenMatrix}><Grid3X3 /> Compare all combinations <ArrowRight /></button>
         </footer>
       </div>
@@ -901,7 +913,7 @@ function MatrixDrawer({ matrix, quote, recommendation, onClose, onMonth, onMiles
         <header><div><small>Complete term matrix</small><h2>Available planning combinations</h2><p>Choose a years-and-mileage pairing shown here. Ford record review confirms current availability for the VIN.</p></div><button type="button" onClick={onClose} aria-label="Close term matrix" data-dialog-initial-focus><X /></button></header>
         <div className="matrix-drawer__scroll">
           <div className="term-matrix" style={{ '--term-columns': matrix.months.length }}>
-            <div className="term-matrix__corner">{quote.planPath === 'used' ? 'Additional miles' : 'Total mileage'}</div>
+            <div className="term-matrix__corner">{quote.planPath === 'used' ? 'Plan miles' : 'Total mileage'}</div>
             {matrix.months.map((months) => <div className={`term-matrix__month ${quote.termMonths === months ? 'is-selected' : ''}`} key={months}>{months / 12}<small>years</small></div>)}
             {matrix.miles.map((miles) => (
               <div className="term-matrix__row" key={miles}>
@@ -952,6 +964,7 @@ export default function QuoteStudio({ initial = {}, onClose, onToast, onSaved })
   ));
   const vinRef = useRef(null);
   const vinDecodeAbortRef = useRef(null);
+  const submissionInFlightRef = useRef(false);
   const studioMainRef = useRef(null);
   const successHeadingRef = useRef(null);
   const studioDialogRef = useDialogFocus({
@@ -1043,7 +1056,7 @@ export default function QuoteStudio({ initial = {}, onClose, onToast, onSaved })
   const modelOptions = [...new Set([quote.model, ...(modelsByMake[quote.make] ?? [])].filter(Boolean))];
   const yearOptions = [...new Set([quote.year, ...years].filter(Boolean))];
   const makeOptions = [...new Set(['Ford', 'Lincoln', quote.make].filter(Boolean))];
-  const matrix = useMemo(() => getTermMatrix({ planId: espPlan.id, planPath: quote.planPath, mileage: quote.mileage }), [espPlan.id, quote.planPath, quote.mileage]);
+  const matrix = useMemo(() => getTermMatrix({ planId: espPlan.id, planPath: quote.planPath, mileage: quote.mileage, inService: quote.inService, make: quote.make }), [espPlan.id, quote.planPath, quote.mileage, quote.inService, quote.make]);
   const recommendation = useMemo(() => findBestCombination({ matrix, planPath: quote.planPath, inService: quote.inService, currentMileage: quote.mileage, keepYears: quote.keepYears, annualMiles: quote.annualMiles }), [matrix, quote.planPath, quote.inService, quote.mileage, quote.keepYears, quote.annualMiles]);
   const availableAddOns = protectionOptions.filter((option) => isProtectionOptionAvailable(option, {
     planId: espPlan.id,
@@ -1058,7 +1071,7 @@ export default function QuoteStudio({ initial = {}, onClose, onToast, onSaved })
       ...item,
       category: item.category || (item.familyId === 'maintenance' ? 'maintenance' : item.familyId === 'mobility' ? 'mobility' : 'specialist'),
     }))
-    .sort((left, right) => Number(left.status?.eligible === false) - Number(right.status?.eligible === false)), [quote.year, quote.make, quote.mileage, quote.inService, quote.purchaseDate, quote.powertrain, quote.program, quote.planPath, quote.usage, quote.state, quote.purchaseContext, quote.vehicleSituation, quote.transactionMethod, quote.cspPriorCoverageStatus, quote.currentEngineHours, quote.engine, quote.decodedVehicle, quote.productSelections]);
+    .sort((left, right) => Number(left.status?.eligible === false) - Number(right.status?.eligible === false)), [quote]);
   const selectedProducts = useMemo(() => quoteProducts.filter((item) => quote.requestedProductIds.includes(item.id)), [quote.requestedProductIds]);
   const inspection = useMemo(() => {
     if (quote.program === 'products-only') return { required: null, title: 'Product-specific eligibility review', shortLabel: 'Each product has its own rule', text: 'No blanket ESP used-plan inspection rule applies. Bob Maxey verifies the timing, compatibility, and any current requirement for each selected product.' };
@@ -1101,7 +1114,7 @@ export default function QuoteStudio({ initial = {}, onClose, onToast, onSaved })
     && emailValid
     && phoneValid
     && contactChannelValid
-    && quote.store
+    && locations.some((location) => location.name === quote.store)
     && quote.consent
     && quote.consentVersion === CONTACT_CONSENT_VERSION
     && Number.isFinite(Date.parse(quote.consentAcceptedAt)),
@@ -1116,25 +1129,11 @@ export default function QuoteStudio({ initial = {}, onClose, onToast, onSaved })
     if (mileage > 160000) return { tone: 'review', title: 'Specialist path required', text: 'Self-service used-plan choices are not shown above 160,000 current miles. A specialist will check the available Ford Protect paths.' };
     if (quote.snowPlow === 'Yes' || quote.usage === 'Business') return { tone: 'review', title: 'Special-use review required', text: 'Commercial or snow-plow use must be rated and verified correctly.' };
     if (quote.program === 'esp' && quote.planPath === 'new' && !quote.inService) return { tone: 'review', title: 'In-service date needed', text: 'New-plan time and mileage are measured from the original in-service date and zero miles.' };
-    if (inspection.required) return { tone: 'review', title: 'Dealer inspection required first', text: 'Ford records confirm this used-plan ESP path is outside the New Vehicle Limited Warranty. A participating Ford dealership must complete Ford’s Used Vehicle Inspection Checklist before coverage can be finalized.' };
+    if (inspection.required) return { tone: 'review', title: 'Dealer inspection required first', text: 'Based on the details entered, this used-plan path appears outside the New Vehicle Limited Warranty. Bob Maxey must verify Ford records and arrange the required Used Vehicle Inspection Checklist before enrollment.' };
     return { tone: inspection.required === false ? 'positive' : inspection.tone || 'review', title: inspection.title || 'Ready for Ford record review', text: inspection.text || 'Bob Maxey will confirm the VIN, current eligibility, available combinations, and price.' };
   }, [quote.program, quote.state, quote.mileage, quote.snowPlow, quote.usage, quote.planPath, quote.inService, inspection.required, inspection.title, inspection.text]);
 
-  const vehicleErrors = useMemo(() => ({
-    purchaseContext: quote.purchaseContext && quote.vehicleSituation ? '' : 'Choose your vehicle situation.',
-    transactionMethod: quote.purchaseContext !== 'shopping' || transactionMethodValues.has(quote.transactionMethod) ? '' : 'Choose how you expect to complete the vehicle purchase.',
-    vin: quote.vin && quote.vin.length !== 17 ? 'Enter all 17 VIN characters or leave it blank for now.' : '',
-    year: quote.year ? '' : 'Choose the model year.',
-    model: quote.model ? '' : 'Choose the vehicle model.',
-    mileage: quote.mileage !== '' && Number.isFinite(Number(quote.mileage)) && Number(quote.mileage) >= 0 && Number(quote.mileage) <= 500000 ? '' : 'Enter a current odometer from 0 to 500,000 miles.',
-    state: quote.state ? '' : 'Choose the registration state.',
-    zip: /^\d{5}$/.test(quote.zip) ? '' : 'Enter a 5-digit ZIP code.',
-    inService: quote.inService && quote.inService > today ? 'The original in-service date cannot be in the future.' : quote.inService || quote.inServiceUnknown ? '' : 'Enter the warranty start date or choose “I don’t know.”',
-    purchaseDate: quote.purchaseDate && quote.purchaseDate > today ? 'The vehicle purchase date cannot be in the future.' : '',
-    usage: quote.usage ? '' : 'Choose personal or business use.',
-    powertrain: quote.powertrain ? '' : 'Choose the powertrain.',
-    snowPlow: quote.snowPlow ? '' : 'Choose whether the vehicle uses a snow plow.',
-  }), [quote.purchaseContext, quote.vehicleSituation, quote.transactionMethod, quote.vin, quote.year, quote.model, quote.mileage, quote.state, quote.zip, quote.inService, quote.inServiceUnknown, quote.purchaseDate, quote.usage, quote.powertrain, quote.snowPlow, today]);
+  const vehicleErrors = useMemo(() => vehicleFormErrors(quote, today), [quote, today]);
   const vehicleValid = Object.values(vehicleErrors).every((error) => !error);
   const primaryValidation = useMemo(() => validatePrimaryPlanEligibility(quote), [quote]);
   const coverageIssueFields = new Set(['program', 'planPath', 'planId', 'vehicleSituation', 'state', 'cspLevel', 'cspPriorCoverageStatus', 'engineCareLevel', 'engine', 'currentEngineHours', 'mileage']);
@@ -1153,7 +1152,7 @@ export default function QuoteStudio({ initial = {}, onClose, onToast, onSaved })
   const productRequestValidation = useMemo(() => validateQuoteProductRequests(quote), [quote]);
   const selectedProductSelectionsValid = selectedProducts.length > 0 && productRequestValidation.validForRequest;
   const productsDecisionValid = quote.additionalProductsDecision === 'none'
-    ? quote.program !== 'products-only' && selectedProducts.length === 0
+    ? quote.program !== 'products-only' && quote.requestedProductIds.length === 0
     : quote.additionalProductsDecision === 'selected' && selectedProductSelectionsValid;
   const availableAddOnIds = new Set(availableAddOns.map((item) => item.id));
   const benefitsDecisionValid = quote.program !== 'esp' || (
@@ -1167,7 +1166,7 @@ export default function QuoteStudio({ initial = {}, onClose, onToast, onSaved })
     && benefitsDecisionValid
     && productsDecisionValid
     && primaryValidation.blockingIssues.every((issue) => !['deductible', 'addOns'].includes(issue.field))
-    && quote.paymentPreference,
+    && displayedPaymentChoices.some((choice) => choice.value === quote.paymentPreference),
   );
   const stepReadiness = [vehicleValid, coverageValid, termValid, optionsValid, detailsValid, vehicleValid && coverageValid && termValid && optionsValid && detailsValid];
   const stepStatus = [
@@ -1182,7 +1181,7 @@ export default function QuoteStudio({ initial = {}, onClose, onToast, onSaved })
   const issueForStep = (index) => {
     if (index === 0) return Object.values(vehicleErrors).find(Boolean) || '';
     if (index === 1) {
-      if (!quote.program) return 'Choose Extended Service Plan, Continued Service Plan, or Diesel EngineCARE.';
+      if (!quote.program) return 'Choose a service-plan path or Ford Protect products only.';
       if (quote.program === 'esp' && !quote.planPath) return 'Choose how Ford should measure time and mileage for this request.';
       if (quote.program === 'esp' && (!quote.planId || !selectedEspPlanPathAllowed)) return 'Choose a Ford Protect coverage level available for this plan path.';
       if (coverageBlockingIssues.length) return coverageBlockingIssues[0].message;
@@ -1196,7 +1195,15 @@ export default function QuoteStudio({ initial = {}, onClose, onToast, onSaved })
       if (!quote.paymentPreference) return 'Choose how you want the specialist to present payment choices.';
       return 'Review every options decision before continuing.';
     }
-    if (index === 4) return 'Enter the required contact details, choose a contact method and location, and accept the contact permission.';
+    if (index === 4) {
+      if (!quote.customer.firstName.trim()) return 'Enter your first name.';
+      if (!quote.customer.lastName.trim()) return 'Enter your last name.';
+      if (!emailValid) return 'Enter a valid email address.';
+      if (!phoneValid) return 'Enter a valid 10- to 15-digit phone number.';
+      if (!locations.some((location) => location.name === quote.store)) return 'Choose your preferred Bob Maxey location.';
+      if (!contactChannelValid) return 'Choose how you would like to be contacted.';
+      return 'Accept the contact permission before continuing.';
+    }
     return 'Complete the missing choices before submitting your request.';
   };
 
@@ -1224,7 +1231,7 @@ export default function QuoteStudio({ initial = {}, onClose, onToast, onSaved })
       window.cancelAnimationFrame(firstFrame);
       if (secondFrame) window.cancelAnimationFrame(secondFrame);
     };
-  }, [step, quote.program, quote.planPath, quote.vehicleSituation]);
+  }, [step]);
 
   useEffect(() => {
     if (!submissionReceipt) return undefined;
@@ -1321,10 +1328,19 @@ export default function QuoteStudio({ initial = {}, onClose, onToast, onSaved })
   };
 
   const update = (field, value) => {
+    const identityChanged = ['year', 'make', 'model', 'powertrain', 'engine'].includes(field) && quote[field] !== value;
+    if (identityChanged) {
+      vinDecodeAbortRef.current?.abort();
+      vinDecodeAbortRef.current = null;
+      setVinDecodeStatus({ tone: 'idle', message: quote.vin ? 'Vehicle details were edited. Decode the VIN again to refresh NHTSA facts, and recheck this vehicle’s mileage and warranty date.' : '' });
+    }
     setQuote((current) => {
       const next = {
         ...current,
         [field]: value,
+        ...(identityChanged ? { decodedVehicle: null, productSelections: Object.fromEntries(Object.entries(current.productSelections || {}).map(([id, selection]) => [id, { ...selection, confirmed: false }])) } : {}),
+        ...(identityChanged && field !== 'engine' ? { engine: '' } : {}),
+        ...(identityChanged && current.decodedVehicle && ['year', 'make', 'model'].includes(field) ? { mileage: '', inService: '', inServiceUnknown: false, purchaseDate: '', currentEngineHours: '' } : {}),
         ...(field === 'make' ? { model: '' } : {}),
         ...(field === 'inService' && value ? { inServiceUnknown: false } : {}),
         ...(field === 'powertrain' ? { planId: '', termMonths: null, termMiles: null, deductible: '', addOns: [], planBenefitsDecision: '', maintenanceId: 'none', maintenanceName: '', ...(value !== 'Diesel' && current.program === 'enginecare' ? { program: '' } : {}) } : {}),
@@ -1370,8 +1386,11 @@ export default function QuoteStudio({ initial = {}, onClose, onToast, onSaved })
     const vin = normalizeVin(value);
     vinDecodeAbortRef.current?.abort();
     vinDecodeAbortRef.current = null;
-    setQuote((current) => ({ ...current, vin, decodedVehicle: current.vin === vin ? current.decodedVehicle : null }));
-    setVinDecodeStatus({ tone: 'idle', message: vin.length === 17 ? 'Ready to decode with NHTSA.' : '' });
+    setQuote((current) => ({ ...current, vin, decodedVehicle: current.vin === vin ? current.decodedVehicle : null,
+      ...(current.vin !== vin ? { engine: '', productSelections: Object.fromEntries(Object.entries(current.productSelections || {}).map(([id, selection]) => [id, { ...selection, confirmed: false }])) } : {}),
+      ...(current.vin !== vin && VIN_PATTERN.test(current.vin) ? { mileage: '', inService: '', inServiceUnknown: false, purchaseDate: '', currentEngineHours: '' } : {}),
+    }));
+    setVinDecodeStatus({ tone: 'idle', message: VIN_PATTERN.test(quote.vin) && quote.vin !== vin ? 'VIN changed. Re-enter this vehicle’s mileage and dates, then decode its vehicle facts.' : vin.length === 17 ? 'Ready to decode with NHTSA.' : '' });
     setStepIssue(null);
     setSaved(false);
     setCrmStatus(null);
@@ -1389,19 +1408,24 @@ export default function QuoteStudio({ initial = {}, onClose, onToast, onSaved })
     setVinDecodeStatus({ tone: 'loading', message: 'Checking NHTSA vehicle records…' });
     try {
       const result = await decodeVinWithVpic(quote.vin, { signal: controller.signal });
+      if (vinDecodeAbortRef.current !== controller || controller.signal.aborted) return;
       const decoded = { ...result.vehicle, source: result.source, decodedAt: result.decodedAt };
       setQuote((current) => {
         if (current.vin !== quote.vin) return current;
         const nextPowertrain = decoded.powertrain || current.powertrain;
         const powertrainChanged = nextPowertrain !== current.powertrain;
+        const identityChanged = powertrainChanged || ['year', 'make', 'model'].some((field) => decoded[field] && String(decoded[field]) !== String(current[field]));
+        const conflictingVehicle = ['year', 'make'].some((field) => current[field] && decoded[field] && String(decoded[field]) !== String(current[field]));
         return {
           ...current,
           year: decoded.year || current.year,
           make: decoded.make || current.make,
           model: decoded.model || current.model,
           powertrain: nextPowertrain,
-          engine: decoded.engineDescription || current.engine,
+          engine: decoded.engineDescription || (identityChanged ? '' : current.engine),
           decodedVehicle: decoded,
+          ...(conflictingVehicle ? { mileage: '', inService: '', inServiceUnknown: false, purchaseDate: '', currentEngineHours: '' } : {}),
+          ...(identityChanged ? { productSelections: Object.fromEntries(Object.entries(current.productSelections || {}).map(([id, selection]) => [id, { ...selection, confirmed: false }])) } : {}),
           ...(powertrainChanged ? {
             program: current.program === 'enginecare' && nextPowertrain !== 'Diesel' ? '' : current.program,
             planId: '', termMonths: null, termMiles: null, deductible: '', addOns: [], planBenefitsDecision: '',
@@ -1414,7 +1438,7 @@ export default function QuoteStudio({ initial = {}, onClose, onToast, onSaved })
       setSaved(false);
       setCrmStatus(null);
     } catch (error) {
-      if (error?.code !== 'aborted') setVinDecodeStatus({ tone: 'error', message: error?.message || 'The VIN could not be decoded. Enter the details manually.' });
+      if (vinDecodeAbortRef.current === controller && !controller.signal.aborted && error?.code !== 'aborted') setVinDecodeStatus({ tone: 'error', message: error?.message || 'The VIN could not be decoded. Enter the details manually.' });
     } finally {
       if (vinDecodeAbortRef.current === controller) vinDecodeAbortRef.current = null;
     }
@@ -1580,7 +1604,7 @@ export default function QuoteStudio({ initial = {}, onClose, onToast, onSaved })
       onToast(quote.submissionReceipt ? 'Your submitted Bob Maxey Ford Protect request summary is ready.' : 'Your draft Bob Maxey Ford Protect proposal is ready.');
     } catch (error) {
       console.error(error);
-      onToast('The proposal could not be created. Please try again.');
+      onToast(error?.userMessage || 'The proposal could not be created. Please try again.');
     } finally {
       setBusy('');
     }
@@ -1599,7 +1623,7 @@ export default function QuoteStudio({ initial = {}, onClose, onToast, onSaved })
       onToast(`${product.name} product guide is ready.`);
     } catch (error) {
       console.error(error);
-      onToast('The product guide could not be created. Please try again.');
+      onToast(error?.userMessage || 'The product guide could not be created. Please try again.');
     } finally {
       setBusy('');
     }
@@ -1613,6 +1637,7 @@ export default function QuoteStudio({ initial = {}, onClose, onToast, onSaved })
   };
 
   const sendLead = async () => {
+    if (submissionInFlightRef.current || submissionReceipt) return;
     setShowErrors(true);
     const firstInvalidStep = stepReadiness.slice(0, 5).findIndex((ready) => !ready);
     if (firstInvalidStep !== -1) {
@@ -1620,6 +1645,7 @@ export default function QuoteStudio({ initial = {}, onClose, onToast, onSaved })
       revealInvalidStep(firstInvalidStep);
       return;
     }
+    submissionInFlightRef.current = true;
     setBusy('crm');
     try {
       const xml = leadXml();
@@ -1640,6 +1666,7 @@ export default function QuoteStudio({ initial = {}, onClose, onToast, onSaved })
       console.error(error);
       setCrmStatus({ tone: 'error', title: 'Request was not delivered', text: error?.message || 'Nothing was marked sent. Please try again or contact the dealership.' });
     } finally {
+      submissionInFlightRef.current = false;
       setBusy('');
     }
   };
@@ -1648,7 +1675,7 @@ export default function QuoteStudio({ initial = {}, onClose, onToast, onSaved })
     <div className="studio-backdrop studio-v5">
       <div ref={studioDialogRef} className="quote-studio" role="dialog" aria-modal="true" aria-label="Build your Ford Protect coverage request" aria-hidden={subsidiaryDialogOpen ? 'true' : undefined} tabIndex="-1">
         <header className="studio-header">
-          <div className="studio-header__brand"><Brand /><span><small>Bob Maxey coverage center</small><strong>Ford Protect</strong></span></div>
+          <div className="studio-header__brand"><Brand interactive={false} /><span><small>Bob Maxey coverage center</small><strong>Ford Protect</strong></span></div>
           <div className="studio-header__center"><small>BOB MAXEY FORD PROTECT</small><strong className="studio-header__title">Build your protection request</strong><span>{step === 0 ? quote.purchaseContext === 'shopping' ? 'Planning protection with a Bob Maxey vehicle purchase' : quote.purchaseContext === 'owner' ? 'Adding protection to a vehicle you already own' : 'Choose your vehicle journey to begin' : `${quote.year} ${quote.make} ${quote.model || 'vehicle'} · ${coverageValid ? plan.name : 'Coverage not selected'}`}</span></div>
           <div className="studio-header__utilities"><ShieldCheck /><span><strong>Ford-backed</strong><small>Specialist supported</small></span></div>
           <button className="studio-close" type="button" onClick={onClose} aria-label="Close coverage builder"><X /></button>
@@ -1673,10 +1700,10 @@ export default function QuoteStudio({ initial = {}, onClose, onToast, onSaved })
                   )}
                   <div className="studio-section__heading"><div><span>01</span><h2>Vehicle information</h2></div><small>VIN is optional to explore, but needed for final eligibility.</small></div>
                   <div className="studio-fields studio-fields--four">
-                    <Field label="VIN" hint="Optional now · 17 characters" error={showVehicleErrors && vehicleErrors.vin}><input ref={vinRef} name="vin" autoCapitalize="characters" spellCheck="false" value={quote.vin} maxLength="17" placeholder="Enter VIN" onChange={(event) => updateVin(event.target.value)} /><button className="vin-decode-button" type="button" onClick={decodeVin} disabled={!VIN_PATTERN.test(quote.vin) || vinDecodeStatus.tone === 'loading'}>{vinDecodeStatus.tone === 'loading' ? 'Decoding…' : 'Decode VIN'}</button></Field>
-                    <Field label="Year *" error={showVehicleErrors && vehicleErrors.year}><select value={quote.year} onChange={(event) => update('year', event.target.value)}><option value="">Select year</option>{yearOptions.map((year) => <option key={year}>{year}</option>)}</select></Field>
-                    <Field label="Make"><select value={quote.make} onChange={(event) => update('make', event.target.value)}>{makeOptions.map((make) => <option key={make}>{make}</option>)}</select></Field>
-                    <Field label="Model *" error={showVehicleErrors && vehicleErrors.model}><select value={quote.model} onChange={(event) => update('model', event.target.value)}><option value="">Select model</option>{modelOptions.map((model) => <option key={model}>{model}</option>)}</select></Field>
+                    <Field label="VIN" hint="Optional now · 17 characters" error={(showVehicleErrors || quote.vin.length >= 17) && vehicleErrors.vin}><input ref={vinRef} name="vin" autoCapitalize="characters" spellCheck="false" value={quote.vin} maxLength="32" placeholder="Enter VIN" onChange={(event) => updateVin(event.target.value)} /><button className="vin-decode-button" type="button" onClick={decodeVin} disabled={!VIN_PATTERN.test(quote.vin) || vinDecodeStatus.tone === 'loading'}>{vinDecodeStatus.tone === 'loading' ? 'Decoding…' : 'Decode VIN'}</button></Field>
+                    <Field label="Year *" validationMessage={vehicleErrors.year} forceError={showVehicleErrors}><select value={quote.year} onChange={(event) => update('year', event.target.value)}><option value="">Select year</option>{yearOptions.map((year) => <option key={year}>{year}</option>)}</select></Field>
+                    <Field label="Make" validationMessage={vehicleErrors.make} forceError={showVehicleErrors}><select value={quote.make} onChange={(event) => update('make', event.target.value)}>{makeOptions.map((make) => <option key={make}>{make}</option>)}</select></Field>
+                    <Field label="Model *" validationMessage={vehicleErrors.model} forceError={showVehicleErrors}><select value={quote.model} onChange={(event) => update('model', event.target.value)}><option value="">Select model</option>{modelOptions.map((model) => <option key={model}>{model}</option>)}</select></Field>
                   </div>
                   {(vinDecodeStatus.message || quote.decodedVehicle) && <div className={`vin-decode-status is-${vinDecodeStatus.tone}`} role="status" aria-live="polite"><Info /><span><strong>{vinDecodeStatus.tone === 'success' ? 'NHTSA vehicle facts found' : vinDecodeStatus.tone === 'error' ? 'VIN was not decoded' : vinDecodeStatus.tone === 'loading' ? 'Decoding VIN' : 'VIN ready'}</strong><small>{vinDecodeStatus.message}</small></span></div>}
                   {quote.decodedVehicle && (
@@ -1702,11 +1729,11 @@ export default function QuoteStudio({ initial = {}, onClose, onToast, onSaved })
                     </details>
                   )}
                   <div className="studio-fields studio-fields--four studio-fields--secondary">
-                    <Field label="Current mileage *" error={showVehicleErrors && vehicleErrors.mileage}><input type="number" min="0" max="500000" placeholder="Enter mileage" value={quote.mileage} onChange={(event) => update('mileage', event.target.value)} /></Field>
-                    <Field label="State registered *" error={showVehicleErrors && vehicleErrors.state}><select value={quote.state} onChange={(event) => update('state', event.target.value)}><option value="">Select state</option>{states.map((state) => <option key={state}>{state}</option>)}</select></Field>
-                    <Field label="ZIP code *" error={showVehicleErrors && vehicleErrors.zip}><input inputMode="numeric" maxLength="5" placeholder="Enter ZIP" value={quote.zip} onChange={(event) => update('zip', event.target.value.replace(/\D/g, ''))} /></Field>
-                    <Field label="Original in-service date *" hint={quote.inServiceUnknown ? 'Bob Maxey will verify the warranty start date in Ford records.' : 'Enter the warranty start date if known.'} error={showVehicleErrors && vehicleErrors.inService}><input type="date" name="inServiceDate" max={today} value={quote.inService} disabled={quote.inServiceUnknown} onChange={(event) => update('inService', event.target.value)} /><button className={`field-link ${quote.inServiceUnknown ? 'is-selected' : ''}`} type="button" aria-pressed={quote.inServiceUnknown} onClick={() => setQuote((current) => ({ ...current, inService: '', inServiceUnknown: !current.inServiceUnknown }))}>{quote.inServiceUnknown ? <><Check /> Date marked unknown</> : 'I don’t know the date'}</button></Field>
-                    {quote.vehicleSituation === 'owned-after-sale' && <Field label="Date you purchased the vehicle" hint="Optional · separate from the Ford warranty start date" error={showVehicleErrors && vehicleErrors.purchaseDate}><input type="date" name="vehiclePurchaseDate" max={today} value={quote.purchaseDate} onChange={(event) => update('purchaseDate', event.target.value)} /></Field>}
+                    <Field label="Current mileage *" validationMessage={vehicleErrors.mileage} forceError={showVehicleErrors}><input type="number" min="0" max="500000" placeholder="Enter mileage" value={quote.mileage} onChange={(event) => update('mileage', event.target.value)} /></Field>
+                    <Field label="State registered *" validationMessage={vehicleErrors.state} forceError={showVehicleErrors}><select value={quote.state} onChange={(event) => update('state', event.target.value)}><option value="">Select state</option>{states.map((state) => <option key={state}>{state}</option>)}</select></Field>
+                    <Field label="ZIP code *" validationMessage={vehicleErrors.zip} forceError={showVehicleErrors}><input inputMode="numeric" maxLength="5" placeholder="Enter ZIP" value={quote.zip} onChange={(event) => update('zip', event.target.value.replace(/\D/g, ''))} /></Field>
+                    <Field label="Original in-service date *" hint={quote.inServiceUnknown ? 'Bob Maxey will verify the warranty start date in Ford records.' : 'Enter the warranty start date if known.'} validationMessage={vehicleErrors.inService} forceError={showVehicleErrors}><input type="date" name="inServiceDate" max={today} value={quote.inService} disabled={quote.inServiceUnknown} onChange={(event) => update('inService', event.target.value)} /><button className={`field-link ${quote.inServiceUnknown ? 'is-selected' : ''}`} type="button" aria-pressed={quote.inServiceUnknown} onClick={() => setQuote((current) => ({ ...current, inService: '', inServiceUnknown: !current.inServiceUnknown }))}>{quote.inServiceUnknown ? <><Check /> Date marked unknown</> : 'I don’t know the date'}</button></Field>
+                    {quote.vehicleSituation === 'owned-after-sale' && <Field label="Date you purchased the vehicle" hint="Optional · separate from the Ford warranty start date" validationMessage={vehicleErrors.purchaseDate} forceError={showVehicleErrors}><input type="date" name="vehiclePurchaseDate" max={today} value={quote.purchaseDate} onChange={(event) => update('purchaseDate', event.target.value)} /></Field>}
                   </div>
                   <p className="in-service-record-note"><Info /> VIN decoding cannot supply an original in-service or warranty-start date. Bob Maxey must confirm it in Ford records.</p>
                   <div className={`ownership-profile ownership-profile--required ${showVehicleErrors && (vehicleErrors.usage || vehicleErrors.powertrain || vehicleErrors.snowPlow) ? 'has-error' : ''}`}>
@@ -1743,7 +1770,7 @@ export default function QuoteStudio({ initial = {}, onClose, onToast, onSaved })
                   <div className="coverage-empty-state"><ShieldCheck /><span><strong>Start by choosing a coverage path above.</strong><small>The plan levels and eligibility choices for that path will appear here.</small></span></div>
                 ) : quote.program === 'esp' ? (
                   <>
-                    <div className="path-switch"><span id="coverage-window-label">How should Ford measure the coverage window?</span><div role="radiogroup" aria-labelledby="coverage-window-label" onKeyDown={handleRovingChoiceKeyDown}><button type="button" role="radio" aria-checked={quote.planPath === 'new'} tabIndex={quote.planPath === 'new' || !quote.planPath ? 0 : -1} className={quote.planPath === 'new' ? 'is-selected' : ''} onClick={() => update('planPath', 'new')}><strong>From the original warranty start</strong><small>Ford’s new-plan method measures time from the in-service date and mileage from zero.</small></button><button type="button" role="radio" aria-checked={quote.planPath === 'used'} tabIndex={quote.planPath === 'used' ? 0 : -1} className={quote.planPath === 'used' ? 'is-selected' : ''} onClick={() => update('planPath', 'used')}><strong>From enrollment and today’s odometer</strong><small>Ford’s used-plan method measures time from the contract date and adds mileage from the current odometer.</small></button></div></div>
+                    <div className="path-switch"><span id="coverage-window-label">Which enrollment method should we review?</span><div role="radiogroup" aria-labelledby="coverage-window-label" onKeyDown={handleRovingChoiceKeyDown}><button type="button" role="radio" aria-checked={quote.planPath === 'new'} tabIndex={quote.planPath === 'new' || !quote.planPath ? 0 : -1} className={quote.planPath === 'new' ? 'is-selected' : ''} onClick={() => update('planPath', 'new')}><strong>From the original warranty start</strong><small>New-plan time starts at the in-service date; mileage is a total odometer limit.</small></button><button type="button" role="radio" aria-checked={quote.planPath === 'used'} tabIndex={quote.planPath === 'used' ? 0 : -1} className={quote.planPath === 'used' ? 'is-selected' : ''} onClick={() => update('planPath', 'used')}><strong>Used-plan enrollment</strong><small>Coverage begins at enrollment. Remaining factory warranty can change how the expiration term is measured; Bob Maxey confirms the agreement.</small></button></div></div>
                     <div className="studio-section studio-section--plans plan-rail-section">
                       <div className="studio-section__heading"><div><h2>Select a coverage level</h2></div><small>Choose a level here; complete coverage stays in the on-site guide.</small></div>
                       <PlanRail compact plans={applicablePlans} selectedId={quote.planId} planPath={quote.planPath} onSelect={(id) => update('planId', id)} onDetails={(id) => { update('planId', id); setPlanHelp(true); }} />
@@ -1785,7 +1812,7 @@ export default function QuoteStudio({ initial = {}, onClose, onToast, onSaved })
                   <div className="term-experience">
                     <div className="studio-section term-builder-section">
                     <div className="term-context"><span><small>SELECTED COVERAGE</small><strong>{plan.name}</strong></span><div className="term-path-switch" role="radiogroup" aria-label="Coverage measurement path" onKeyDown={handleRovingChoiceKeyDown}><button type="button" role="radio" aria-checked={quote.planPath === 'new'} tabIndex={quote.planPath === 'new' ? 0 : -1} className={quote.planPath === 'new' ? 'is-selected' : ''} onClick={() => update('planPath', 'new')}>New plan</button><button type="button" role="radio" aria-checked={quote.planPath === 'used'} tabIndex={quote.planPath === 'used' ? 0 : -1} className={quote.planPath === 'used' ? 'is-selected' : ''} onClick={() => update('planPath', 'used')}>Used plan</button></div></div>
-                    {matrix.months.length ? <TermMatrix matrix={matrix} quote={quote} recommendation={recommendation} onOpenMatrix={() => setShowMatrix(true)} onMonth={chooseMonth} onMiles={(miles) => update('termMiles', miles)} onUseMatch={() => { setQuote((current) => ({ ...current, termMonths: recommendation.months, termMiles: recommendation.miles })); setSaved(false); }} /> : <div className="no-standard-matrix"><ShieldCheck /><h2>Specialist review needed</h2><p>Self-service used-plan terms are not shown at this mileage. Continued Service Plan or another Ford Protect path may be a better fit.</p><button className="button button--secondary" type="button" onClick={() => { update('program', 'csp'); goTo(1); }}>Explore Continued Service Plan</button></div>}
+                    {matrix.months.length ? <TermMatrix matrix={matrix} quote={quote} recommendation={recommendation} onOpenMatrix={() => setShowMatrix(true)} onMonth={chooseMonth} onMiles={(miles) => update('termMiles', miles)} onUseMatch={() => { setQuote((current) => ({ ...current, termMonths: recommendation.months, termMiles: recommendation.miles })); setSaved(false); }} /> : <div className="no-standard-matrix"><ShieldCheck /><h2>Specialist review needed</h2><p>Self-service used-plan terms are not shown at this mileage. Return to coverage choices to review another path. Bob Maxey can confirm whether a current vehicle-specific offer is available.</p><button className="button button--secondary" type="button" onClick={() => goTo(1)}>Review other coverage paths</button></div>}
                     </div>
                   </div>
                 ) : quote.program === 'csp' ? (
@@ -1858,12 +1885,12 @@ export default function QuoteStudio({ initial = {}, onClose, onToast, onSaved })
                   <div className="studio-section">
                     <div className="studio-section__heading"><div><span>07</span><h2>Customer details</h2></div><small>Required to send your request</small></div>
                     <div className="studio-fields studio-fields--two">
-                      <Field label="First name *" error={showErrors && !quote.customer.firstName.trim() ? 'Enter a first name' : ''}><input autoComplete="given-name" aria-invalid={showErrors && !quote.customer.firstName.trim()} value={quote.customer.firstName} onChange={(event) => updateCustomer('firstName', event.target.value)} /></Field>
-                      <Field label="Last name *" error={showErrors && !quote.customer.lastName.trim() ? 'Enter a last name' : ''}><input autoComplete="family-name" aria-invalid={showErrors && !quote.customer.lastName.trim()} value={quote.customer.lastName} onChange={(event) => updateCustomer('lastName', event.target.value)} /></Field>
-                      <Field label="Email *" error={showErrors && !emailValid ? 'Enter a valid email' : ''}><input type="email" autoComplete="email" aria-invalid={showErrors && !emailValid} value={quote.customer.email} onChange={(event) => updateCustomer('email', event.target.value)} /></Field>
-                      <Field label="Mobile phone *" error={showErrors && !phoneValid ? 'Enter a valid 10- to 15-digit phone number' : ''}><input type="tel" inputMode="tel" autoComplete="tel" aria-invalid={showErrors && !phoneValid} value={quote.customer.phone} onChange={(event) => updateCustomer('phone', event.target.value)} /></Field>
+                      <Field label="First name *" validationMessage={!quote.customer.firstName.trim() ? 'Enter a first name' : ''} forceError={showErrors}><input autoComplete="given-name" aria-invalid={showErrors && !quote.customer.firstName.trim()} value={quote.customer.firstName} onChange={(event) => updateCustomer('firstName', event.target.value)} /></Field>
+                      <Field label="Last name *" validationMessage={!quote.customer.lastName.trim() ? 'Enter a last name' : ''} forceError={showErrors}><input autoComplete="family-name" aria-invalid={showErrors && !quote.customer.lastName.trim()} value={quote.customer.lastName} onChange={(event) => updateCustomer('lastName', event.target.value)} /></Field>
+                      <Field label="Email *" validationMessage={!emailValid ? 'Enter a valid email' : ''} forceError={showErrors}><input type="email" autoComplete="email" aria-invalid={showErrors && !emailValid} value={quote.customer.email} onChange={(event) => updateCustomer('email', event.target.value)} /></Field>
+                      <Field label="Mobile phone *" validationMessage={!phoneValid ? 'Enter a valid 10- to 15-digit phone number' : ''} forceError={showErrors}><input type="tel" inputMode="tel" autoComplete="tel" aria-invalid={showErrors && !phoneValid} value={quote.customer.phone} onChange={(event) => updateCustomer('phone', event.target.value)} /></Field>
                       <Field label="City" hint="Optional"><input autoComplete="address-level2" value={quote.customer.city} onChange={(event) => updateCustomer('city', event.target.value)} /></Field>
-                      <Field label="Preferred Bob Maxey location *" error={showErrors && !quote.store ? 'Choose a location' : ''}><select value={quote.store} onChange={(event) => update('store', event.target.value)}><option value="">Choose a location</option>{locations.map((location) => <option key={location.name} value={location.name}>{location.descriptor}</option>)}</select></Field>
+                      <Field label="Preferred Bob Maxey location *" validationMessage={!quote.store ? 'Choose a location' : ''} forceError={showErrors}><select value={quote.store} onChange={(event) => update('store', event.target.value)}><option value="">Choose a location</option>{locations.map((location) => <option key={location.name} value={location.name}>{location.descriptor}</option>)}</select></Field>
                     </div>
                   </div>
                   <div className="studio-section contact-preferences">
@@ -1894,7 +1921,7 @@ export default function QuoteStudio({ initial = {}, onClose, onToast, onSaved })
                   <div className="review-hero"><div><small>{vinDecoded ? 'VIN-DECODED PROTECTION REQUEST' : quote.vin.length === 17 ? 'PLANNING REQUEST · VIN ENTERED' : 'PLANNING REQUEST · VIN PENDING'}</small><h2>{plan.name}</h2><p>{quote.year} {quote.make} {quote.model} · Reference {quote.id}</p></div><img src={assetUrl('/assets/ford-official/ford-protect-logo.png')} alt="Ford Protect" /></div>
                   <div className="review-section-grid">
                     <article className="review-summary-card"><header><CarFront /><span><small>VEHICLE</small><h2>{quote.year} {quote.make} {quote.model}</h2></span><button type="button" onClick={() => goTo(0)}>Edit</button></header><dl><div><dt>Vehicle situation</dt><dd>{vehicleSituations.find((item) => item.id === quote.vehicleSituation)?.label || 'Not selected'}</dd></div>{quote.purchaseContext === 'shopping' ? <div><dt>Expected transaction</dt><dd>{transactionMethods.find((item) => item.value === quote.transactionMethod)?.label || 'Not selected'}</dd></div> : null}{quote.vehicleSituation === 'owned-after-sale' ? <div><dt>Your purchase date</dt><dd>{quote.purchaseDate || 'Not provided—specialist will verify if needed'}</dd></div> : null}<div><dt>VIN</dt><dd>{quote.vin || 'Pending—required for final Ford record review'}</dd></div>{quote.decodedVehicle?.trim || quote.decodedVehicle?.series ? <div><dt>Trim / series</dt><dd>{[quote.decodedVehicle.trim, quote.decodedVehicle.series].filter(Boolean).join(' / ')}</dd></div> : null}{quote.decodedVehicle?.engineDescription ? <div><dt>NHTSA engine</dt><dd>{quote.decodedVehicle.engineDescription}</dd></div> : null}{quote.decodedVehicle?.driveType || quote.decodedVehicle?.transmission ? <div><dt>Drive / transmission</dt><dd>{[quote.decodedVehicle.driveType, quote.decodedVehicle.transmission].filter(Boolean).join(' · ')}</dd></div> : null}{quote.decodedVehicle?.gvwr ? <div><dt>GVWR</dt><dd>{quote.decodedVehicle.gvwr}</dd></div> : null}<div><dt>Current mileage</dt><dd>{formatMiles(quote.mileage)} miles</dd></div><div><dt>Warranty / inspection</dt><dd>{inspection.shortLabel}</dd></div><div><dt>Use</dt><dd>{quote.usage} · {quote.powertrain} · {quote.snowPlow === 'Yes' ? 'Snow-plow use' : 'No snow plow'}</dd></div></dl>{quote.decodedVehicle && <p className="in-service-record-note"><Info /> NHTSA vehicle facts do not include the Ford warranty start or original in-service date. Bob Maxey verifies those in Ford records.</p>}</article>
-                    <article className="review-summary-card"><header><ShieldCheck /><span><small>{quote.program === 'products-only' ? 'REQUEST TYPE' : 'PRIMARY COVERAGE'}</small><h2>{plan.name}</h2></span><button type="button" onClick={() => goTo(1)}>Edit</button></header><dl><div><dt>{quote.program === 'products-only' ? 'Request focus' : 'Coverage method'}</dt><dd>{quote.program === 'products-only' ? 'Selected Ford Protect ownership products' : quote.program === 'esp' ? quote.planPath === 'used' ? 'From enrollment and current odometer' : 'From original warranty start' : quote.program === 'csp' ? 'Monthly continued coverage' : 'Diesel EngineCARE'}</dd></div><div><dt>{quote.program === 'products-only' ? 'Product terms' : 'Term'}</dt><dd>{quote.program === 'products-only' ? 'Selected separately for each product' : quote.program === 'csp' ? 'Monthly / no annual mileage limit' : quote.program === 'enginecare' ? 'Up to 7 years / 200,000 total miles / 8,000 engine hours, subject to confirmation' : `${formatTerm(quote.termMonths)} / ${formatMiles(quote.termMiles)} ${quote.planPath === 'used' ? 'additional' : 'total'} miles`}</dd></div>{quote.program === 'products-only' ? <div><dt>Configuration</dt><dd>Confirmed separately for every selected product</dd></div> : <div><dt>Deductible</dt><dd>{quote.program === 'csp' ? 'Confirmed with offer' : quote.program === 'enginecare' ? '$100' : quote.deductible === 'disappearing' ? 'Disappearing' : `$${quote.deductible}`}</dd></div>}<div><dt>{quote.program === 'products-only' ? 'Eligibility review' : 'Inspection path'}</dt><dd>{inspection.shortLabel}</dd></div></dl></article>
+                    <article className="review-summary-card"><header><ShieldCheck /><span><small>{quote.program === 'products-only' ? 'REQUEST TYPE' : 'PRIMARY COVERAGE'}</small><h2>{plan.name}</h2></span><button type="button" onClick={() => goTo(1)}>Edit</button></header><dl><div><dt>{quote.program === 'products-only' ? 'Request focus' : 'Coverage method'}</dt><dd>{quote.program === 'products-only' ? 'Selected Ford Protect ownership products' : quote.program === 'esp' ? quote.planPath === 'used' ? 'Used-plan enrollment; remaining warranty affects the expiration basis' : 'From original warranty start' : quote.program === 'csp' ? 'Monthly continued coverage' : 'Diesel EngineCARE'}</dd></div><div><dt>{quote.program === 'products-only' ? 'Product terms' : 'Term'}</dt><dd>{quote.program === 'products-only' ? 'Selected separately for each product' : quote.program === 'csp' ? 'Monthly / no annual mileage limit' : quote.program === 'enginecare' ? 'Up to 7 years / 200,000 total miles / 8,000 engine hours, subject to confirmation' : `${formatTerm(quote.termMonths)} / ${formatMiles(quote.termMiles)} ${quote.planPath === 'used' ? 'plan' : 'total'} miles`}</dd></div>{quote.program === 'products-only' ? <div><dt>Configuration</dt><dd>Confirmed separately for every selected product</dd></div> : <div><dt>Deductible</dt><dd>{quote.program === 'csp' ? 'Confirmed with offer' : quote.program === 'enginecare' ? '$100' : quote.deductible === 'disappearing' ? 'Disappearing' : `$${quote.deductible}`}</dd></div>}<div><dt>{quote.program === 'products-only' ? 'Eligibility review' : 'Inspection path'}</dt><dd>{inspection.shortLabel}</dd></div></dl></article>
                     <article className="review-summary-card review-summary-card--options"><header><PackagePlus /><span><small>{quote.program === 'products-only' ? 'SELECTED PRODUCTS & PAYMENT' : 'OPTIONS & PAYMENT'}</small><h2>{quote.program === 'products-only' ? selectedProducts.length ? `${selectedProducts.length} selected product${selectedProducts.length === 1 ? '' : 's'}` : 'No products selected' : selectedProducts.length ? `${selectedProducts.length} additional product${selectedProducts.length === 1 ? '' : 's'}` : 'No additional products requested'}</h2></span><button type="button" onClick={() => goTo(3)}>Edit</button></header><dl>{quote.program === 'products-only' ? <div><dt>Product choices</dt><dd>{selectedProducts.length ? 'Configured separately for each selected product' : 'No product selected'}</dd></div> : <div><dt>Plan benefits</dt><dd>{quote.program === 'esp' ? protectionOptions.filter((item) => quote.addOns.includes(item.id)).map((item) => item.title).join(', ') || 'None requested' : 'Confirmed with the returned Ford offer'}</dd></div>}<div><dt>Payment review</dt><dd>{paymentChoices.find((item) => item.value === quote.paymentPreference)?.title || quote.paymentPreference}</dd></div></dl>{selectedProducts.length ? <div className="review-product-list">{selectedProducts.map((product) => <div key={product.id}><img src={assetUrl(product.image)} alt="" /><span><strong>{product.name}</strong><small>{productSelectionLabel(product, quote.productSelections?.[product.id])}</small></span><CheckCircle2 /></div>)}</div> : <p className="review-empty-choice"><CheckCircle2 /> {quote.program === 'products-only' ? 'Choose at least one product before submitting.' : 'Additional products were reviewed and declined.'}</p>}</article>
                     <article className="review-summary-card"><header><UserRound /><span><small>CUSTOMER &amp; FOLLOW-UP</small><h2>{quote.customer.firstName} {quote.customer.lastName}</h2></span><button type="button" onClick={() => goTo(4)}>Edit</button></header><dl><div><dt>Email</dt><dd>{quote.customer.email}</dd></div><div><dt>Phone</dt><dd>{formatPhoneNumber(quote.customer.phone)}</dd></div><div><dt>Preference</dt><dd>{getPreferredContactLabel(quote.preferredContact)}</dd></div><div><dt>Bob Maxey location</dt><dd>{locations.find((item) => item.name === quote.store)?.descriptor || quote.store}</dd></div></dl></article>
                   </div>
@@ -1909,10 +1936,10 @@ export default function QuoteStudio({ initial = {}, onClose, onToast, onSaved })
           </main>
           <Summary quote={quote} plan={plan} eligibility={eligibility} selectedProducts={selectedProducts} inspection={inspection} />
         </div>
-        {!submissionReceipt && <StudioFooter step={step} quote={quote} saved={saved} onBack={() => goTo(Math.max(0, step - 1))} onContinue={continueQuote} onSave={() => saveQuote()} onSubmit={sendLead} submitting={busy === 'crm'} ready={stepReadiness[step]} status={stepStatus[step]} />}
+        {!submissionReceipt && <StudioFooter step={step} quote={quote} saved={saved} onBack={() => goTo(Math.max(0, step - 1))} onContinue={continueQuote} onSave={() => saveQuote()} onSubmit={sendLead} submitting={busy === 'crm'} ready={stepReadiness[step]} status={stepReadiness[step] ? stepStatus[step] : issueForStep(step)} />}
       </div>
       {planHelp && <PlanHelp plan={plan} detail={detail} onClose={() => setPlanHelp(false)} />}
-      {productHelp && <ProductDetail product={productHelp} selected={quote.requestedProductIds.includes(productHelp.id)} selection={quote.productSelections?.[productHelp.id]} powertrain={quote.powertrain} purchaseContext={quote.purchaseContext} onConfigure={configureRequestedProduct} onClose={() => setProductHelpId('')} />}
+      {productHelp && <ProductDetail quoteContext={quote} product={productHelp} selected={quote.requestedProductIds.includes(productHelp.id)} selection={quote.productSelections?.[productHelp.id]} powertrain={quote.powertrain} purchaseContext={quote.purchaseContext} onConfigure={configureRequestedProduct} onClose={() => setProductHelpId('')} />}
       {afterSaleNotice && <AfterSaleNotice purchaseContext={quote.purchaseContext} onClose={() => setAfterSaleNotice(false)} />}
       {proposalPreview && <ProposalPreview quote={quote} plan={plan} detail={detail} onClose={() => setProposalPreview(false)} onDownload={downloadProposal} busy={busy === 'pdf'} />}
       {showMatrix && <MatrixDrawer matrix={matrix} quote={quote} recommendation={recommendation} onClose={() => setShowMatrix(false)} onMonth={chooseMonth} onMiles={(miles) => update('termMiles', miles)} />}

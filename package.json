@@ -5,10 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
-    "build": "vite build",
+    "build": "vite build && node scripts/generate-routes.mjs",
     "test": "node --test src/*.test.js",
     "audit:release": "node scripts/release-audit.mjs",
     "check": "npm test && npm run build && npm run audit:release",
+    "test:browser": "playwright test",
     "preview": "vite preview --host 0.0.0.0"
   },
   "dependencies": {
@@ -21,6 +22,8 @@
     "react-dom": "^19.2.8"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
+    "@playwright/test": "^1.62.1",
     "@vitejs/plugin-react": "^6.1.1",
     "vite": "^8.2.2"
   }

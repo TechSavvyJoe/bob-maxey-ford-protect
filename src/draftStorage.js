@@ -8,7 +8,9 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const asArray = (value) => Array.isArray(value) ? value : [];
 const asObject = (value) => value && typeof value === 'object' && !Array.isArray(value) ? value : {};
 const text = (value, fallback = '', maxLength = 500) => typeof value === 'string' ? value.slice(0, maxLength) : fallback;
+const numericInput = (value) => typeof value === 'number' && Number.isFinite(value) ? String(value) : text(value);
 const numberOrNull = (value) => value !== '' && value !== null && value !== undefined && Number.isFinite(Number(value)) ? Number(value) : null;
+const identifiers = (value) => [...new Set(asArray(value).filter((item) => typeof item === 'string' && item.length <= 80))].slice(0, 40);
 
 const sanitizeProductSelections = (value) => Object.fromEntries(Object.entries(asObject(value))
   .filter(([id, selection]) => typeof id === 'string' && id.length <= 80 && selection && typeof selection === 'object' && !Array.isArray(selection))
@@ -57,10 +59,10 @@ export function sanitizeDraft(quote = {}, now = new Date()) {
     purchaseContext: text(source.purchaseContext),
     vehicleSituation: text(source.vehicleSituation),
     transactionMethod: text(source.transactionMethod),
-    year: text(source.year),
+    year: numericInput(source.year),
     make: text(source.make),
     model: text(source.model),
-    mileage: text(source.mileage),
+    mileage: numericInput(source.mileage),
     purchaseDate: text(source.purchaseDate),
     state: text(source.state),
     usage: text(source.usage, 'Personal'),
@@ -76,9 +78,9 @@ export function sanitizeDraft(quote = {}, now = new Date()) {
     termMonths: numberOrNull(source.termMonths),
     termMiles: numberOrNull(source.termMiles),
     deductible: text(source.deductible),
-    addOns: asArray(source.addOns).filter((item) => typeof item === 'string'),
+    addOns: identifiers(source.addOns),
     planBenefitsDecision: text(source.planBenefitsDecision),
-    requestedProductIds: asArray(source.requestedProductIds).filter((item) => typeof item === 'string'),
+    requestedProductIds: identifiers(source.requestedProductIds),
     productSelections,
     offRoadUnderlyingProductId: text(source.offRoadUnderlyingProductId, '', 80),
     additionalProductsDecision: text(source.additionalProductsDecision),
@@ -113,6 +115,8 @@ export function loadDrafts(storage, now = new Date()) {
   const parsed = safeParseJson(storedValue, []);
   const nowMs = now.getTime();
   const drafts = asArray(parsed)
+    // Do not renew corrupt or future-dated records every time storage is read.
+    .filter((draft) => Number.isFinite(Date.parse(draft?.savedAt || '')) && Date.parse(draft.savedAt) <= nowMs)
     .map((draft) => sanitizeDraft(draft, now))
     .filter((draft) => draft.id && Date.parse(draft.expiresAt) > nowMs)
     .slice(0, MAX_DRAFTS);
@@ -140,20 +144,22 @@ export function saveDraft(quote, storage, now = new Date()) {
 
 export function deleteDraft(id, storage) {
   const target = getStorage(storage);
-  if (!target?.setItem) return [];
-  const next = loadDrafts(target).filter((draft) => draft.id !== id);
+  const existing = loadDrafts(target);
+  if (!target?.setItem) return existing;
+  const next = existing.filter((draft) => draft.id !== id);
   try {
     target.setItem(DRAFT_STORAGE_KEY, JSON.stringify(next));
   } catch {
-    return next;
+    return existing;
   }
   return next;
 }
 
 export function clearDrafts(storage) {
   const target = getStorage(storage);
+  if (typeof target?.removeItem !== 'function') return false;
   try {
-    target?.removeItem?.(DRAFT_STORAGE_KEY);
+    target.removeItem(DRAFT_STORAGE_KEY);
     return true;
   } catch {
     return false;

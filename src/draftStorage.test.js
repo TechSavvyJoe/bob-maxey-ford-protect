@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createQuoteId, DRAFT_STORAGE_KEY, loadDrafts, saveDraft, safeParseJson } from './draftStorage.js';
+import { clearDrafts, createQuoteId, deleteDraft, DRAFT_STORAGE_KEY, loadDrafts, saveDraft, safeParseJson } from './draftStorage.js';
 
 const memoryStorage = () => {
   const values = new Map();
@@ -13,6 +13,22 @@ const memoryStorage = () => {
 
 test('safeParseJson returns its fallback for malformed data', () => {
   assert.deepEqual(safeParseJson('{broken', []), []);
+});
+
+test('failed draft deletion never hides a record that is still persisted', () => {
+  const storage = memoryStorage();
+  saveDraft({ id: 'BMX-RETAIN' }, storage);
+  storage.setItem = () => { throw new Error('Read-only storage'); };
+  assert.equal(deleteDraft('BMX-RETAIN', storage)[0].id, 'BMX-RETAIN');
+  assert.equal(loadDrafts(storage)[0].id, 'BMX-RETAIN');
+  assert.equal(clearDrafts({ getItem: () => null }), false);
+});
+
+test('drafts retain numeric zero-mile inputs as editable field values', () => {
+  const storage = memoryStorage();
+  const { draft } = saveDraft({ id: 'BMX-ZERO', year: 2026, mileage: 0 }, storage);
+  assert.equal(draft.year, '2026');
+  assert.equal(draft.mileage, '0');
 });
 
 test('saved drafts omit customer PII, VIN-derived facts, ZIP, notes and consent', () => {
@@ -106,6 +122,18 @@ test('expired drafts are removed', () => {
   const storage = memoryStorage();
   saveDraft({ id: 'BMX-OLD', year: '2024' }, storage, new Date('2026-01-01T00:00:00.000Z'));
   assert.deepEqual(loadDrafts(storage, new Date('2026-02-15T00:00:00.000Z')), []);
+});
+
+test('corrupt or future save dates cannot indefinitely renew retained requests', () => {
+  const storage = memoryStorage();
+  const now = new Date('2026-09-04T12:00:00Z');
+  storage.setItem(DRAFT_STORAGE_KEY, JSON.stringify([
+    { id: 'BMX-MISSING-DATE' },
+    { id: 'BMX-BAD-DATE', savedAt: 'not-a-date' },
+    { id: 'BMX-FUTURE-DATE', savedAt: '2099-01-01T00:00:00Z' },
+  ]));
+  assert.deepEqual(loadDrafts(storage, now), []);
+  assert.equal(storage.getItem(DRAFT_STORAGE_KEY), '[]');
 });
 
 test('quote references use 64 bits of supplied cryptographic randomness', () => {

@@ -12,7 +12,9 @@ const titleCase = (value) => clean(value).toLowerCase().replace(/\b\w/g, (letter
 const joinUnique = (values, separator = ' · ') => [...new Set(values.map(clean).filter(Boolean))].join(separator);
 
 export function normalizeVin(value) {
-  return String(value || '').toUpperCase().replace(/[^A-HJ-NPR-Z0-9]/g, '').slice(0, 17);
+  // Ignore formatting separators, but never remove a VIN character or truncate
+  // an overlong value into a different, apparently valid vehicle identifier.
+  return String(value || '').toUpperCase().replace(/[\s-]/g, '');
 }
 
 export function powertrainFromVpic(result = {}) {
@@ -86,6 +88,7 @@ const decodeError = (message, code = 'decode-failed') => Object.assign(new Error
 export async function decodeVinWithVpic(vin, { fetchImpl = globalThis.fetch, timeoutMs = 12000, signal } = {}) {
   const normalizedVin = normalizeVin(vin);
   if (!VIN_PATTERN.test(normalizedVin)) throw decodeError('Enter a complete 17-character VIN before decoding.', 'invalid-vin');
+  if (signal?.aborted) throw decodeError('VIN decoding was canceled.', 'aborted');
   if (typeof fetchImpl !== 'function') throw decodeError('VIN decoding is unavailable in this browser. Enter the vehicle details manually.', 'fetch-unavailable');
 
   const controller = new AbortController();
@@ -101,6 +104,8 @@ export async function decodeVinWithVpic(vin, { fetchImpl = globalThis.fetch, tim
     const response = await fetchImpl(`${API_ROOT}/${encodeURIComponent(normalizedVin)}?format=json`, {
       method: 'GET',
       headers: { Accept: 'application/json' },
+      credentials: 'omit',
+      referrerPolicy: 'no-referrer',
       signal: controller.signal,
     });
     if (!response?.ok) throw decodeError('NHTSA VIN decoding is temporarily unavailable. Enter the vehicle details manually or try again.', 'service-unavailable');
@@ -110,16 +115,20 @@ export async function decodeVinWithVpic(vin, { fetchImpl = globalThis.fetch, tim
     } catch {
       throw decodeError('NHTSA returned an unreadable VIN response. Enter the vehicle details manually.', 'invalid-response');
     }
+    if (controller.signal.aborted) throw decodeError(timedOut ? 'NHTSA VIN decoding timed out. Try again or enter the details manually.' : 'VIN decoding was canceled.', timedOut ? 'timeout' : 'aborted');
     const result = Array.isArray(payload?.Results) ? payload.Results[0] : null;
     if (!result || typeof result !== 'object') throw decodeError('NHTSA did not return vehicle details for this VIN.', 'no-result');
 
-    const errorCode = clean(result.ErrorCode);
+    const errorCode = String(result.ErrorCode ?? '').trim();
+    if (!errorCode) throw decodeError('NHTSA returned vehicle facts without a validation status. Enter the details manually or try again.', 'invalid-response');
     if (errorCode && errorCode.split(',').some((code) => code.trim() !== '0')) {
       const detail = clean(result.ErrorText).replace(/^\d+(?:,\d+)*\s*-\s*/, '');
       throw decodeError(detail ? `NHTSA could not validate this VIN: ${detail}` : 'NHTSA could not validate this VIN. Check the characters and try again.', 'vin-not-validated');
     }
 
     const vehicle = mapVpicVehicle(result);
+    if (vehicle.vin && vehicle.vin !== normalizedVin) throw decodeError('NHTSA returned details for a different VIN. Check the VIN and try again.', 'vin-mismatch');
+    vehicle.vin = normalizedVin;
     if (!vehicle.year && !vehicle.make && !vehicle.model) throw decodeError('NHTSA validated the VIN but did not return usable vehicle details. Enter them manually.', 'no-vehicle-facts');
     return {
       status: 'success',

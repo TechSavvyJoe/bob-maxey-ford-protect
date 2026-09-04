@@ -12,7 +12,10 @@ const FOCUSABLE_SELECTOR = [
 ].join(',');
 
 const visibleFocusableElements = (root) => [...(root?.querySelectorAll(FOCUSABLE_SELECTOR) || [])]
-  .filter((element) => !element.hidden && element.getAttribute('aria-hidden') !== 'true' && element.getClientRects().length > 0);
+  .filter((element) => element.tabIndex >= 0
+    && !element.closest('[hidden], [inert], [aria-hidden="true"]')
+    && element.getClientRects().length > 0
+    && window.getComputedStyle(element).visibility !== 'hidden');
 
 const isTopmostDialog = (root) => {
   const dialogs = [...document.querySelectorAll('[role="dialog"][aria-modal="true"]')]
@@ -79,10 +82,17 @@ export function useDialogFocus({ active = true, onClose, initialFocus } = {}) {
       }
     };
 
+    const handleFocusIn = (event) => {
+      const root = dialogRef.current;
+      if (root && isTopmostDialog(root) && !root.contains(event.target)) focusDialog();
+    };
+
     document.addEventListener('keydown', handleKeyDown, true);
+    document.addEventListener('focusin', handleFocusIn, true);
     return () => {
       window.cancelAnimationFrame(frame);
       document.removeEventListener('keydown', handleKeyDown, true);
+      document.removeEventListener('focusin', handleFocusIn, true);
       if (previouslyFocused?.isConnected) previouslyFocused.focus?.({ preventScroll: true });
     };
   }, [active]);

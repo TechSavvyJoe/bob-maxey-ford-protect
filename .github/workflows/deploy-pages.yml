@@ -33,52 +33,11 @@ jobs:
       - name: Run production checks and build site
         run: npm run check
 
-      - name: Add GitHub Pages route entry points
-        shell: bash
-        run: |
-          page_routes=(
-            products
-            compare
-            eligibility
-            how-it-works
-            resources
-          )
-          product_routes=(
-            premium
-            extra
-            base
-            powertrain
-            premium-plus-ev
-            premium-ev
-            extra-ev
-            base-ev
-            premium-maintenance
-            premium-maintenance-ev
-            continued-service
-            tirecare
-            off-road-coverage
-            dentcare
-            windshieldcare
-            windshieldcare-ev
-            triplecare
-            surfacecare
-            theftcare
-            commercial
-            incomplete
-            medium-duty
-          )
+      - name: Install test browser
+        run: npx playwright install --with-deps chromium
 
-          for route in "${page_routes[@]}"; do
-            mkdir -p "dist/$route"
-            cp dist/index.html "dist/$route/index.html"
-          done
-
-          for product in "${product_routes[@]}"; do
-            mkdir -p "dist/products/$product"
-            cp dist/index.html "dist/products/$product/index.html"
-          done
-
-          cp dist/index.html dist/404.html
+      - name: Verify customer journeys and accessibility before publishing
+        run: npm run test:browser
 
       - name: Configure GitHub Pages
         uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5

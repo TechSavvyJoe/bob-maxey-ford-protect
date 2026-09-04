@@ -1,5 +1,3 @@
-import { protectionOptions } from './quoteData.js';
-import { locations } from './data.js';
 import { buildQuoteSnapshot } from './quoteOutput.js';
 import { CONTACT_CONSENT_TEXT, CONTACT_CONSENT_VERSION } from './consent.js';
 
@@ -13,6 +11,8 @@ const leadTypeFor = (quote = {}) => quote.purchaseContext === 'shopping'
 const leadSourceFor = (quote = {}) => `${CRM_SOURCE} - ${leadTypeFor(quote)}`;
 
 const xmlEscape = (value = '') => String(value)
+  // XML 1.0 does not permit these characters, even after entity escaping.
+  .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\uFFFE\uFFFF]/g, '')
   .replaceAll('&', '&amp;')
   .replaceAll('<', '&lt;')
   .replaceAll('>', '&gt;')
@@ -50,6 +50,7 @@ const productConfigurationText = (product) => {
     configuration.serviceIntervalLabel,
     configuration.engineHoursLabel,
     configuration.benefitAmountLabel,
+    configuration.underlyingProductLabel,
   ].filter(Boolean);
   return parts.length ? `${product.name || product.title || product.id} — ${parts.join('; ')}` : (product.name || product.title || product.id);
 };
@@ -58,8 +59,8 @@ export function buildLeadComments(quote, plan) {
   const snapshot = buildQuoteSnapshot({ quote, plan });
   const isEngineCare = snapshot.program === 'enginecare';
   const isProductsOnly = snapshot.program === 'products-only';
-  const selectedOptions = !isEngineCare && quote.addOns?.length
-    ? protectionOptions.filter((item) => quote.addOns.includes(item.id)).map((item) => item.title).join(', ')
+  const selectedOptions = snapshot.coverage.selectedPlanOptions.length
+    ? snapshot.coverage.selectedPlanOptions.map((item) => item.name).join(', ')
     : 'None requested';
   const configuredMaintenance = snapshot.additionalProducts.find((item) => item.id === quote.maintenanceId);
   const maintenance = configuredMaintenance
@@ -72,7 +73,9 @@ export function buildLeadComments(quote, plan) {
     ? additionalProductRows.map((item) => productConfigurationText(item)).join(' | ')
     : 'None requested';
   const isCsp = snapshot.program === 'csp';
-  const termLines = isEngineCare
+  const termLines = !isProductsOnly && !snapshot.coverage.selected
+    ? ['COVERAGE: Selection needs attention before an offer can be prepared', `SELECTION REVIEW: ${snapshot.coverage.validation.message}`]
+    : isEngineCare
     ? [
       'COVERAGE PATH: Diesel EngineCARE specialist plan',
       `TERM: ${snapshot.coverage.term.label} (referenced maximum)`,
@@ -90,13 +93,14 @@ export function buildLeadComments(quote, plan) {
       : isCsp
         ? ['COVERAGE PATH: Continued Service Plan', 'TERM: Monthly', 'MILEAGE: No annual mileage limit', 'DEDUCTIBLE REQUEST: Confirmed with CSP offer', 'INSPECTION: Ford CSP guide states no enrollment inspection is required']
         : [
-      `COVERAGE PATH: ${quote.planPath === 'used' ? 'Used plan - term and mileage begin at contract signature/current odometer' : 'New plan - term and mileage measured from original in-service date/zero miles'}`,
+      `COVERAGE PATH: ${quote.planPath === 'used' ? 'Used plan' : 'New plan'}`,
+      `TERM AND MILEAGE BASIS: ${snapshot.coverage.term.basisNotice}`,
       `TERM: ${quote.termMonths || 0} months${quote.termMonths ? ` (${quote.termMonths / 12} years)` : ''}`,
-      `${quote.planPath === 'used' ? 'ADDITIONAL MILEAGE' : 'TOTAL ODOMETER LIMIT'}: ${Number(quote.termMiles || 0).toLocaleString()} miles`,
-      `DEDUCTIBLE REQUEST: ${quote.deductible === 'disappearing' ? 'Disappearing deductible' : `$${quote.deductible || 100}`}`,
-      `INSPECTION: ${quote.inspection?.shortLabel || quote.inspection?.title || 'Ford record review required'}`,
+      `${quote.planPath === 'used' ? 'SELECTED USED-PLAN MILEAGE' : 'TOTAL ODOMETER LIMIT'}: ${Number(quote.termMiles || 0).toLocaleString()} miles`,
+      `DEDUCTIBLE REQUEST: ${snapshot.coverage.deductible.label}`,
+      `INSPECTION: ${snapshot.coverage.inspection.label}`,
         ];
-  const store = locations.find((item) => item.name === quote.store)?.descriptor || quote.store || 'Bob Maxey Ford of Howell';
+  const store = snapshot.store.descriptor;
   const leadType = leadTypeFor(quote);
   const customerJourney = quote.purchaseContext === 'shopping'
     ? quote.vehicleSituation === 'new-purchase'
@@ -129,7 +133,7 @@ export function buildLeadComments(quote, plan) {
     '',
     `VEHICLE: ${quote.year || ''} ${quote.make || ''} ${quote.model || ''}`.trim(),
     quote.vin ? `VIN: ${quote.vin}` : 'VIN: Not provided',
-    `CURRENT MILEAGE: ${Number(quote.mileage || 0).toLocaleString()}`,
+    `CURRENT MILEAGE: ${snapshot.vehicle.currentMileageLabel}`,
     quote.vehicleSituation === 'owned-after-sale' ? `CUSTOMER VEHICLE PURCHASE DATE: ${quote.purchaseDate || quote.vehiclePurchaseDate || 'Unknown'}` : '',
     `IN-SERVICE DATE: ${quote.inService || 'Unknown'}`,
     quote.decodedVehicle ? 'VIN DATA SOURCE: NHTSA vPIC vehicle decode (does not provide Ford warranty or in-service records)' : '',
@@ -163,6 +167,7 @@ export function buildLeadComments(quote, plan) {
 }
 
 export function createAdfXml({ quote, plan, pageUrl = '', referrer = '' }) {
+  const snapshot = buildQuoteSnapshot({ quote, plan });
   const customer = quote.customer || {};
   const now = new Date().toISOString();
   const comments = buildLeadComments(quote, plan);
@@ -181,7 +186,7 @@ export function createAdfXml({ quote, plan, pageUrl = '', referrer = '' }) {
       <model>${xmlEscape(quote.model)}</model>
       ${quote.decodedVehicle?.trim ? `<trim>${xmlEscape(quote.decodedVehicle.trim)}</trim>` : ''}
       ${quote.vin ? `<vin>${xmlEscape(quote.vin)}</vin>` : ''}
-      <odometer status="current" units="mi">${xmlEscape(quote.mileage || 0)}</odometer>
+      ${snapshot.vehicle.currentMileage === null ? '' : `<odometer status="current" units="mi">${xmlEscape(snapshot.vehicle.currentMileage)}</odometer>`}
       <comments>${xmlEscape(comments)}</comments>
     </vehicle>
     <customer>
@@ -200,7 +205,7 @@ export function createAdfXml({ quote, plan, pageUrl = '', referrer = '' }) {
       <comments>${xmlEscape(comments)}</comments>
     </customer>
     <vendor>
-      <vendorname>${xmlEscape(locations.find((item) => item.name === quote.store)?.descriptor || quote.store || 'Bob Maxey Ford of Howell')}</vendorname>
+      <vendorname>${xmlEscape(snapshot.store.descriptor || 'Bob Maxey Ford of Howell')}</vendorname>
       <contact>
         <name part="full" type="business">Ford Protect F&amp;I Team</name>
         <email>${CRM_DESTINATION}</email>
@@ -261,6 +266,8 @@ export async function submitCrmLead({ xml, quote, timeoutMs = DEFAULT_CRM_TIMEOU
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
       credentials: 'omit',
+      redirect: 'error',
+      referrerPolicy: 'no-referrer',
       cache: 'no-store',
       signal: controller.signal,
       body: JSON.stringify({

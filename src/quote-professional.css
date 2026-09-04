@@ -2581,6 +2581,102 @@
   color: var(--qp-navy);
 }
 
+/* Contrast corrections for the current picker and the nested product dialog.
+   These controls are independently rendered, not children of .quote-studio. */
+.studio-backdrop.studio-v5 .product-detail-modal__header > button,
+.studio-backdrop.studio-v5 .context-modal > header > button,
+.studio-backdrop.studio-v5 .matrix-drawer > header > button {
+  display: grid;
+  place-items: center;
+  flex: 0 0 44px;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  border: 1px solid #a4b7ca;
+  border-radius: 6px;
+  color: #08233f;
+  background: #fff;
+}
+
+.studio-backdrop.studio-v5 .product-detail-modal__header > button:hover,
+.studio-backdrop.studio-v5 .context-modal > header > button:hover,
+.studio-backdrop.studio-v5 .matrix-drawer > header > button:hover {
+  color: #004f9f;
+  background: #edf5fc;
+}
+
+.studio-backdrop.studio-v5 .product-detail-modal__header > button:focus-visible,
+.studio-backdrop.studio-v5 .context-modal > header > button:focus-visible,
+.studio-backdrop.studio-v5 .matrix-drawer > header > button:focus-visible,
+.studio-backdrop.studio-v5 .quote-studio .studio-summary:focus-visible {
+  outline: 2px solid #0067d8;
+  outline-offset: -3px;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .term-choice-rail > button small {
+  color: #52697e;
+  opacity: 1;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .term-choice-rail > button.is-selected small {
+  color: #fff;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .term-recommendation .term-recommendation__copy > span {
+  color: #e3effa;
+}
+
+.studio-backdrop.studio-v5 .context-modal > header > span {
+  color: #08233f;
+}
+
+.studio-backdrop.studio-v5 .context-modal .context-modal__facts > div {
+  padding: 12px;
+}
+
+.studio-backdrop.studio-v5 .matrix-drawer .term-matrix__month small {
+  color: #fff;
+  opacity: 1;
+}
+
+.studio-backdrop.studio-v5 .matrix-drawer > footer small {
+  color: #52697e;
+}
+
+.studio-backdrop.studio-v5 .matrix-drawer > header p,
+.studio-backdrop.studio-v5 .matrix-drawer > footer strong,
+.studio-backdrop.studio-v5 .matrix-drawer .term-matrix__corner,
+.studio-backdrop.studio-v5 .matrix-drawer .term-matrix__month,
+.studio-backdrop.studio-v5 .matrix-drawer .term-matrix__miles,
+.studio-backdrop.studio-v5 .matrix-drawer .term-matrix__row button {
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.studio-backdrop.studio-v5 .matrix-drawer .term-matrix__row button {
+  min-height: 44px;
+}
+
+.studio-backdrop.studio-v5 .matrix-drawer .availability-dot {
+  background: #55718b;
+}
+
+@media (max-width: 760px) {
+  .studio-backdrop.studio-v5 .matrix-drawer > footer {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    padding-inline: 12px;
+  }
+
+  .studio-backdrop.studio-v5 .matrix-drawer > footer .button {
+    min-width: 0;
+    min-height: 44px;
+    padding-inline: 10px;
+    font-size: 12px;
+  }
+}
+
 @media (max-width: 760px) {
   .studio-backdrop.studio-v5 .product-detail-modal .product-configuration-confirm {
     min-height: 82px;

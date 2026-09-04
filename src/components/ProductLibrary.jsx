@@ -38,7 +38,7 @@ function ProductRow({ category, product, context, onOpenProduct, onStart }) {
   const highlights = (product.groups || []).slice(0, 3);
   return (
     <article className={`product-row product-row--${category.id}`}>
-      <figure><img src={assetUrl(image)} alt="" /></figure>
+      <figure><img src={assetUrl(image)} alt="" loading="lazy" decoding="async" /></figure>
       <div className="product-row__content">
         <div className="product-row__meta"><span>{category.label}</span><b>{timingLabel(category, product, context)}</b></div>
         <h3>{product.name}</h3>
@@ -98,9 +98,9 @@ export default function ProductLibrary({ onQuote, onOpenProduct }) {
 
       <div className="page-shell product-library__workspace">
         <div className="product-library__toolbar">
-          <div className="product-category-nav" role="tablist" aria-label="Product families">
+          <div className="product-category-nav" role="group" aria-label="Filter by product family">
             {categories.map((item) => (
-              <button key={item.id} className={!query && category?.id === item.id ? 'is-active' : ''} type="button" role="tab" aria-selected={!query && category?.id === item.id} onClick={() => { setQuery(''); setCategoryId(item.id); }}>{item.label}</button>
+              <button key={item.id} className={!query && category?.id === item.id ? 'is-active' : ''} type="button" aria-pressed={!query && category?.id === item.id} onClick={() => { setQuery(''); setCategoryId(item.id); }}>{item.label}</button>
             ))}
           </div>
           <label className="product-search"><Search aria-hidden="true" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search products or coverage needs" aria-label="Search products or coverage needs" /></label>
@@ -113,8 +113,10 @@ export default function ProductLibrary({ onQuote, onOpenProduct }) {
           </header>
         )}
 
-        <div className="product-list" aria-live="polite">
+        <p className="product-search-status" role="status">{query && `${products.length} ${products.length === 1 ? 'product matches' : 'products match'} “${query.trim()}” for ${context === 'owner' ? 'a vehicle you already own' : 'a planned vehicle purchase'}.`}</p>
+        <div className="product-list">
           {products.map(({ category: item, product }) => <ProductRow key={`${item.id}-${product.id}`} category={item} product={product} context={context} onOpenProduct={onOpenProduct} onStart={startProduct} />)}
+          {query && !products.length && <div className="product-search-empty"><Search aria-hidden="true" /><h2>No matching products in this ownership stage.</h2><p>Try “maintenance,” “repairs” or a product name. Some products can only be included when you buy the vehicle.</p><button className="button button--secondary" type="button" onClick={() => setQuery('')}>Clear search</button></div>}
         </div>
 
         <div className="product-library__confirmation"><ShieldCheck /><p><strong>One rule across every product:</strong> final availability, pricing, term choices and coverage are confirmed for your VIN before purchase.</p><button type="button" onClick={() => onQuote({ purchaseContext: context })}>Check my vehicle <ArrowRight /></button></div>

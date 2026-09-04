@@ -17,14 +17,14 @@ const goals = [
     text: 'Bundle eligible scheduled service and selected wear items around how you drive.',
     image: '/assets/ford-official/ford-maintenance-wide.png',
     action: 'Explore maintenance',
-    destination: 'products',
+    productId: 'premium-maintenance',
   },
   {
     eyebrow: 'Everyday vehicle care',
     title: 'Protection beyond repairs',
     text: 'Plan tire, wheel, dent, glass, surface, theft and other eligible protection with your vehicle purchase.',
     image: '/assets/ford-official/triplecare.png',
-    action: 'See purchase-day products',
+    action: 'Plan purchase-day protection',
     destination: 'products',
   },
 ];
@@ -35,13 +35,14 @@ const steps = [
   { icon: FileCheck2, title: 'Bob Maxey confirms the offer', text: 'We verify Ford eligibility, inspection needs, options and price.' },
 ];
 
-export default function HomeOverview({ onNavigate, onQuote }) {
+export default function HomeOverview({ onNavigate, onQuote, onOpenProduct }) {
   const openGoal = (goal) => {
     if (goal.title === 'Protection beyond repairs') {
       onQuote({ purchaseContext: 'shopping' });
       return;
     }
-    onNavigate(goal.destination);
+    if (goal.productId) onOpenProduct(goal.productId);
+    else onNavigate(goal.destination);
   };
 
   return (
@@ -49,13 +50,13 @@ export default function HomeOverview({ onNavigate, onQuote }) {
       <div className="page-shell home-section-heading">
         <span>Choose what matters most</span>
         <h2>Protection built around how you own your Ford.</h2>
-        <p>Start with the outcome you want. Full coverage, terms, purchase timing and eligibility stay on the dedicated product page.</p>
+        <p>Explore repair coverage, scheduled maintenance and everyday vehicle protection. See what each product covers and when you can buy it.</p>
       </div>
 
       <div className="page-shell ownership-goals">
         {goals.map((goal) => (
           <article className="ownership-goal" key={goal.title}>
-            <img src={assetUrl(goal.image)} alt="" />
+            <img src={assetUrl(goal.image)} alt="" loading="lazy" decoding="async" />
             <div>
               <small>{goal.eyebrow}</small>
               <h3>{goal.title}</h3>
@@ -74,7 +75,7 @@ export default function HomeOverview({ onNavigate, onQuote }) {
           </div>
           <div className="coverage-level-rail">
             {planData.map((plan, index) => (
-              <button key={plan.id} type="button" onClick={() => onQuote({ planId: plan.id })}>
+              <button key={plan.id} type="button" aria-label={`Explore ${plan.name} coverage`} onClick={() => onOpenProduct(plan.id)}>
                 <span>0{index + 1}</span>
                 <strong>{plan.name}</strong>
                 <small>{plan.label}</small>

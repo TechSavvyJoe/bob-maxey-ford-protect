@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useId, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft, ArrowRight, Check, ChevronDown, CircleAlert,
   Download, FileCheck2, Search, ShieldCheck,
@@ -121,6 +121,7 @@ function InformationList({ title, intro, items, icon: Icon = Check }) {
 }
 
 function CoverageBrowser({ detail }) {
+  const accordionId = useId();
   const [query, setQuery] = useState('');
   const [openGroup, setOpenGroup] = useState(detail.coverageGroups[0]?.title || '');
   const groups = useMemo(() => {
@@ -148,15 +149,16 @@ function CoverageBrowser({ detail }) {
         </label>
       </div>
       <div className="pdoem-accordion">
-        {groups.map((group) => {
+        {groups.map((group, index) => {
           const expanded = Boolean(query) || openGroup === group.title;
+          const panelId = `${accordionId}-${index}`;
           return (
             <article key={group.title} className={expanded ? 'is-open' : ''}>
-              <button type="button" aria-expanded={expanded} onClick={() => setOpenGroup(expanded && !query ? '' : group.title)}>
+              <button type="button" aria-expanded={expanded} aria-controls={panelId} onClick={() => setOpenGroup(expanded && !query ? '' : group.title)}>
                 <span><strong>{group.title}</strong><small>{group.summary}</small></span>
                 <ChevronDown aria-hidden="true" />
               </button>
-              {expanded && <ul>{group.items.map((item) => <li key={item}><Check aria-hidden="true" /> <span>{item}</span></li>)}</ul>}
+              <ul id={panelId} hidden={!expanded}>{group.items.map((item) => <li key={item}><Check aria-hidden="true" /> <span>{item}</span></li>)}</ul>
             </article>
           );
         })}
@@ -194,6 +196,17 @@ export default function ProductDetail({ productId, onBack, onQuote, onContact, o
   const detail = hiddenFromCustomers ? null : productDetails[productId] || productDetails.premium;
   const [topic, setTopic] = useState('coverage');
   const [downloadState, setDownloadState] = useState('idle');
+  const topicTabsRef = useRef(null);
+  const topicId = useId();
+  const changeTopicWithKeyboard = (event, currentIndex) => {
+    const nextIndex = event.key === 'ArrowRight' ? (currentIndex + 1) % topics.length
+      : event.key === 'ArrowLeft' ? (currentIndex + topics.length - 1) % topics.length
+        : event.key === 'Home' ? 0 : event.key === 'End' ? topics.length - 1 : null;
+    if (nextIndex === null) return;
+    event.preventDefault();
+    setTopic(topics[nextIndex][0]);
+    topicTabsRef.current?.querySelectorAll('[role="tab"]')[nextIndex]?.focus();
+  };
 
   if (hiddenFromCustomers) {
     return (
@@ -254,7 +267,7 @@ export default function ProductDetail({ productId, onBack, onQuote, onContact, o
             <button className="pdoem-button pdoem-button--secondary" type="button" onClick={downloadGuide} disabled={downloadState === 'working'}><Download /> {downloadState === 'working' ? 'Preparing guide…' : 'Download product guide'}</button>
             {detail.family.includes('Mechanical') && <button className="pdoem-button pdoem-button--text" type="button" onClick={onCompare}>Compare plans</button>}
           </div>
-          <p className={`pdoem-download-status is-${downloadState}`} aria-live="polite">
+          <p className={`pdoem-download-status is-${downloadState}`} role="status">
             {downloadState === 'complete' && 'Your detailed product guide is ready.'}
             {downloadState === 'error' && 'The guide could not be created. Please try again.'}
           </p>
@@ -263,24 +276,24 @@ export default function ProductDetail({ productId, onBack, onQuote, onContact, o
           <figure><img src={assetUrl(detail.image)} alt={`Ford Protect media for ${detail.name}`} /></figure>
           <div className="pdoem-facts">
             <div><strong>{detail.stat}</strong><span>{detail.statLabel}</span></div>
-            <div><strong>{detail.maxTerm.split(' / ')[0]}</strong><span>{detail.maxTerm.includes(' / ') ? detail.maxTerm.split(' / ').slice(1).join(' / ') : detail.maxTerm}</span></div>
+            <div><strong>{detail.maxTerm.split(' / ')[0]}</strong><span>{detail.maxTerm.includes(' / ') ? detail.maxTerm.split(' / ').slice(1).join(' / ') : 'Vehicle-specific terms apply'}</span></div>
             <div><strong>Ford-backed</strong><span>Specialist-confirmed eligibility</span></div>
           </div>
         </div>
       </section>
 
-      <nav className="pdoem-topic-nav" aria-label={`${detail.name} guide topics`}>
-        <div className="pdoem-shell">
+      <div className="pdoem-topic-nav">
+        <div ref={topicTabsRef} className="pdoem-shell" role="tablist" aria-label={`${detail.name} guide topics`}>
           {topics.map(([id, label], index) => (
-            <button key={id} className={topic === id ? 'is-active' : ''} type="button" aria-current={topic === id ? 'page' : undefined} onClick={() => setTopic(id)}>
-              <span>{String(index + 1).padStart(2, '0')}</span>{label}
+            <button key={id} id={`${topicId}-${id}`} className={topic === id ? 'is-active' : ''} type="button" role="tab" aria-selected={topic === id} aria-controls={`${topicId}-panel`} tabIndex={topic === id ? 0 : -1} onClick={() => setTopic(id)} onKeyDown={(event) => changeTopicWithKeyboard(event, index)}>
+              <span aria-hidden="true">{String(index + 1).padStart(2, '0')}</span>{label}
             </button>
           ))}
         </div>
-      </nav>
+      </div>
 
       <div className="pdoem-shell pdoem-workspace">
-        <main>
+        <div className="pdoem-content" id={`${topicId}-panel`} role="tabpanel" aria-labelledby={`${topicId}-${topic}`} tabIndex="0">
           {topic === 'coverage' && <CoverageBrowser detail={detail} />}
           {topic === 'eligibility' && (
             <div className="pdoem-topic-panel">
@@ -316,11 +329,11 @@ export default function ProductDetail({ productId, onBack, onQuote, onContact, o
               <section className="pdoem-agreement pdoem-agreement--action">
                 <FileCheck2 />
                 <span><strong>Request your vehicle-specific agreement</strong><small>It confirms covered items, exclusions, limits and claim provisions for the selected vehicle, coverage and state.</small></span>
-                <button type="button" onClick={onContact}>Request agreement <ArrowRight /></button>
+                <button type="button" onClick={() => onContact()}>Request agreement <ArrowRight /></button>
               </section>
             </div>
           )}
-        </main>
+        </div>
         <BenefitRail detail={detail} eligibility={eligibility} purchaseWindow={purchaseWindow} />
       </div>
 

@@ -93,7 +93,49 @@ const TERM_MATRIX_SOURCE = Object.freeze({
 
 const matrixNotice = 'These choices help build a request. Ford records and the current VIN-specific offer must confirm the plan, term, mileage, deductible, benefits, and price.';
 
-export const getTermMatrix = ({ planId, planPath, mileage = 0 }) => {
+const calendarDate = (value) => {
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : new Date(value.getFullYear(), value.getMonth(), value.getDate(), 12);
+  const match = String(value ?? '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return null;
+  const [, year, month, day] = match.map(Number);
+  const date = new Date(year, month - 1, day, 12);
+  return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day ? date : null;
+};
+const offsetMonths = (date, months) => {
+  const result = new Date(date.getFullYear(), date.getMonth() + months, 1, 12);
+  const lastDay = new Date(result.getFullYear(), result.getMonth() + 1, 0).getDate();
+  result.setDate(Math.min(date.getDate(), lastDay));
+  return result;
+};
+const odometerValue = (value) => {
+  const raw = String(value ?? '').trim().replace(/,/g, '');
+  return /^\d+$/.test(raw) && Number.isSafeInteger(Number(raw)) ? Number(raw) : null;
+};
+
+// Source: supplied September 2024 Michigan guide, pp. 116/120/124/129/134/138/142.
+// Preserve its literal AND: both remaining limits exceed 12 months/12,000 miles,
+// and both selected limits are below 24 months/24,000 miles. Not live eligibility.
+const usedWarrantyRestriction = ({ inService, make, mileage, now = new Date() }) => {
+  const brand = String(make ?? '').trim().toLowerCase();
+  const limits = brand === 'lincoln' ? { months: 48, miles: 50000 }
+    : ['ford', 'mercury'].includes(brand) ? { months: 36, miles: 36000 } : null;
+  const start = calendarDate(inService);
+  const asOf = calendarDate(now);
+  const odometer = odometerValue(mileage);
+  const known = Boolean(limits && start && asOf && start <= asOf && odometer !== null);
+  const applies = known ? offsetMonths(start, limits.months) > offsetMonths(asOf, 12) && limits.miles - odometer > 12000 : null;
+  return {
+    applies,
+    minimumMonths: 24,
+    minimumMiles: 24000,
+    operator: 'both-below',
+    notice: applies === true
+      ? 'The historical guide excludes used-plan combinations below both 24 months and 24,000 miles when more than 12 months and 12,000 miles of factory coverage remain. Shorter combinations are omitted; Ford records must confirm the current rule.'
+      : applies === null ? 'Remaining factory warranty must be verified before shorter used-plan combinations can be approved.' : '',
+  };
+};
+
+export const getTermMatrix = ({ planId, planPath, mileage = 0, inService, make, now }) => {
   if (planPath === 'new') {
     const matrix = NEW_PLAN_MATRICES[planId];
     if (!matrix) {
@@ -110,7 +152,9 @@ export const getTermMatrix = ({ planId, planPath, mileage = 0 }) => {
     return {
       months: matrix.months,
       miles: matrix.miles,
-      isAvailable: matrix.isAvailable,
+      isAvailable: (months, miles) => matrix.months.includes(months)
+        && matrix.miles.includes(miles)
+        && matrix.isAvailable(months, miles),
       mileageMode: 'total',
       planningOnly: true,
       source: TERM_MATRIX_SOURCE,
@@ -118,7 +162,7 @@ export const getTermMatrix = ({ planId, planPath, mileage = 0 }) => {
     };
   }
 
-  const planBands = USED_PLAN_BANDS[planId];
+  const planBands = planPath === 'used' ? USED_PLAN_BANDS[planId] : null;
   if (!planBands) {
     return {
       months: [],
@@ -131,9 +175,12 @@ export const getTermMatrix = ({ planId, planPath, mileage = 0 }) => {
       isAvailable: () => false,
     };
   }
-  const currentMileage = Math.max(0, Number(mileage || 0));
-  const band = planBands.find((item) => currentMileage <= item.maxMileage);
-  const rows = band?.rows ?? {};
+  const currentMileage = odometerValue(mileage);
+  const band = currentMileage === null ? null : planBands.find((item) => currentMileage <= item.maxMileage);
+  const historicalWarrantyRestriction = usedWarrantyRestriction({ inService, make, mileage, now });
+  const rows = Object.fromEntries(Object.entries(band?.rows ?? {})
+    .map(([months, miles]) => [months, miles.filter((value) => !(historicalWarrantyRestriction.applies === true && Number(months) < 24 && value < 24000))])
+    .filter(([, miles]) => miles.length));
   const months = Object.keys(rows).map(Number).sort((a, b) => a - b);
   const miles = [...new Set(months.flatMap((value) => rows[value] ?? []))].sort((a, b) => a - b);
 
@@ -142,6 +189,7 @@ export const getTermMatrix = ({ planId, planPath, mileage = 0 }) => {
     miles,
     mileageMode: 'additional',
     currentMileageBandMaximum: band?.maxMileage ?? null,
+    historicalWarrantyRestriction,
     planningOnly: true,
     source: TERM_MATRIX_SOURCE,
     notice: matrixNotice,

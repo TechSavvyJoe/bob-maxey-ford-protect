@@ -42,3 +42,41 @@ test('does not accept an unvalidated NHTSA result', async () => {
     /could not validate/i,
   );
 });
+
+test('a missing NHTSA validation status cannot be treated as a validated VIN', async () => {
+  await assert.rejects(decodeVinWithVpic('1FTEW1EG0FFB40359', {
+    fetchImpl: async () => ({ ok: true, json: async () => ({ Results: [{ Make: 'Ford', Model: 'F-150' }] }) }),
+  }), { code: 'invalid-response' });
+});
+
+test('rejects overlong and invalid VINs without silently changing the identifier', async () => {
+  for (const vin of ['1FTEW1EG0FFB403599', 'I1FTEW1EG0FFB40359']) {
+    let called = false;
+    await assert.rejects(decodeVinWithVpic(vin, { fetchImpl: async () => { called = true; } }), { code: 'invalid-vin' });
+    assert.equal(called, false);
+  }
+  assert.equal(normalizeVin('1FTEW1EG0FFB40359I'), '1FTEW1EG0FFB40359I');
+});
+
+test('a canceled request cannot contact NHTSA or return late decoded facts', async () => {
+  let called = false;
+  await assert.rejects(decodeVinWithVpic('1FTEW1EG0FFB40359', {
+    signal: AbortSignal.abort(),
+    fetchImpl: async () => { called = true; },
+  }), { code: 'aborted' });
+  assert.equal(called, false);
+  const controller = new AbortController();
+  await assert.rejects(decodeVinWithVpic('1FTEW1EG0FFB40359', {
+    signal: controller.signal,
+    fetchImpl: async () => ({ ok: true, json: async () => {
+      controller.abort();
+      return { Results: [{ ErrorCode: '0', VIN: '1FTEW1EG0FFB40359', ModelYear: '2015', Make: 'FORD', Model: 'F-150' }] };
+    } }),
+  }), { code: 'aborted' });
+});
+
+test('never accepts facts for a different returned VIN', async () => {
+  await assert.rejects(decodeVinWithVpic('1FTEW1EG0FFB40359', {
+    fetchImpl: async () => ({ ok: true, json: async () => ({ Results: [{ ErrorCode: '0', VIN: '1FM5K8GCLGA123456', ModelYear: '2020', Make: 'FORD', Model: 'Explorer' }] }) }),
+  }), { code: 'vin-mismatch' });
+});

@@ -1,13 +1,57 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildQuoteSnapshot, formatPhoneNumber, getPaymentPreferenceLabel, getPreferredContactLabel } from './quoteOutput.js';
-import { CONTACT_CONSENT_TEXT, CONTACT_CONSENT_VERSION } from './consent.js';
+import { buildProductGuideConfiguration, buildQuoteSnapshot, formatPhoneNumber, getInspectionStatus, getPaymentPreferenceLabel, getPreferredContactLabel } from './quoteOutput.js';
+import { quoteProducts } from './quoteProducts.js';
+import { CONTACT_CONSENT_TEXT, CONTACT_CONSENT_VERSION, createConsentMetadata } from './consent.js';
 
 test('a local submitted timestamp never turns a draft into a submitted request', () => {
   const snapshot = buildQuoteSnapshot({ quote: { id: 'BMX-DRAFT', submittedAt: '2026-09-03T12:00:00.000Z' } });
   assert.equal(snapshot.lifecycle.status, 'draft-request');
   assert.equal(snapshot.submission.accepted, false);
   assert.equal(snapshot.timestamps.submittedAt, null);
+});
+
+test('string flags cannot grant consent or mark pricing and eligibility confirmed', () => {
+  assert.equal(createConsentMetadata('false').consent, false);
+  assert.equal(createConsentMetadata('false').consentAcceptedAt, '');
+  const snapshot = buildQuoteSnapshot({ quote: {
+    vin: '1FTEW1EG0FFB40359', eligibility: { confirmed: 'false' }, pricing: { confirmed: 'false' },
+    submissionReceipt: { accepted: true, finalConfirmed: true, leadId: 'TEST-123', receivedAt: '2026-09-04T12:00:00Z' },
+  } });
+  assert.equal(snapshot.lifecycle.isFinal, false);
+});
+
+test('zero odometer and payment amounts survive output normalization', () => {
+  const snapshot = buildQuoteSnapshot({ quote: {
+    mileage: 0, currentMileage: 25000,
+    pricing: { total: 0, downPayment: 0, financedBalance: 0, paymentCount: 0, paymentAmount: 0 },
+    totalPrice: 1000, downPayment: 200, financedBalance: 800, paymentCount: 10, paymentAmount: 80,
+  } });
+  assert.equal(snapshot.vehicle.currentMileage, 0);
+  assert.equal(snapshot.vehicle.currentMileageLabel, '0 miles');
+  for (const field of ['total', 'downPayment', 'financedBalance', 'paymentCount', 'paymentAmount']) assert.equal(snapshot.pricing[field], 0);
+});
+
+test('inspection output does not assume competitor warranty or trust string confirmation', () => {
+  const base = { program: 'esp', planPath: 'used', make: 'Ford', mileage: 5000, inService: '2025-01-01', asOfDate: '2026-01-01' };
+  assert.equal(getInspectionStatus({ ...base, make: 'Honda' }).likelyWithinNewVehicleLimitedWarranty, null);
+  assert.equal(getInspectionStatus({ ...base, warrantyRecordConfirmed: 'false' }).required, null);
+  assert.equal(getInspectionStatus({ ...base, warrantyRecordConfirmed: true }).required, false);
+  assert.equal(getInspectionStatus({ ...base, mileage: -1 }).likelyWithinNewVehicleLimitedWarranty, null);
+  assert.equal(getInspectionStatus({ ...base, inService: '2027-01-01' }).likelyWithinNewVehicleLimitedWarranty, null);
+});
+
+test('product guide configuration preserves raw product mileage, service interval and dependency choices', () => {
+  const maintenance = quoteProducts.find((product) => product.id === 'premium-maintenance');
+  const result = buildProductGuideConfiguration(maintenance, { variantId: 'premium-maintenance', termMonths: 60, termMiles: 75000, serviceInterval: 7500 });
+  assert.equal(result.mileage, 75000);
+  assert.equal(result.serviceIntervalMiles, 7500);
+  assert.ok(result.labels.includes('75,000 miles'));
+  assert.ok(result.labels.includes('Every 7,500 miles'));
+  const offRoad = quoteProducts.find((product) => product.id === 'off-road-coverage');
+  const dependency = buildProductGuideConfiguration(offRoad, { variantId: 'off-road-coverage', underlyingProductId: 'triplecare-plus' });
+  assert.equal(dependency.underlyingProductId, 'triplecare-plus');
+  assert.match(dependency.underlyingProductLabel, /TripleCARE/);
 });
 
 test('customer-facing output normalizes stored payment and contact values without implying payment commitment', () => {

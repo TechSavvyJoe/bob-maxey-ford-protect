@@ -52,9 +52,9 @@ export default function PlanExplorer({ onQuote, onOpenProduct }) {
       </div>
 
       <div className="page-shell compare-toolbar">
-        <div className="compare-mode" role="tablist" aria-label="Comparison type">
-          <button className={mode === 'mechanical' ? 'is-active' : ''} type="button" onClick={() => switchMode('mechanical')}>Gas, hybrid & diesel</button>
-          <button className={mode === 'electric' ? 'is-active' : ''} type="button" onClick={() => switchMode('electric')}>Electric vehicles</button>
+        <div className="compare-mode" role="group" aria-label="Comparison type">
+          <button className={mode === 'mechanical' ? 'is-active' : ''} aria-pressed={mode === 'mechanical'} type="button" onClick={() => switchMode('mechanical')}>Gas, hybrid & diesel</button>
+          <button className={mode === 'electric' ? 'is-active' : ''} aria-pressed={mode === 'electric'} type="button" onClick={() => switchMode('electric')}>Electric vehicles</button>
         </div>
         <button className="button button--primary" type="button" onClick={() => onQuote({ powertrain: mode === 'electric' ? 'Electric' : undefined })}>Check my vehicle <ArrowRight /></button>
       </div>
@@ -72,7 +72,7 @@ export default function PlanExplorer({ onQuote, onOpenProduct }) {
         <div className="detailed-comparison detailed-comparison--desktop" role="table" aria-label={`Ford Protect ${mode} plan differences`}>
           <div className="detailed-comparison__row detailed-comparison__head" role="row">
             <div role="columnheader">Coverage area</div>
-            {plans.map((plan) => <button key={plan.id} type="button" role="columnheader" aria-label={`View ${plan.name} details`} onClick={() => onOpenProduct(plan.id)}><strong>{plan.name}</strong><small>{plan.count} components</small><span>View plan details <ArrowRight /></span></button>)}
+            {plans.map((plan) => <div key={plan.id} role="columnheader"><button type="button" aria-label={`View ${plan.name} details`} onClick={() => onOpenProduct(plan.id)}><strong>{plan.name}</strong><small>{plan.count} components</small><span>View plan details <ArrowRight /></span></button></div>)}
           </div>
           {rows.map((row) => <div className="detailed-comparison__row" role="row" key={row.label}><div role="rowheader">{row.label}</div>{row.values.map((value, index) => <div key={`${row.label}-${plans[index].id}`} role="cell">{value}</div>)}</div>)}
         </div>

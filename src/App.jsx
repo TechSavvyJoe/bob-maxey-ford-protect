@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { CheckCircle2, X } from 'lucide-react';
 import Header from './components/Header';
 import Hero from './components/Hero';
@@ -9,12 +9,15 @@ import ProductLibrary from './components/ProductLibrary';
 import ProductDetail from './components/ProductDetail';
 import EligibilityHub from './components/EligibilityHub';
 import FaqSection from './components/FaqSection';
-import QuoteStudio from './components/QuoteStudio';
+import RecoveryBoundary, { RecoveryPanel } from './components/RecoveryBoundary';
 import TrustFooter from './components/TrustFooter';
 import { ContactPanel, ResourcePanel, SavedQuotes } from './components/UtilityModal';
 import { hiddenCustomerProductIds, productCategories } from './data';
 import { appPathname, appUrl } from './paths';
 import { routeAnnouncement, routeDocumentTitle } from './routeAccessibility';
+import { resolveRoute } from './routes';
+
+const QuoteStudio = lazy(() => import('./components/QuoteStudio'));
 
 const validPages = ['home', 'products', 'compare', 'eligibility', 'how-it-works', 'resources'];
 const hiddenCustomerProductIdSet = new Set(hiddenCustomerProductIds);
@@ -49,16 +52,14 @@ const skipLinkStyle = {
   transform: 'translateY(-160%)',
 };
 const pageFromPath = () => {
-  const slug = appPathname().split('/').filter(Boolean)[0] || 'home';
-  return validPages.includes(slug) ? slug : 'home';
+  return resolveRoute(appPathname()).page;
 };
 const productFromPath = () => {
-  const parts = appPathname().split('/').filter(Boolean);
-  return parts[0] === 'products' && availableProductIds.has(parts[1]) ? parts[1] : '';
+  return resolveRoute(appPathname()).productId;
 };
 const normalizeHiddenProductPath = () => {
   const parts = appPathname().split('/').filter(Boolean);
-  if (parts[0] !== 'products' || !hiddenCustomerProductIdSet.has(parts[1])) return false;
+  if (parts.length !== 2 || parts[0] !== 'products' || !hiddenCustomerProductIdSet.has(parts[1])) return false;
   window.history.replaceState({}, '', appUrl('/products'));
   return true;
 };
@@ -111,15 +112,16 @@ export default function App() {
     if (window.location.pathname !== path) window.history.pushState({}, '', path);
     setPage(next);
     setProductId('');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    window.scrollTo({ top: 0, behavior: 'instant' });
   }, []);
 
   const openProduct = useCallback((id) => {
     if (!availableProductIds.has(id)) return;
-    window.history.pushState({}, '', appUrl(`/products/${id}`));
+    const path = appUrl(`/products/${id}`);
+    if (window.location.pathname !== path) window.history.pushState({}, '', path);
     setPage('products');
     setProductId(id);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    window.scrollTo({ top: 0, behavior: 'instant' });
   }, []);
 
   const openQuote = useCallback((initial = {}) => {
@@ -160,18 +162,21 @@ export default function App() {
       <p role="status" aria-live="polite" aria-atomic="true" style={visuallyHiddenStyle}>{routeLabel}</p>
       <Header onQuote={openQuote} onSaved={() => setUtility('saved')} onNavigate={navigate} page={page} />
       <main ref={mainRef} id="main-content" tabIndex="-1" aria-label={routeLabel} className={`site-page site-page--${page}`}>
-        {page === 'home' && <><Hero onQuote={openQuote} onCompare={() => navigate('compare')} /><HomeOverview onNavigate={navigate} onQuote={openQuote} /></>}
+        {page === 'home' && <><Hero onQuote={openQuote} onCompare={() => navigate('compare')} /><HomeOverview onNavigate={navigate} onQuote={openQuote} onOpenProduct={openProduct} /></>}
         {page === 'products' && (productId
-          ? <ProductDetail productId={productId} onBack={() => navigate('products')} onQuote={openQuote} onContact={openContact} onCompare={() => navigate('compare')} />
+          ? <ProductDetail key={productId} productId={productId} onBack={() => navigate('products')} onQuote={openQuote} onContact={openContact} onCompare={() => navigate('compare')} />
           : <ProductLibrary onQuote={openQuote} onContact={openContact} onOpenProduct={openProduct} />)}
         {page === 'compare' && <PlanExplorer onQuote={openQuote} onOpenProduct={openProduct} />}
         {page === 'eligibility' && <EligibilityHub onQuote={openQuote} onContact={openContact} onNavigate={navigate} />}
         {page === 'how-it-works' && <Journey onQuote={openQuote} onContact={openContact} onNavigate={navigate} />}
         {page === 'resources' && <FaqSection onQuote={openQuote} onContact={openContact} onNavigate={navigate} />}
+        {page === 'not-found' && <section className="recovery-page"><div className="recovery-panel"><small>BOB MAXEY FORD PROTECT</small><h1>We couldn’t find that page.</h1><p>The link may have changed. Browse the current products or return to the home page.</p><div><button className="button button--primary" type="button" onClick={() => navigate('products')}>Browse plans &amp; products</button><button className="button button--secondary" type="button" onClick={() => navigate('home')}>Go to home page</button></div></div></section>}
       </main>
       <TrustFooter compact={page !== 'home'} onQuote={openQuote} onContact={openContact} onResource={openResource} />
 
       {quoteInitial && (
+        <RecoveryBoundary key={quoteInitial.sessionKey} modal onClose={() => setQuoteInitial(null)}>
+        <Suspense fallback={<RecoveryPanel modal loading onClose={() => setQuoteInitial(null)} />}>
         <QuoteStudio
           key={quoteInitial.sessionKey}
           initial={quoteInitial}
@@ -179,6 +184,8 @@ export default function App() {
           onToast={setToast}
           onSaved={() => {}}
         />
+        </Suspense>
+        </RecoveryBoundary>
       )}
       {utility === 'saved' && (
         <SavedQuotes

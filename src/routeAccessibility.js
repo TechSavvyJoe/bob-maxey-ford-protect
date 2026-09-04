@@ -7,6 +7,7 @@ const pageLabels = Object.freeze({
   eligibility: 'Coverage eligibility',
   'how-it-works': 'How it works',
   resources: 'Help and resources',
+  'not-found': 'Page not found',
 });
 
 export function routeAnnouncement(page, productName = '') {

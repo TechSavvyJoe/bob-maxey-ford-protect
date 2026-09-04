@@ -3,9 +3,9 @@ export const CONTACT_CONSENT_TEXT = 'I agree Bob Maxey may contact me about this
 
 export function createConsentMetadata(granted, now = new Date()) {
   return {
-    consent: Boolean(granted),
+    consent: granted === true,
     consentText: CONTACT_CONSENT_TEXT,
     consentVersion: CONTACT_CONSENT_VERSION,
-    consentAcceptedAt: granted ? now.toISOString() : '',
+    consentAcceptedAt: granted === true ? now.toISOString() : '',
   };
 }

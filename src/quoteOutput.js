@@ -218,19 +218,20 @@ export function getInspectionStatus(input = {}) {
   const inService = safeIso(quote.inService || quote.inServiceDate || quote.vehicle?.inServiceDate);
   const mileage = finiteNumber(firstDefined(quote.mileage, quote.currentMileage, quote.vehicle?.currentMileage));
   const asOf = safeIso(quote.asOfDate || quote.generatedAt || quote.timestamps?.generatedAt) || new Date().toISOString();
-  const warrantyEnd = inService ? addMonths(inService, limits.months) : null;
+  const knownFactoryWarranty = ['ford', 'lincoln', 'mercury'].includes(cleanText(quote.make || quote.vehicle?.make).toLowerCase());
+  const warrantyEnd = knownFactoryWarranty && inService ? addMonths(inService, limits.months) : null;
   // The New Vehicle Limited Warranty ends at the earlier limit. Reaching the
   // exact time or mileage boundary is outside, not still within, the window.
-  const withinTime = warrantyEnd ? new Date(asOf).getTime() < warrantyEnd.getTime() : null;
-  const withinMiles = mileage === null ? null : mileage < limits.miles;
+  const withinTime = warrantyEnd && new Date(inService).getTime() <= new Date(asOf).getTime() ? new Date(asOf).getTime() < warrantyEnd.getTime() : null;
+  const withinMiles = !knownFactoryWarranty || mileage === null || mileage < 0 ? null : mileage < limits.miles;
   const calculatedWithin = withinTime === null || withinMiles === null ? null : withinTime && withinMiles;
   const likelyWithin = explicitWithin ?? calculatedWithin;
-  const warrantyRecordConfirmed = Boolean(firstDefined(
+  const warrantyRecordConfirmed = firstDefined(
     quote.warrantyRecordConfirmed,
     quote.vehicle?.warrantyRecordConfirmed,
     quote.newVehicleLimitedWarranty?.confirmed,
     false,
-  ));
+  ) === true;
   const basis = explicitWithin !== null ? 'explicit-quote-status' : calculatedWithin !== null ? 'in-service-date-and-mileage' : 'insufficient-vehicle-data';
 
   if (likelyWithin === true) {
@@ -385,11 +386,11 @@ const normalizeProductConfiguration = (quote, product, productId) => {
     || asArray(product?.configuration?.variants).find((item) => item.customerSelectable)
     || asArray(product?.configuration?.variants)[0];
   const option = asArray(product?.planOptions).find((item) => item.id === optionId) || selectedVariant;
-  const termMonths = finiteNumber(raw.termMonths || raw.months);
-  const mileage = finiteNumber(raw.mileage || raw.termMiles);
-  const serviceIntervalMiles = finiteNumber(raw.serviceIntervalMiles || raw.serviceInterval);
-  const engineHours = finiteNumber(raw.engineHours || raw.termHours);
-  const benefitAmount = finiteNumber(raw.benefitAmount || raw.benefit);
+  const termMonths = finiteNumber(firstDefined(raw.termMonths, raw.months));
+  const mileage = finiteNumber(firstDefined(raw.mileage, raw.termMiles));
+  const serviceIntervalMiles = finiteNumber(firstDefined(raw.serviceIntervalMiles, raw.serviceInterval));
+  const engineHours = finiteNumber(firstDefined(raw.engineHours, raw.termHours));
+  const benefitAmount = finiteNumber(firstDefined(raw.benefitAmount, raw.benefit));
   const termLabel = cleanText(
     raw.termLabel,
     termMonths === null ? '' : formatTerm(termMonths),
@@ -410,6 +411,9 @@ const normalizeProductConfiguration = (quote, product, productId) => {
     raw.benefitAmountLabel,
     benefitAmount === null ? '' : `$${formatMiles(benefitAmount)} benefit request`,
   );
+  const underlyingProductId = cleanText(raw.underlyingProductId || quote.offRoadUnderlyingProductId);
+  const underlyingProduct = productCatalog().find((item) => item.id === underlyingProductId);
+  const underlyingProductLabel = underlyingProductId ? `Underlying product: ${underlyingProduct?.name || underlyingProductId}` : '';
   const labels = unique([
     cleanText(option?.name || option?.label || raw.optionName || raw.variantName),
     termLabel,
@@ -417,6 +421,7 @@ const normalizeProductConfiguration = (quote, product, productId) => {
     serviceIntervalLabel,
     engineHoursLabel,
     benefitAmountLabel,
+    underlyingProductLabel,
   ]);
   const timing = getProductTimingPresentation(selectedVariant || product, {
     purchaseTiming: raw.purchaseTiming,
@@ -438,6 +443,8 @@ const normalizeProductConfiguration = (quote, product, productId) => {
     engineHoursLabel: engineHoursLabel || null,
     benefitAmount,
     benefitAmountLabel: benefitAmountLabel || null,
+    underlyingProductId: underlyingProductId || null,
+    underlyingProductLabel: underlyingProductLabel || null,
     startBasis: cleanText(raw.startBasis || selectedVariant?.startBasis),
     startBasisLabel: cleanText(raw.startBasisLabel || selectedVariant?.startBasisLabel || product?.configuration?.startBasisLabel),
     purchaseWindowLabel: cleanText(raw.purchaseWindowLabel || selectedVariant?.purchaseWindowLabel || timing.purchaseWindow),
@@ -450,6 +457,10 @@ const normalizeProductConfiguration = (quote, product, productId) => {
     labels,
   };
 };
+
+export function buildProductGuideConfiguration(product = {}, selection = {}) {
+  return normalizeProductConfiguration({ productSelections: { [product.id]: selection } }, product, product.id);
+}
 
 const resolveAdditionalProducts = (quote) => {
   const requestedIds = unique(quote.requestedProductIds);
@@ -580,7 +591,10 @@ const buildTerm = (quote, program) => {
     mileageMode,
     engineHours: null,
     label: months === null ? 'Term to be confirmed' : formatTerm(months),
-    mileageLabel: mileage === null ? 'Mileage to be confirmed' : `${formatMiles(mileage)} ${mileageMode} miles`,
+    mileageLabel: mileage === null ? 'Mileage to be confirmed' : `${formatMiles(mileage)} ${mileageMode === 'additional' ? 'used-plan' : 'total'} miles`,
+    basisNotice: mileageMode === 'additional'
+      ? 'Used-plan coverage begins at signature and current mileage. If factory bumper-to-bumper warranty remains, the agreement may measure the selected term and mileage from that warranty’s expiration. Otherwise it measures from signature and current mileage. Bob Maxey confirms the exact expiration date and odometer limit.'
+      : 'New-plan term and mileage are measured from the original in-service date and zero miles. Bob Maxey confirms the exact expiration date and odometer limit.',
     engineHoursLabel: null,
   };
 };
@@ -640,13 +654,13 @@ export function buildQuoteSnapshot({ quote = {}, plan = {}, detail = {} } = {}) 
   const primaryCoverageSelected = primaryCoverageRequested && primaryValidation.validForRequest;
   const customer = isObject(quote.customer) ? quote.customer : {};
   const fullName = [customer.firstName, customer.lastName].map((value) => cleanText(value)).filter(Boolean).join(' ');
-  const mileage = finiteNumber(quote.mileage || quote.currentMileage);
+  const mileage = finiteNumber(firstDefined(quote.mileage, quote.currentMileage));
   const vehicleName = [quote.year, quote.make, quote.model].map((value) => cleanText(value)).filter(Boolean).join(' ') || 'Vehicle to be confirmed';
   const coverageGroups = primaryCoverageSelected
     ? asArray(detail.coverageGroups?.length ? detail.coverageGroups : plan.groups).map(normalizeCoverageGroup)
     : [];
   const selectedPlanBenefits = primaryCoverageSelected ? asArray(detail.benefits).map(normalizeBenefit) : [];
-  const selectedPlanOptions = !primaryCoverageSelected || program === 'enginecare'
+  const selectedPlanOptions = !primaryCoverageSelected || program !== 'esp'
     ? []
     : protectionOptions
       .filter((option) => asArray(quote.addOns).includes(option.id))
@@ -716,8 +730,8 @@ export function buildQuoteSnapshot({ quote = {}, plan = {}, detail = {} } = {}) 
   const finalConfirmed = submissionAccepted
     && receipt.finalConfirmed === true
     && vinValid
-    && Boolean(quote.eligibility?.confirmed || quote.eligibilityStatus?.confirmed)
-    && Boolean(quote.pricing?.confirmed || quote.priceStatus?.confirmed);
+    && (quote.eligibility?.confirmed === true || quote.eligibilityStatus?.confirmed === true)
+    && (quote.pricing?.confirmed === true || quote.priceStatus?.confirmed === true);
   const consentAcceptedAt = safeIso(quote.consentAcceptedAt || quote.consentAt);
   const consentGranted = quote.consent === true
     && quote.consentVersion === CONTACT_CONSENT_VERSION
@@ -923,11 +937,11 @@ export function buildQuoteSnapshot({ quote = {}, plan = {}, detail = {} } = {}) 
         title: 'Specialist-confirmed pricing',
         message: 'The current Ford-authorized options and Bob Maxey price will be prepared after eligibility review.',
       }),
-      total: finiteNumber(quote.pricing?.total || quote.totalPrice),
-      downPayment: finiteNumber(quote.pricing?.downPayment || quote.downPayment),
-      financedBalance: finiteNumber(quote.pricing?.financedBalance || quote.financedBalance),
-      paymentCount: finiteNumber(quote.pricing?.paymentCount || quote.paymentCount),
-      paymentAmount: finiteNumber(quote.pricing?.paymentAmount || quote.paymentAmount),
+      total: finiteNumber(firstDefined(quote.pricing?.total, quote.totalPrice)),
+      downPayment: finiteNumber(firstDefined(quote.pricing?.downPayment, quote.downPayment)),
+      financedBalance: finiteNumber(firstDefined(quote.pricing?.financedBalance, quote.financedBalance)),
+      paymentCount: finiteNumber(firstDefined(quote.pricing?.paymentCount, quote.paymentCount)),
+      paymentAmount: finiteNumber(firstDefined(quote.pricing?.paymentAmount, quote.paymentAmount)),
       validThrough: safeIso(quote.pricing?.validThrough || quote.priceValidThrough),
     },
     store,

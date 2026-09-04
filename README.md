@@ -20,7 +20,7 @@ Premium multi-page React/Vite customer experience for learning about and request
 - Continued coverage: Continued Service Plan Ultimate and Standard Plus
 - Specialist requests: Diesel EngineCARE and RentalCARE where current Ford records and program rules allow
 
-The public catalog intentionally excludes GAP, lease-only products and vehicle-care products that must be purchased at the original vehicle sale. Ford Blue Advantage and Lincoln CPO upgrade records remain archived in the source data for possible later use, but their pages and cards are hidden from customers.
+The request builder distinguishes a new vehicle purchase, a used vehicle purchase, and an already-owned vehicle. Original-transaction products are shown with timing restrictions; finance-/lease-only products require the appropriate transaction context. After-sale customers cannot add purchase-only products. Historical or dealer-only offerings are clearly verification requests, not guaranteed offers. Ford Blue Advantage and Lincoln CPO upgrades remain archived in source data; their customer pages and cards are hidden.
 
 ## Current functional scope
 
@@ -31,7 +31,7 @@ The public catalog intentionally excludes GAP, lease-only products and vehicle-c
 - Mechanical and EV comparison modes
 - Organized help center with direct routes to comparison, eligibility, process and product details
 - Mechanical comparison with shared benefits separated from plan-level differences
-- Payment guidance for eligible 0%-interest financing with a small down payment; the current offer confirms the exact down payment, number of payments, schedule, and first due date
+- Bounded guidance on currently advertised interest-free ESP financing; no fixed down-payment promise. The returned offer determines eligibility, down payment and schedule.
 - Six-step responsive quote studio with vehicle, protection, term/mileage, additional-product, customer and review stages
 - After-sale product requests with full in-flow details and vehicle-specific review language
 - Portrait customer proposal PDF with customer, vehicle, plan, coverage, options, inspection, payment and next-step details
@@ -74,7 +74,7 @@ Remove-Item Env:GITHUB_REPOSITORY
 
 The prototype does not invent live prices or represent an issued contract. Production needs:
 
-1. VIN decoding and Ford vehicle/warranty-record lookup
+1. Ford vehicle/warranty-record lookup (public NHTSA VIN-description decoding is already implemented, but does not supply warranty dates or eligibility)
 2. Ford Protect eligibility, plan, term, deductible and rating data
 3. Bob Maxey pricing rules and dealership/store routing
 4. Secure customer identity, disclosures, payment and installment-plan workflow
@@ -97,11 +97,19 @@ The Bob Maxey logo is the current dealer logo previously supplied from the Bob M
 
 ## Verification
 
-- `npm run build` passes
-- `npm audit --audit-level=high` reports 0 vulnerabilities
-- Eight primary routes return HTTP 200 in browser QA
-- No broken images, document-level horizontal overflow, console errors or page errors on tested desktop routes
-- Product search, coverage search, category tabs, comparison modes, quote steps, product-detail popups, review disclosures and proposal generation were tested
-- 390 px phone, 768 px tablet and 1024 px laptop layouts pass document-level overflow checks
-- Product-detail and Resources pages contain no customer-facing external pricing links
-- Native Playwright Chrome was used for screenshot and interaction QA because the Chrome extension browser-control runtime was unavailable
+Run these against the current checkout; passing results are evidence for the tested cases, not a claim of zero defects:
+
+```powershell
+npm ci
+npm run check
+npm run test:browser
+npm audit --audit-level=high
+```
+
+`check` runs unit tests, builds all 28 route entry points from the same catalog the app uses, and audits the actual production output. Browser tests use Chrome locally, Chromium in CI; install Chrome locally or adjust `channel` in `playwright.config.js`. CI installs Chromium and runs the browser suite before publishing. Browser results and traces are ignored by Git.
+
+The maintained suite covers all public routes at desktop/mobile sizes, accessibility checks, real quote interactions, required choices, product timing, mocked VIN decoding, failed-download recovery, and truthful unconfigured-backend behavior. NHTSA test fixtures are mocked so CI never sends customer VINs or real leads. An explicitly authorized live VIN can be tested separately.
+
+Additional release QA should include actual iOS Safari and Android keyboards, 200% zoom, screen readers, long contact names, and visual inspection of downloaded PDFs. The app preserves browser zoom; mobile inputs use at least 16px text to prevent automatic focus zoom. PDFs embed licensed Inter fonts for supported character sets; unsupported characters produce an explicit message rather than silently changing names. PDFs are not certified PDF/UA documents.
+
+Quote and PDF code load on demand. A failed quote module has a recovery view instead of leaving the whole site blank. Historical term matrices are planning references, not live rating. See `RELEASE_READINESS.md` for the release boundary.

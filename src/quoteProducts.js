@@ -198,7 +198,7 @@ const configurationRule = ({
 export const FORD_PROTECT_PRODUCT_RULES = Object.freeze({
   'extended-service-plan': configurationRule({
     id: 'extended-service-plan', label: 'Extended Service Plan', purchaseContexts: ['shopping', 'owner'], purchaseTiming: 'vehicle-purchase-or-after-sale',
-    currentPublicStatus: 'vin-rated', selectionModel: 'plan-term-mileage-deductible', coverageStart: 'New-plan coverage is measured from original in-service date and zero miles; used-plan coverage follows the issued contract date/current-odometer rules.',
+    currentPublicStatus: 'vin-rated', selectionModel: 'plan-term-mileage-deductible', coverageStart: 'New-plan coverage is measured from original in-service date and zero miles. Used coverage begins at signature and current mileage; the selected limits may be measured from factory-warranty expiration when eligible Ford, Lincoln, or Mercury coverage remains. Bob Maxey confirms the agreement’s exact end date and odometer limit.',
     purchaseWindow: 'New- and used-plan paths depend on Ford records, current mileage, state, use, inspection status, and program rules.',
     inspection: 'For an ESP used-plan enrollment: no used-vehicle inspection while within the New Vehicle Limited Warranty; outside it, a completed Used Vehicle Inspection Checklist from a participating dealership, such as Bob Maxey, is required before finalization.',
     compatibility: ['Plan level, term, mileage, deductible, optional benefits, powertrain, and usage must match the Ford rating result.'], source: CURRENT_SOURCE,
@@ -268,7 +268,7 @@ export const FORD_PROTECT_PRODUCT_RULES = Object.freeze({
     id: 'tirecare-plus', label: 'TireCARE Plus', purchaseContexts: ['shopping'], purchaseTiming: 'original-vehicle-transaction-only',
     selectionModel: 'term-only', termMileage: termOnly([12, 24, 27, 36, 39, 48, 60, 72, 84]), coverageStart: 'Signature date; expires at the selected time term.',
     purchaseWindow: 'Current Ford public rule: available only at the time an eligible new or used vehicle is purchased.', inspection: 'Not applicable as an after-sale enrollment path.',
-    compatibility: ['No mileage limit in current public material.', 'Wheel material/finish, wheel diameter, vehicle use, vehicle model, and road-hazard rules apply.', 'The September 2024 guide lists 1 year through 8 years, including 27- and 39-month choices; current dealer offering controls.'], source: CURRENT_SOURCE, configurationSource: GUIDE_SOURCE,
+    compatibility: ['No mileage limit in current public material.', 'Wheel material/finish, wheel diameter, vehicle use, vehicle model, and road-hazard rules apply.', 'Current public TireCARE Plus information describes a maximum of 7 years. The choices shown are limited to that maximum; the current dealer offer controls the exact term.'], source: CURRENT_SOURCE, configurationSource: GUIDE_SOURCE,
   }),
   tirecare: configurationRule({
     id: 'tirecare', label: 'TireCARE', purchaseContexts: ['shopping'], purchaseTiming: 'original-vehicle-transaction-only', currentPublicStatus: 'historical-rating-system-only',
@@ -563,9 +563,9 @@ const normalizeText = (value) => String(value ?? '').trim();
 
 const normalizePowertrain = (value) => {
   const normalized = normalizeText(value).toLowerCase();
-  if (/electric|\bev\b/.test(normalized)) return 'electric';
   if (/plug.?in|phev/.test(normalized)) return 'plug-in-hybrid';
   if (/hybrid|hev/.test(normalized)) return 'hybrid';
+  if (/electric|\bev\b/.test(normalized)) return 'electric';
   if (/diesel|power\s*stroke/.test(normalized)) return 'diesel';
   if (/gas|gasoline|petrol/.test(normalized)) return 'gas';
   return 'unknown';
@@ -613,16 +613,21 @@ const readVehicleValue = (quote, keys) => {
 
 const toFiniteNumber = (value) => {
   if (value === undefined || value === null || value === '') return null;
-  const parsed = Number(String(value).replace(/[^\d.-]/g, ''));
+  const normalized = String(value).trim().replace(/,/g, '');
+  if (!/^-?\d+(?:\.\d+)?$/.test(normalized)) return null;
+  const parsed = Number(normalized);
   return Number.isFinite(parsed) ? parsed : null;
 };
 
 const toDate = (value) => {
   if (!value) return null;
-  const parsed = value instanceof Date
-    ? new Date(value.getTime())
-    : new Date(`${String(value).slice(0, 10)}T12:00:00`);
-  return Number.isNaN(parsed.getTime()) ? null : parsed;
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : new Date(value.getTime());
+  const match = String(value).match(/^(\d{4})-(\d{2})-(\d{2})(?:T.*)?$/);
+  if (!match) return null;
+  const [, year, month, day] = match.map(Number);
+  const parsed = new Date(year, month - 1, day, 12);
+  if (parsed.getFullYear() !== year || parsed.getMonth() !== month - 1 || parsed.getDate() !== day) return null;
+  return parsed;
 };
 
 const wholeMonthsBetween = (start, end) => {
@@ -632,7 +637,7 @@ const wholeMonthsBetween = (start, end) => {
 };
 
 const resolveQuoteFacts = (quote = {}) => {
-  const make = normalizeText(readVehicleValue(quote, ['make'])) || 'Ford';
+  const make = normalizeText(readVehicleValue(quote, ['make']));
   const year = toFiniteNumber(readVehicleValue(quote, ['year', 'modelYear']));
   const mileage = toFiniteNumber(readVehicleValue(quote, ['mileage', 'currentMileage', 'odometer']));
   const inService = toDate(readVehicleValue(quote, ['inService', 'inServiceDate', 'originalInServiceDate']));
@@ -692,11 +697,13 @@ const resolveQuoteFacts = (quote = {}) => {
 export const getProductPurchaseContext = (quote = {}) => resolveQuoteFacts(quote).purchaseContext;
 
 const evaluateWindow = ({ facts, months, miles }) => {
-  const mileageExpired = facts.mileage !== null && facts.mileage >= miles;
-  const ageMonths = facts.inService ? wholeMonthsBetween(facts.inService, facts.asOf) : null;
+  const mileageKnown = facts.mileage !== null && facts.mileage >= 0;
+  const mileageExpired = mileageKnown && facts.mileage >= miles;
+  const ageMonths = facts.inService && facts.inService <= facts.asOf
+    ? wholeMonthsBetween(facts.inService, facts.asOf) : null;
   const timeExpired = ageMonths !== null && ageMonths >= months;
   if (mileageExpired || timeExpired) return { code: 'outside', within: false, ageMonths, mileageExpired, timeExpired };
-  if (ageMonths !== null && facts.mileage !== null) return { code: 'within', within: true, ageMonths, mileageExpired, timeExpired };
+  if (ageMonths !== null && mileageKnown) return { code: 'within', within: true, ageMonths, mileageExpired, timeExpired };
   return { code: 'unknown', within: null, ageMonths, mileageExpired, timeExpired };
 };
 
@@ -706,15 +713,14 @@ const evaluateWindow = ({ facts, months, miles }) => {
  */
 export function getWarrantyInspectionStatus(quote = {}) {
   const facts = resolveQuoteFacts(quote);
-  const limits = facts.make.toLowerCase() === 'lincoln' ? LINCOLN_NVLW : FORD_NVLW;
-  const evaluated = evaluateWindow({ facts, ...limits });
+  const make = facts.make.toLowerCase();
+  const limits = make === 'lincoln' ? LINCOLN_NVLW : ['ford', 'mercury'].includes(make) ? FORD_NVLW : null;
+  const evaluated = limits ? evaluateWindow({ facts, ...limits }) : { code: 'unknown', within: null };
   const code = evaluated.code === 'within' ? 'within-nvlw-estimate' : evaluated.code === 'outside' ? 'outside-nvlw-estimate' : 'unknown';
   const likelyWithin = evaluated.within;
-  const warrantyRecordConfirmed = Boolean(
-    quote.warrantyRecordConfirmed
-    || quote.vehicle?.warrantyRecordConfirmed
-    || quote.newVehicleLimitedWarranty?.confirmed,
-  );
+  const warrantyRecordConfirmed = quote.warrantyRecordConfirmed === true
+    || quote.vehicle?.warrantyRecordConfirmed === true
+    || quote.newVehicleLimitedWarranty?.confirmed === true;
   const inspectionRequired = warrantyRecordConfirmed
     ? likelyWithin === false ? true : likelyWithin === true ? false : null
     : null;
@@ -744,9 +750,9 @@ export function getWarrantyInspectionStatus(quote = {}) {
     caveat: 'This is a planning estimate, not a warranty lookup. Ford records, the current program rules, and the issued agreement control.',
     limits: {
       make: facts.make,
-      months: limits.months,
-      miles: limits.miles,
-      basis: facts.make.toLowerCase() === 'lincoln' ? 'Lincoln planning limit' : 'Ford planning limit',
+      months: limits?.months ?? null,
+      miles: limits?.miles ?? null,
+      basis: make === 'lincoln' ? 'Lincoln planning limit' : limits ? 'Ford planning limit' : 'Manufacturer-specific warranty review needed',
     },
   };
 }
@@ -842,7 +848,7 @@ export const quoteProducts = Object.freeze([
     highlights: [
       'Ford-backed coverage with service through participating Ford and Lincoln dealers',
       'New-plan terms are measured from the original in-service date and zero miles',
-      'Used-plan terms begin from the contract date and current odometer under the applicable agreement',
+      'Used coverage begins at signature and current mileage; remaining factory warranty can change how the selected term and mileage limits are measured',
       'Available terms, mileage limits, deductibles, and benefits are vehicle-specific',
     ],
     detailSections: [
@@ -917,8 +923,8 @@ export const quoteProducts = Object.freeze([
     eyebrow: 'More ways to plan routine care',
     value: 'Ask for the maintenance level that matches your vehicle, service needs, and ownership timeline.',
     description: 'Ford’s maintenance terms recognize Extra, Limited, and Basic maintenance paths with different service, wear-item, transfer, and selling-dealer rules.',
-    image: '/assets/ford-official/ford-maintenance.jpg',
-    imageAlt: 'Ford vehicle receiving maintenance from official Ford Protect marketing media',
+    image: '/assets/ford-official/ford-maintenance-wide.png',
+    imageAlt: 'Ford technician working on a vehicle from official Ford Protect marketing media',
     badge: 'Dealer-matched maintenance',
     requestMode: 'specialist-request',
     powertrains: ['gas', 'hybrid', 'plug-in-hybrid', 'diesel'],
@@ -998,8 +1004,8 @@ export const quoteProducts = Object.freeze([
     eyebrow: 'Focused Power Stroke protection',
     value: 'Protect eligible high-cost diesel engine components with a focused Ford-backed plan.',
     description: 'EngineCARE Plus and EngineCARE are specialist-rated plans for eligible Power Stroke diesel engines, with different listed-component coverage levels.',
-    image: '/assets/ford-official/ford-breakdown.jpg',
-    imageAlt: 'Ford vehicle service scene from official Ford Protect marketing media',
+    image: '/assets/ford-official/ford-maintenance-wide.png',
+    imageAlt: 'Ford technician inspecting an engine bay from official Ford Protect marketing media',
     badge: 'Power Stroke specialist review',
     requestMode: 'specialist-request',
     powertrains: ['diesel'],
@@ -1391,7 +1397,8 @@ const maintenanceEssentialsStatus = (facts) => {
 };
 
 const cspStatus = (facts) => {
-  if (facts.state.toLowerCase() === 'california') return status('state-unavailable', false, 'Not available in California', 'muted', 'Ford’s public CSP information says Continued Service Plan is not available in California.', false);
+  if (normalizeStateCode(facts.state) === 'california') return status('state-unavailable', false, 'Not available in California', 'muted', 'Ford’s public CSP information says Continued Service Plan is not available in California.', false);
+  if (facts.powertrain === 'electric') return status('powertrain-unavailable', false, 'Choose an EV coverage path', 'muted', 'Continued Service Plan is not offered for all-electric vehicles in this quote. Choose an EV Extended Service Plan for dealer review.', false);
   const modelAge = facts.year ? facts.asOf.getFullYear() - facts.year : null;
   if ((facts.mileage !== null && facts.mileage > CSP_ENROLLMENT_LIMITS.miles) || (modelAge !== null && modelAge > CSP_ENROLLMENT_LIMITS.modelYears)) return status('outside-published-enrollment', false, 'Outside published enrollment range', 'muted', 'Ford publishes CSP enrollment eligibility up to 12 model years and 140,000 miles. A specialist can verify whether another path applies.', false);
   if (facts.priorCoverageReadiness === false) return status('qualifying-prior-coverage-not-indicated', false, 'Qualifying prior coverage is required', 'muted', 'Continued Service Plan is a continuation path for eligible OEM warranty or Ford Protect coverage. The entered answer does not indicate qualifying prior coverage.', false);
@@ -1471,6 +1478,7 @@ const purchaseContextStatus = (product, facts) => {
 const normalizeStateCode = (value) => {
   const normalized = normalizeText(value).toLowerCase().replace(/[^a-z]/g, '');
   const aliases = {
+    ca: 'california',
     fl: 'florida',
     ga: 'georgia',
     me: 'maine',
@@ -1548,12 +1556,19 @@ export function validatePrimaryPlanEligibility(quote = {}) {
     const termMonths = toFiniteNumber(quote.termMonths);
     const termMiles = toFiniteNumber(quote.termMiles);
 
+    if (facts.powertrain !== 'unknown' && planId && (planId.includes('-ev') !== (facts.powertrain === 'electric'))) {
+      addBlocking('plan-powertrain-mismatch', facts.powertrain === 'electric'
+        ? 'Choose an EV coverage level for this all-electric vehicle.'
+        : 'Choose a gas, hybrid, or diesel coverage level for this vehicle; the selected plan is EV-only.',
+      { field: 'planId', eligibility: false, type: 'eligibility' });
+    }
+
     if (!['new', 'used'].includes(planPath)) addBlocking('missing-plan-path', 'Choose the new-plan or used-plan measurement path.', { field: 'planPath' });
     if (!planId) addBlocking('missing-plan', 'Choose an Extended Service Plan coverage level.', { field: 'planId' });
     if (productStatus.eligible === false) addBlocking(productStatus.code, productStatus.message, { field: 'planPath', eligibility: false, type: 'eligibility' });
 
     if (planPath && planId) {
-      const matrix = getTermMatrix({ planId, planPath, mileage: facts.mileage ?? 0 });
+      const matrix = getTermMatrix({ planId, planPath, mileage: facts.mileage, inService: facts.inService, make: facts.make, now: facts.asOf });
       if (termMonths === null) addBlocking('missing-term', 'Choose a protection term.', { field: 'termMonths' });
       if (termMiles === null) addBlocking('missing-mileage-limit', 'Choose the mileage limit paired with the protection term.', { field: 'termMiles' });
       if (termMonths !== null && termMiles !== null && !matrix.isAvailable(termMonths, termMiles)) {
@@ -1564,6 +1579,14 @@ export function validatePrimaryPlanEligibility(quote = {}) {
             : 'Self-service term choices are not available for this plan, measurement path, and current mileage. A specialist will help identify another supported path.',
           { field: 'termMonths', type: 'selection' },
         );
+      }
+      if (matrix.historicalWarrantyRestriction?.notice) {
+        const restriction = matrix.historicalWarrantyRestriction;
+        if (restriction.applies === true && termMonths !== null && termMiles !== null && termMonths < 24 && termMiles < 24000) {
+          addBlocking('used-short-term-warranty-restriction', restriction.notice, { field: 'termMonths', type: 'selection' });
+        } else {
+          addReview('used-short-term-warranty-review', restriction.notice, { field: 'termMonths' });
+        }
       }
 
       const deductibleId = normalizeText(quote.deductible);
@@ -1687,7 +1710,7 @@ export function validateQuoteProductRequests(quote = {}) {
       reject(productId, validationIssue('configuration-not-confirmed', 'Review and confirm this product request before continuing.', { productId, field: `productSelections.${productId}` }));
       continue;
     }
-    const configuration = validateQuoteProductSelection(productId, selection, { includeDealerOnly: false });
+    const configuration = validateQuoteProductSelection(productId, { ...selection, powertrain: facts.powertrain }, { includeDealerOnly: false });
     if (!configuration.valid) {
       reject(productId, validationIssue(configuration.code, configuration.message, { productId, field: `productSelections.${productId}` }));
     }
@@ -1709,8 +1732,14 @@ export function validateQuoteProductRequests(quote = {}) {
       reject('leasecare', validationIssue('leasecare-rentalcare-conflict', 'LeaseCARE and RentalCARE cannot be combined in the same request.', { productId: 'leasecare', type: 'conflict' }));
     }
   }
-  if (selectedSet.has('rentalcare') && (Array.isArray(quote.addOns) ? quote.addOns : []).some((id) => ['first-day', 'enhanced-rental'].includes(id))) {
-    reject('rentalcare', validationIssue('rentalcare-benefit-conflict', 'RentalCARE cannot be combined with an ESP request that retains First-Day Rental or Enhanced Rental because the rental benefits overlap.', { productId: 'rentalcare', type: 'conflict' }));
+  if (selectedSet.has('rentalcare') && (['esp', 'csp', 'enginecare'].includes(program)
+    || (Array.isArray(quote.addOns) ? quote.addOns : []).some((id) => ['first-day', 'enhanced-rental'].includes(id)))) {
+    reject('rentalcare', validationIssue('rentalcare-benefit-conflict', 'Your selected mechanical plan already includes rental benefits. RentalCARE cannot be added as a separate overlapping rental plan, even when optional rental upgrades are not selected.', { productId: 'rentalcare', type: 'conflict' }));
+  }
+  if (program === 'esp' && quote.planId === 'premium-plus-ev') {
+    for (const productId of requestedIds.filter((id) => maintenanceIds.has(id))) {
+      reject(productId, validationIssue('maintenance-already-included', 'PremiumCARE Plus EV already includes Premium Maintenance EV. A second maintenance plan would duplicate that coverage.', { productId, type: 'conflict' }));
+    }
   }
 
   if (selectedSet.has('off-road-coverage')) {
@@ -1719,6 +1748,9 @@ export function validateQuoteProductRequests(quote = {}) {
     const recognizedParents = [...new Set([...explicitParents, ...requestedParents])].filter((id) => OFF_ROAD_PARENT_PRODUCTS.includes(id));
     if (!recognizedParents.length) {
       reject('off-road-coverage', validationIssue('off-road-parent-required', 'Off-Road coverage requires an eligible TireCARE, TireCARE Plus, TripleCARE, or TripleCARE Plus product. Select one with this vehicle purchase or identify the eligible plan already owned.', { productId: 'off-road-coverage', field: 'offRoadUnderlyingProductId', type: 'dependency' }));
+    } else if (normalizeStateCode(facts.state) === 'florida'
+      && recognizedParents.every((id) => ['triplecare', 'triplecare-plus'].includes(id))) {
+      reject('off-road-coverage', validationIssue('off-road-parent-state-unavailable', 'Off-Road coverage with TripleCARE or TripleCARE Plus is not available in Florida. Bob Maxey can review whether an eligible TireCARE parent plan applies.', { productId: 'off-road-coverage', field: 'offRoadUnderlyingProductId', type: 'eligibility', eligibility: false }));
     }
   }
 
@@ -1768,7 +1800,10 @@ export function getQuoteProductCatalog(quote = {}, options = {}) {
   });
   const warranty = getWarrantyInspectionStatus(quote);
   return quoteProducts.map((product) => {
-    const selectedVariantId = quote.productSelections?.[product.id]?.variantId;
+    const storedSelection = productSelectionFor(quote, product.id);
+    const selectedVariantId = storedSelection.variantId || storedSelection.optionId
+      || (facts.powertrain === 'electric' && product.id === 'premium-maintenance' ? 'premium-maintenance-ev' : '')
+      || (facts.powertrain === 'electric' && product.id === 'windshieldcare' ? 'windshieldcare-plus-ev' : '');
     const selectedVariant = product.configuration?.variants?.find((item) => item.id === selectedVariantId)
       || product.configuration?.variants?.find((item) => item.customerSelectable !== false)
       || product.configuration?.variants?.[0];
@@ -1776,6 +1811,16 @@ export function getQuoteProductCatalog(quote = {}, options = {}) {
     let productStatus = purchaseContextStatus(product, facts);
     const stateStatus = purchaseOnlyStateStatus(product, facts, selectedVariantId);
     if (stateStatus && productStatus?.eligible !== false) productStatus = stateStatus;
+    if (productStatus?.eligible !== false && facts.powertrain !== 'unknown') {
+      if (!product.powertrains.includes(facts.powertrain)) {
+        productStatus = status('powertrain-unavailable', false, 'Choose a product for this powertrain', 'muted', `${product.name} is not listed for the selected powertrain. Choose an applicable product or ask Bob Maxey to review an alternative.`, false);
+      } else if (product.id === 'premium-maintenance' && selectedVariantId
+        && ((selectedVariantId === 'premium-maintenance-ev') !== (facts.powertrain === 'electric'))) {
+        productStatus = status('product-powertrain-mismatch', false, 'Update the maintenance option', 'muted', 'The saved maintenance option does not match this vehicle. Select Premium Maintenance EV for an all-electric vehicle or Premium Maintenance for gas, hybrid, or diesel.', false);
+      } else if (selectedVariantId === 'windshieldcare-plus-ev' && facts.powertrain !== 'electric') {
+        productStatus = status('product-powertrain-mismatch', false, 'EV glass coverage only', 'muted', 'WindshieldCARE Plus EV is for all-electric vehicles. Choose standard WindshieldCARE for a gas, hybrid, or diesel vehicle.', false);
+      }
+    }
     if (!productStatus) {
       switch (product.id) {
         case 'extended-service-plan': productStatus = espStatus(facts, warranty); break;
@@ -1788,6 +1833,13 @@ export function getQuoteProductCatalog(quote = {}, options = {}) {
         case 'off-road-coverage': productStatus = offRoadStatus(facts); break;
         default: productStatus = status('dealer-review', null, 'Dealer review', 'review', dealerConfirmation, null);
       }
+    }
+    if (productStatus.eligible !== false && product.id === 'rentalcare' && ['esp', 'csp', 'enginecare'].includes(facts.program)) {
+      productStatus = status('rentalcare-benefit-conflict', false, 'Rental benefits already included', 'muted', 'Your mechanical plan already includes rental benefits. RentalCARE cannot be added as an overlapping separate rental plan.', false);
+    }
+    if (productStatus.eligible !== false && ['premium-maintenance', 'maintenance-essentials'].includes(product.id)
+      && facts.program === 'esp' && quote.planId === 'premium-plus-ev') {
+      productStatus = status('maintenance-already-included', false, 'Maintenance already included', 'muted', 'PremiumCARE Plus EV already includes Premium Maintenance EV. No second maintenance plan is needed.', false);
     }
     const recommended = (
       (product.id === 'extended-service-plan' && facts.program !== 'csp')

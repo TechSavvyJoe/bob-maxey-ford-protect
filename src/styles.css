@@ -269,7 +269,7 @@ p {
 .hero__media {
   position: absolute;
   inset: 0;
-  background-image: url('/assets/hero-bronco.png');
+  background-image: url('/assets/hero-bronco.webp');
   background-size: cover;
   background-position: center;
 }
@@ -822,7 +822,7 @@ p {
 .road-band__media {
   position: absolute;
   inset: 0 0 0 41%;
-  background-image: url('/assets/road-expedition.png');
+  background-image: url('/assets/road-expedition.webp');
   background-size: cover;
   background-position: 65% center;
 }

@@ -210,7 +210,9 @@ export default function ProductDetail({ productId, onBack, onQuote, onContact, o
 
   const quoteProduct = getQuoteProductDefinition(quoteProductIds[detail.id] || detail.id);
   const eligibility = asEligibility(detail, quoteProduct);
-  const variant = quoteProduct?.configuration?.variants?.[0];
+  const variant = quoteProduct?.configuration?.variants?.find((item) => item.id === detail.id)
+    || quoteProduct?.configuration?.variants?.find((item) => item.label?.toLowerCase().includes(detail.name.toLowerCase()))
+    || quoteProduct?.configuration?.variants?.[0];
   const purchaseWindow = variant?.purchaseWindowLabel || detail.maxTerm;
   const requestableDealerProduct = detail.quoteMode === 'dealer' && Boolean(quoteProduct?.purchaseContexts?.length);
   const requiredPurchaseContext = quoteProduct?.purchaseContexts?.length === 1 ? quoteProduct.purchaseContexts[0] : undefined;

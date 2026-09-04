@@ -91,7 +91,7 @@ const TERM_MATRIX_SOURCE = Object.freeze({
   planningOnly: true,
 });
 
-const matrixNotice = 'Reference choices from Ford\'s September 2024 Michigan retail guide. Ford records and the current VIN-specific dealer rating result must verify every plan, term, mileage, deductible, benefit, and price.';
+const matrixNotice = 'These choices help build a request. Ford records and the current VIN-specific offer must confirm the plan, term, mileage, deductible, benefits, and price.';
 
 export const getTermMatrix = ({ planId, planPath, mileage = 0 }) => {
   if (planPath === 'new') {
@@ -104,7 +104,7 @@ export const getTermMatrix = ({ planId, planPath, mileage = 0 }) => {
         mileageMode: 'total',
         planningOnly: true,
         source: TERM_MATRIX_SOURCE,
-        notice: `${matrixNotice} No historical new-plan grid is stored for this plan.`,
+        notice: `${matrixNotice} No self-service new-plan choices are available for this plan.`,
       };
     }
     return {
@@ -127,7 +127,7 @@ export const getTermMatrix = ({ planId, planPath, mileage = 0 }) => {
       currentMileageBandMaximum: null,
       planningOnly: true,
       source: TERM_MATRIX_SOURCE,
-      notice: `${matrixNotice} The supplied guide does not contain a used-plan grid for this plan.`,
+      notice: `${matrixNotice} No self-service used-plan choices are available for this plan.`,
       isAvailable: () => false,
     };
   }
@@ -150,11 +150,11 @@ export const getTermMatrix = ({ planId, planPath, mileage = 0 }) => {
 };
 
 export const deductibleOptions = [
-  { id: '0', label: '$0', help: 'Historical new-plan reference; Ford must return it for this vehicle and plan. PremiumCARE Plus EV used $0 in the supplied guide.', paths: ['new'], planIds: 'all', planningOnly: true },
-  { id: '50', label: '$50', help: 'Historical reference; Ford must return it for this vehicle and plan.', paths: ['new', 'used'], planIds: ['premium', 'extra', 'base', 'powertrain', 'premium-ev', 'extra-ev', 'base-ev'], planningOnly: true },
-  { id: '100', label: '$100', help: 'Standard amount shown in the historical guide; the current Ford offer controls.', paths: ['new', 'used'], planIds: ['premium', 'extra', 'base', 'powertrain', 'premium-ev', 'extra-ev', 'base-ev'], recommended: true, planningOnly: true },
-  { id: '200', label: '$200', help: 'Historical reference; Ford must return it for this vehicle and plan.', paths: ['new', 'used'], planIds: ['premium', 'extra', 'base', 'powertrain', 'premium-ev', 'extra-ev', 'base-ev'], planningOnly: true },
-  { id: 'disappearing', label: 'Disappearing', help: 'Historical reference; waiver rules and availability require the current agreement.', paths: ['new', 'used'], planIds: ['premium', 'extra', 'base', 'powertrain', 'premium-ev', 'extra-ev', 'base-ev'], planningOnly: true },
+  { id: '0', label: '$0', help: 'Available only when included in the current Ford offer for this vehicle and plan.', paths: ['new'], planIds: 'all', planningOnly: true },
+  { id: '50', label: '$50', help: 'Request this amount; Bob Maxey confirms availability in the current Ford offer.', paths: ['new', 'used'], planIds: ['premium', 'extra', 'base', 'powertrain', 'premium-ev', 'extra-ev', 'base-ev'], planningOnly: true },
+  { id: '100', label: '$100', help: 'A common planning choice; the current Ford offer confirms availability.', paths: ['new', 'used'], planIds: ['premium', 'extra', 'base', 'powertrain', 'premium-ev', 'extra-ev', 'base-ev'], recommended: true, planningOnly: true },
+  { id: '200', label: '$200', help: 'Request this amount; Bob Maxey confirms availability in the current Ford offer.', paths: ['new', 'used'], planIds: ['premium', 'extra', 'base', 'powertrain', 'premium-ev', 'extra-ev', 'base-ev'], planningOnly: true },
+  { id: 'disappearing', label: 'Disappearing', help: 'The current agreement confirms availability and when the deductible may be waived.', paths: ['new', 'used'], planIds: ['premium', 'extra', 'base', 'powertrain', 'premium-ev', 'extra-ev', 'base-ev'], planningOnly: true },
 ];
 
 export const isDeductibleAvailable = (option, { planId, planPath, termMiles } = {}) => {
@@ -171,7 +171,7 @@ export const protectionOptions = [
   {
     id: 'first-day',
     title: 'Keep First-Day Rental',
-    short: 'The historical guide presents this as an included benefit that could be deleted. The current Ford offer confirms its status.',
+    short: 'Ask to retain eligible rental support beginning on the first day of a covered repair. The current Ford offer confirms availability.',
     planIds: 'all',
     planPaths: ['new', 'used'],
     selectionMeaning: 'retain-benefit',
@@ -180,7 +180,7 @@ export const protectionOptions = [
   {
     id: 'enhanced-rental',
     title: 'Keep Enhanced Rental',
-    short: 'The historical guide presents enhanced daily rental as a benefit that could be deleted. Ford must verify the current amount and availability.',
+    short: 'Ask to retain the enhanced rental benefit. The current Ford offer confirms the daily amount, limits, and availability.',
     planIds: 'all',
     planPaths: ['new', 'used'],
     selectionMeaning: 'retain-benefit',
@@ -189,7 +189,7 @@ export const protectionOptions = [
   {
     id: 'key',
     title: 'Keep Key Services',
-    short: 'The historical guide presents Key Services as a benefit that could be deleted. The current offer confirms eligibility and limits.',
+    short: 'Ask to retain eligible key-replacement assistance. The current Ford offer confirms eligibility and limits.',
     planIds: 'all',
     planPaths: ['new', 'used'],
     selectionMeaning: 'retain-benefit',
@@ -198,7 +198,7 @@ export const protectionOptions = [
   {
     id: 'lighting',
     title: 'Keep Interior / Exterior Lighting',
-    short: 'Historical PremiumCARE benefit that could be deleted. Ford must verify the vehicle, plan, term, and lighting eligibility.',
+    short: 'Ask to retain eligible interior and exterior lighting coverage. The current Ford offer confirms the vehicle, plan, term, and covered lighting.',
     planIds: ['premium', 'premium-ev', 'premium-plus-ev'],
     planPaths: ['new', 'used'],
     selectionMeaning: 'retain-benefit',
@@ -207,7 +207,7 @@ export const protectionOptions = [
   {
     id: 'pickup-delivery',
     title: 'Add Pickup & Delivery',
-    short: 'Historical new-plan PremiumCARE reference. Distance, First-Day Rental, and current-offer rules apply.',
+    short: 'Ask whether eligible pickup-and-delivery support can be added. Distance, rental-benefit, and current-offer rules apply.',
     planIds: ['premium', 'premium-ev', 'premium-plus-ev'],
     planPaths: ['new'],
     selectionMeaning: 'add-benefit',

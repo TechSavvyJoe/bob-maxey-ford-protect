@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { CheckCircle2, X } from 'lucide-react';
 import Header from './components/Header';
 import Hero from './components/Hero';
@@ -14,15 +14,40 @@ import TrustFooter from './components/TrustFooter';
 import { ContactPanel, ResourcePanel, SavedQuotes } from './components/UtilityModal';
 import { hiddenCustomerProductIds, productCategories } from './data';
 import { appPathname, appUrl } from './paths';
+import { routeAnnouncement, routeDocumentTitle } from './routeAccessibility';
 
 const validPages = ['home', 'products', 'compare', 'eligibility', 'how-it-works', 'resources'];
 const hiddenCustomerProductIdSet = new Set(hiddenCustomerProductIds);
-const availableProductIds = new Set(
-  productCategories
-    .flatMap((category) => category.products)
-    .filter((product) => !hiddenCustomerProductIdSet.has(product.id))
-    .map((product) => product.id),
-);
+const availableProducts = productCategories
+  .flatMap((category) => category.products)
+  .filter((product) => !hiddenCustomerProductIdSet.has(product.id));
+const availableProductIds = new Set(availableProducts.map((product) => product.id));
+const availableProductById = new Map(availableProducts.map((product) => [product.id, product]));
+const visuallyHiddenStyle = {
+  position: 'absolute',
+  width: '1px',
+  height: '1px',
+  padding: 0,
+  margin: '-1px',
+  overflow: 'hidden',
+  clip: 'rect(0, 0, 0, 0)',
+  whiteSpace: 'nowrap',
+  border: 0,
+};
+const skipLinkStyle = {
+  position: 'fixed',
+  zIndex: 10000,
+  top: '12px',
+  left: '12px',
+  padding: '12px 16px',
+  border: '2px solid #0068d9',
+  borderRadius: '4px',
+  background: '#ffffff',
+  color: '#001f49',
+  fontWeight: 800,
+  textDecoration: 'none',
+  transform: 'translateY(-160%)',
+};
 const pageFromPath = () => {
   const slug = appPathname().split('/').filter(Boolean)[0] || 'home';
   return validPages.includes(slug) ? slug : 'home';
@@ -46,6 +71,12 @@ export default function App() {
   const [contactLocation, setContactLocation] = useState('');
   const [resourceKey, setResourceKey] = useState('');
   const [toast, setToast] = useState('');
+  const [skipLinkFocused, setSkipLinkFocused] = useState(false);
+  const mainRef = useRef(null);
+  const initialRouteHandledRef = useRef(false);
+  const productName = availableProductById.get(productId)?.name || '';
+  const routeLabel = routeAnnouncement(page, productName);
+  const routeTitle = routeDocumentTitle(page, productName);
 
   useEffect(() => {
     if (!toast) return undefined;
@@ -63,6 +94,16 @@ export default function App() {
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
+
+  useEffect(() => {
+    document.title = routeTitle;
+    if (!initialRouteHandledRef.current) {
+      initialRouteHandledRef.current = true;
+      return undefined;
+    }
+    const frame = window.requestAnimationFrame(() => mainRef.current?.focus?.({ preventScroll: true }));
+    return () => window.cancelAnimationFrame(frame);
+  }, [routeTitle]);
 
   const navigate = useCallback((nextPage) => {
     const next = validPages.includes(nextPage) ? nextPage : 'home';
@@ -103,8 +144,22 @@ export default function App() {
 
   return (
     <div className="app-shell">
+      <a
+        href="#main-content"
+        style={{ ...skipLinkStyle, transform: skipLinkFocused ? 'translateY(0)' : skipLinkStyle.transform }}
+        onFocus={() => setSkipLinkFocused(true)}
+        onBlur={() => setSkipLinkFocused(false)}
+        onClick={(event) => {
+          event.preventDefault();
+          mainRef.current?.focus?.();
+          mainRef.current?.scrollIntoView?.({ block: 'start' });
+        }}
+      >
+        Skip to main content
+      </a>
+      <p role="status" aria-live="polite" aria-atomic="true" style={visuallyHiddenStyle}>{routeLabel}</p>
       <Header onQuote={openQuote} onSaved={() => setUtility('saved')} onNavigate={navigate} page={page} />
-      <main className={`site-page site-page--${page}`}>
+      <main ref={mainRef} id="main-content" tabIndex="-1" aria-label={routeLabel} className={`site-page site-page--${page}`}>
         {page === 'home' && <><Hero onQuote={openQuote} onCompare={() => navigate('compare')} /><HomeOverview onNavigate={navigate} onQuote={openQuote} /></>}
         {page === 'products' && (productId
           ? <ProductDetail productId={productId} onBack={() => navigate('products')} onQuote={openQuote} onContact={openContact} onCompare={() => navigate('compare')} />

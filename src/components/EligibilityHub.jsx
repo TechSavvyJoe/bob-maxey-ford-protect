@@ -20,7 +20,7 @@ export default function EligibilityHub({ onQuote, onContact }) {
           <button className={warrantyPath === 'outside' ? 'is-active' : ''} type="button" aria-pressed={warrantyPath === 'outside'} onClick={() => setWarrantyPath('outside')}><Gauge /><span><strong>No—factory warranty has ended</strong><small>Show the out-of-warranty enrollment path</small></span><ArrowRight /></button>
         </div>
         <div className={`eligibility-answer eligibility-answer--${warrantyPath}`} aria-live="polite">
-          {warrantyPath === 'within' ? <><ShieldCheck /><div><small>IN-WARRANTY ESP PATH</small><h3>No used-plan inspection when Ford records confirm warranty remains.</h3><p>Ford’s referenced rule requires the Used Vehicle Inspection Checklist only when a used-plan ESP vehicle is outside the New Vehicle Limited Warranty. Bob Maxey verifies the VIN and warranty record first.</p></div></> : <><ClipboardCheck /><div><small>OUT-OF-WARRANTY ESP PATH</small><h3>Inspection required if Ford records confirm this path.</h3><p>When Ford records confirm a used-plan ESP vehicle is outside the New Vehicle Limited Warranty, the referenced rule requires a completed Used Vehicle Inspection Checklist before enrollment.</p></div></>}
+          {warrantyPath === 'within' ? <><ShieldCheck /><div><small>IN-WARRANTY ESP PATH</small><h3>No used-plan inspection when Ford records confirm warranty remains.</h3><p>Ford’s Used Vehicle Inspection Checklist applies when a used-plan ESP vehicle is outside the New Vehicle Limited Warranty. Bob Maxey verifies the VIN and warranty record first.</p></div></> : <><ClipboardCheck /><div><small>OUT-OF-WARRANTY ESP PATH</small><h3>Inspection required if Ford records confirm this path.</h3><p>When Ford records confirm a used-plan ESP vehicle is outside the New Vehicle Limited Warranty, a participating Ford dealership must complete Ford’s Used Vehicle Inspection Checklist before enrollment.</p></div></>}
         </div>
         <p className="eligibility-csp-note"><Check /><span><strong>Continued Service Plan is a separate path:</strong> Ford’s current CSP buyer guide states no enrollment inspection is required.</span></p>
       </section>
@@ -33,7 +33,7 @@ export default function EligibilityHub({ onQuote, onContact }) {
         <aside className="eligibility-review__special">
           <article><Zap /><div><h3>Electric vehicles</h3><p>EV-specific systems and battery-warranty information route the vehicle to the correct lineup.</p></div></article>
           <article><BriefcaseBusiness /><div><h3>Commercial, plow, upfit or medium duty</h3><p>Vehicle class, use, equipment, mileage and hours require specialist review.</p></div></article>
-          <button type="button" onClick={() => onContact()}>Talk with a Ford Protect specialist <ArrowRight /></button>
+          <button type="button" onClick={() => onContact()}>Talk with a Bob Maxey Ford Protect specialist <ArrowRight /></button>
         </aside>
       </section>
     </section>

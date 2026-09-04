@@ -7,7 +7,7 @@ export default function Hero({ onQuote, onCompare }) {
       <div className="page-shell hero__content">
         <div className="hero__copy">
           <span className="hero__eyebrow">Genuine Ford Protect · Bob Maxey support</span>
-          <h1>Protect your Ford<br />for the road ahead.</h1>
+          <h1>Protect your Ford<br /> for the road ahead.</h1>
           <p>Compare Ford-backed coverage, match it to your vehicle, and have Bob Maxey confirm the exact options and price.</p>
           <div className="hero__actions">
             <button className="button button--primary button--large" type="button" onClick={() => onQuote()}>
@@ -19,7 +19,7 @@ export default function Hero({ onQuote, onCompare }) {
           </div>
           <div className="hero__trust" aria-label="Ford Protect benefits">
             <span><ShieldCheck /><b>Backed by Ford</b></span>
-            <span><MapPin /><b>Nationwide dealer support</b></span>
+            <span><MapPin /><b>Dealer support in the U.S., Canada &amp; Mexico</b></span>
           </div>
         </div>
       </div>

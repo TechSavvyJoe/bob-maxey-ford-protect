@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createAdfXml, submitCrmLead } from './crmLead.js';
+import { buildLeadComments, createAdfXml, minimizeLeadUrl, submitCrmLead } from './crmLead.js';
 import { CONTACT_CONSENT_TEXT, CONTACT_CONSENT_VERSION } from './consent.js';
 
 const consentedQuote = {
@@ -72,6 +72,53 @@ test('CRM XML carries vehicle situation, decoded facts, and exact consent metada
   assert.match(xml, new RegExp(`CONTACT CONSENT VERSION: ${CONTACT_CONSENT_VERSION}`));
   assert.match(xml, /CONTACT CONSENT ACCEPTED AT: 2026-09-03T12:00:00.000Z/);
   assert.match(xml, /ENGINE: 2.0L 4 cylinders/);
+});
+
+test('CRM source URLs omit arbitrary query data while retaining explicit campaign fields', () => {
+  assert.equal(
+    minimizeLeadUrl('https://example.test/products?email=customer%40example.test&utm_source=ford&utm_campaign=fall#quote', { keepCampaign: true }),
+    'https://example.test/products?utm_source=ford&utm_campaign=fall',
+  );
+  assert.equal(
+    minimizeLeadUrl('https://search.example.test/path?q=private&utm_source=ignored'),
+    'https://search.example.test/path',
+  );
+  assert.equal(minimizeLeadUrl('javascript:alert(1)'), '');
+});
+
+test('products-only CRM comments do not invent a mechanical plan, term, mileage, or deductible', () => {
+  const comments = buildLeadComments({
+    ...consentedQuote,
+    vehicleSituation: 'new-purchase',
+    purchaseContext: 'shopping',
+    transactionMethod: 'finance',
+    year: '2026',
+    make: 'Ford',
+    model: 'Escape',
+    mileage: 500,
+    inServiceUnknown: true,
+    state: 'Michigan',
+    program: 'products-only',
+    paymentPreference: 'Pay in full',
+    preferredContact: 'phone',
+    requestedProductIds: ['tirecare-plus'],
+    productSelections: {
+      'tirecare-plus': { variantId: 'tirecare-plus', termMonths: 60, termMiles: null, confirmed: true },
+    },
+  });
+
+  assert.match(comments, /REQUEST TYPE: Ford Protect products only/);
+  assert.match(comments, /PRODUCTS REQUESTED: TireCARE Plus/);
+  assert.match(comments, /PAYMENT PREFERENCE: Show the total price/);
+  assert.match(comments, /PREFERRED CONTACT: Phone call/);
+  assert.doesNotMatch(comments, /PAYMENT PREFERENCE: Pay in full/);
+  assert.doesNotMatch(comments, /PRIMARY MECHANICAL COVERAGE:/);
+  assert.doesNotMatch(comments, /SERVICE-CONTRACT DEDUCTIBLE:/);
+  assert.doesNotMatch(comments, /COVERAGE PATH: New plan/);
+  assert.doesNotMatch(comments, /TERM: 0 months/);
+  assert.doesNotMatch(comments, /TOTAL ODOMETER LIMIT: 0 miles/);
+  assert.doesNotMatch(comments, /DEDUCTIBLE REQUEST: \$100/);
+  assert.doesNotMatch(comments, /PLAN OPTIONS REQUESTED:/);
 });
 
 test('an unconfigured CRM returns a non-success result without attempting delivery', async () => {

@@ -1,8 +1,21 @@
+import {
+  deductibleOptions,
+  getTermMatrix,
+  isDeductibleAvailable,
+  isProtectionOptionAvailable,
+  protectionOptions,
+} from './quoteData.js';
+
 const FORD_NVLW = Object.freeze({ months: 36, miles: 36000 });
 const LINCOLN_NVLW = Object.freeze({ months: 48, miles: 50000 });
 const RENTALCARE_WINDOW = Object.freeze({ months: 36, miles: 36000 });
 const OFF_ROAD_AFTER_SALE_WINDOW = Object.freeze({ months: 36, miles: 36000 });
 const DIESEL_ENGINE_WINDOW = Object.freeze({ months: 60, miles: 100000 });
+const DIESEL_ENGINE_HOUR_ENROLLMENT_LIMIT = 4000;
+const CSP_ENROLLMENT_LIMITS = Object.freeze({ modelYears: 12, miles: 140000 });
+const CSP_LEVELS = Object.freeze(['ultimate', 'standard-plus']);
+const DIESEL_ENGINECARE_LEVELS = Object.freeze(['diesel-enginecare-plus', 'diesel-enginecare']);
+const OFF_ROAD_PARENT_PRODUCTS = Object.freeze(['tirecare', 'tirecare-plus', 'triplecare', 'triplecare-plus']);
 
 export const PRODUCT_PURCHASE_CONTEXTS = Object.freeze({
   shopping: Object.freeze({
@@ -40,14 +53,14 @@ const GUIDE_SOURCE = Object.freeze({
   title: 'Ford/Lincoln Protect MI Retail Price Book',
   edition: 'September 2024',
   planningOnly: true,
-  notice: 'Historical Michigan guide data is used to organize planning choices only. It is not a current price book or a promise that a product, term, mileage, option, or combination is available. Ford records and the current VIN-specific dealer rating result control.',
+  notice: 'These choices help organize a request. Bob Maxey must confirm the product, term, mileage, options, and price in the current VIN-specific Ford offer.',
 });
 
 const CURRENT_SOURCE = Object.freeze({
   kind: 'current-public-ford',
   title: 'Current Ford Protect public product information',
   planningOnly: false,
-  notice: 'Current public product pages establish the customer-facing purchase-timing hierarchy. The current dealer rating result and issued agreement still control VIN-specific eligibility and terms.',
+  notice: 'Ford product information helps explain this choice. The current VIN-specific Ford offer and issued agreement control eligibility and terms.',
 });
 
 const termMileageMatrix = (rows) => Object.freeze(Object.entries(rows).map(([months, miles]) => Object.freeze({
@@ -187,7 +200,7 @@ export const FORD_PROTECT_PRODUCT_RULES = Object.freeze({
     id: 'extended-service-plan', label: 'Extended Service Plan', purchaseContexts: ['shopping', 'owner'], purchaseTiming: 'vehicle-purchase-or-after-sale',
     currentPublicStatus: 'vin-rated', selectionModel: 'plan-term-mileage-deductible', coverageStart: 'New-plan coverage is measured from original in-service date and zero miles; used-plan coverage follows the issued contract date/current-odometer rules.',
     purchaseWindow: 'New- and used-plan paths depend on Ford records, current mileage, state, use, inspection status, and program rules.',
-    inspection: 'For an ESP used-plan enrollment: no used-vehicle inspection while within the New Vehicle Limited Warranty; outside it, a Bob Maxey Used Vehicle Inspection Checklist is required before finalization.',
+    inspection: 'For an ESP used-plan enrollment: no used-vehicle inspection while within the New Vehicle Limited Warranty; outside it, a completed Used Vehicle Inspection Checklist from a participating dealership, such as Bob Maxey, is required before finalization.',
     compatibility: ['Plan level, term, mileage, deductible, optional benefits, powertrain, and usage must match the Ford rating result.'], source: CURRENT_SOURCE,
   }),
   'continued-service-plan': configurationRule({
@@ -200,56 +213,56 @@ export const FORD_PROTECT_PRODUCT_RULES = Object.freeze({
   'premium-maintenance': configurationRule({
     id: 'premium-maintenance', label: 'Premium Maintenance Plan', purchaseContexts: ['shopping', 'owner'], purchaseTiming: 'vehicle-purchase-or-after-sale-within-nvlw',
     selectionModel: 'powertrain-term-mileage-service-interval', termMileage: PREMIUM_MAINTENANCE_GAS_DIESEL_MATRIX, serviceIntervals: [5000, 7500, 10000],
-    coverageStart: 'Historical guide basis: original warranty start date and zero miles; expires at the earlier selected time or mileage.',
-    purchaseWindow: 'Current public rule: purchase during the New Vehicle Limited Warranty. The September 2024 guide contains a broader historical 5-month/5,000-mile-from-expiration rule; use the current Ford rating result, not the historical window.',
+    coverageStart: 'Coverage is measured from the original warranty start date and zero miles and ends at the earlier selected time or mileage limit.',
+    purchaseWindow: 'Available during the applicable New Vehicle Limited Warranty; Bob Maxey confirms eligibility and available choices for the VIN.',
     inspection: 'No separate maintenance-plan enrollment inspection is represented; vehicle and program eligibility still require Ford review.',
-    compatibility: ['Gas, hybrid, plug-in hybrid, and eligible diesel.', 'Full-synthetic oil option is required when the vehicle specifies full synthetic oil.', 'Exact matrix is historical planning data.'], source: CURRENT_SOURCE, configurationSource: GUIDE_SOURCE,
+    compatibility: ['Gas, hybrid, plug-in hybrid, and eligible diesel.', 'Full-synthetic oil option is required when the vehicle specifies full synthetic oil.', 'Available term, mileage, and service-interval combinations are confirmed for the VIN.'], source: CURRENT_SOURCE, configurationSource: GUIDE_SOURCE,
   }),
   'premium-maintenance-ev': configurationRule({
     id: 'premium-maintenance-ev', label: 'Premium Maintenance EV', purchaseContexts: ['shopping', 'owner'], purchaseTiming: 'vehicle-purchase-or-after-sale-within-nvlw',
     selectionModel: 'term-mileage-service-interval', termMileage: PREMIUM_MAINTENANCE_EV_MATRIX, serviceIntervals: [10000],
-    coverageStart: 'Historical guide basis: original warranty start date and zero miles; expires at the earlier selected time or mileage.',
-    purchaseWindow: 'Current public rule: purchase during the New Vehicle Limited Warranty; current VIN review controls.',
+    coverageStart: 'Coverage is measured from the original warranty start date and zero miles and ends at the earlier selected time or mileage limit.',
+    purchaseWindow: 'Available during the applicable New Vehicle Limited Warranty; Bob Maxey confirms eligibility and available choices for the VIN.',
     inspection: 'No separate maintenance-plan enrollment inspection is represented.',
-    compatibility: ['Electric vehicles only.', 'Do not duplicate maintenance already bundled with an eligible PremiumCARE Plus EV plan.', 'Exact matrix is historical planning data.'], source: CURRENT_SOURCE, configurationSource: GUIDE_SOURCE,
+    compatibility: ['Electric vehicles only.', 'Do not duplicate maintenance already bundled with an eligible PremiumCARE Plus EV plan.', 'Available term, mileage, and service-interval combinations are confirmed for the VIN.'], source: CURRENT_SOURCE, configurationSource: GUIDE_SOURCE,
   }),
   'extra-maintenance': configurationRule({
     id: 'extra-maintenance', label: 'Extra Maintenance Plan', purchaseContexts: ['shopping', 'owner'], purchaseTiming: 'dealer-confirmed-after-sale-window',
     currentPublicStatus: 'historical-rating-system-only', selectionModel: 'powertrain-term-mileage-service-interval', termMileage: EXTRA_MAINTENANCE_MATRIX, serviceIntervals: [5000, 7500, 10000],
-    coverageStart: 'Historical guide basis: original warranty start date and zero miles; expires at the earlier selected time or mileage.',
-    purchaseWindow: 'September 2024 guide: within 5 months/5,000 miles from expiration of the New Vehicle Limited Warranty. Current public Ford sources do not independently verify this grid/window.',
-    inspection: 'No separate maintenance-plan enrollment inspection is stated in the historical guide.',
-    compatibility: ['Non-EV only.', 'Vehicles requiring full synthetic oil were excluded in the referenced guide.', 'Do not customer-guarantee this path until the current dealer rating system returns it.'], customerSelectable: false,
+    coverageStart: 'The current offer confirms whether coverage is measured from the original warranty start date and zero miles.',
+    purchaseWindow: 'Ask Bob Maxey to verify whether this plan is currently available near the end of the New Vehicle Limited Warranty.',
+    inspection: 'No separate vehicle inspection is expected for this maintenance request; Bob Maxey confirms current requirements.',
+    compatibility: ['Non-EV only.', 'Vehicles requiring full-synthetic oil may be excluded.', 'This option is shown for specialist review and cannot be promised until the current Ford offer returns it.'], customerSelectable: false,
   }),
   'limited-maintenance': configurationRule({
     id: 'limited-maintenance', label: 'Limited Maintenance Plan', purchaseContexts: ['shopping', 'owner'], purchaseTiming: 'historically-any-time-during-ownership',
     currentPublicStatus: 'historical-rating-system-only', selectionModel: 'powertrain-term-mileage-service-interval', termMileage: LIMITED_MAINTENANCE_MATRIX, serviceIntervals: [3000, 5000, 7500, 10000], serviceIntervalRules: LIMITED_MAINTENANCE_INTERVAL_RULES,
-    coverageStart: 'Historical guide basis: signature date and current odometer.', purchaseWindow: 'September 2024 guide: any time during vehicle ownership. Current public Ford sources do not independently verify this grid/window.',
-    inspection: 'No separate maintenance-plan enrollment inspection is stated in the historical guide.',
-    compatibility: ['Gas/hybrid intervals: 3,000/5,000/7,500/10,000 miles by combination.', 'Diesel intervals: 5,000/7,500/10,000 miles by combination.', 'EV and fuel-cell vehicles excluded in the referenced guide.', 'Do not customer-guarantee until returned by the current dealer rating system.'], customerSelectable: false,
+    coverageStart: 'The current offer confirms whether coverage begins on the signature date and current odometer.', purchaseWindow: 'May be requested during vehicle ownership; Bob Maxey must confirm current program availability.',
+    inspection: 'No separate vehicle inspection is expected for this maintenance request; Bob Maxey confirms current requirements.',
+    compatibility: ['Gas/hybrid intervals can vary by selected combination.', 'Diesel intervals can vary by selected combination.', 'EV and fuel-cell vehicles are not presented for this plan.', 'This option is shown for specialist review and cannot be promised until the current Ford offer returns it.'], customerSelectable: false,
   }),
   'basic-maintenance': configurationRule({
     id: 'basic-maintenance', label: 'Basic Maintenance Plan', purchaseContexts: ['shopping', 'owner'], purchaseTiming: 'historically-any-time-during-ownership',
     currentPublicStatus: 'historical-rating-system-only', selectionModel: 'powertrain-term-mileage-service-interval', termMileage: BASIC_MAINTENANCE_MATRIX, serviceIntervals: [3000, 5000, 7500, 10000], serviceIntervalRules: BASIC_MAINTENANCE_INTERVAL_RULES,
-    coverageStart: 'Historical guide basis: signature date and current odometer.', purchaseWindow: 'September 2024 guide: any time during vehicle ownership. Current public Ford sources do not independently verify this grid/window.',
-    inspection: 'No separate maintenance-plan enrollment inspection is stated in the historical guide.',
-    compatibility: ['Gas/hybrid intervals: 3,000/5,000/7,500/10,000 miles by combination.', 'Diesel intervals: 5,000/7,500/10,000 miles by combination.', 'Full-synthetic-oil, EV, and fuel-cell vehicles excluded in the referenced guide.', 'Do not customer-guarantee until returned by the current dealer rating system.'], customerSelectable: false,
+    coverageStart: 'The current offer confirms whether coverage begins on the signature date and current odometer.', purchaseWindow: 'May be requested during vehicle ownership; Bob Maxey must confirm current program availability.',
+    inspection: 'No separate vehicle inspection is expected for this maintenance request; Bob Maxey confirms current requirements.',
+    compatibility: ['Gas/hybrid intervals can vary by selected combination.', 'Diesel intervals can vary by selected combination.', 'Vehicles requiring full-synthetic oil, EVs, and fuel-cell vehicles are not presented for this plan.', 'This option is shown for specialist review and cannot be promised until the current Ford offer returns it.'], customerSelectable: false,
   }),
   'diesel-enginecare-plus': configurationRule({
     id: 'diesel-enginecare-plus', label: 'Diesel EngineCARE Plus', purchaseContexts: ['shopping', 'owner'], purchaseTiming: 'vehicle-purchase-or-after-sale-within-diesel-warranty',
     selectionModel: 'fixed-time-mileage-hours', termMileage: termMileageMatrix({ 84: [200000] }), serviceIntervals: [], engineHourLimits: [8000],
-    coverageStart: 'Historical guide basis: original warranty start date and zero miles/engine hours; expires at the earliest selected time, mileage, or equivalent engine hours.',
-    purchaseWindow: 'Within the 5-year/100,000-mile/4,000-hour diesel engine warranty under the September 2024 guide; current Ford rating result controls.',
+    coverageStart: 'The current offer confirms whether coverage is measured from the original warranty start date and zero miles or engine hours.',
+    purchaseWindow: 'Request while the applicable 5-year/100,000-mile/4,000-hour diesel engine warranty is active; Bob Maxey confirms current eligibility.',
     inspection: 'Any record or inspection requirement is established by the current Ford program.',
-    compatibility: ['Eligible factory-installed 3.0L, 3.2L, or 6.7L Power Stroke diesel.', 'Fixed referenced limit: 7 years/200,000 miles/8,000 hours.', 'Current availability requires specialist review.'],
+    compatibility: ['Eligible factory-installed 3.0L, 3.2L, or 6.7L Power Stroke diesel.', 'Planning maximum: 7 years/200,000 miles/8,000 hours.', 'Current availability requires specialist review.'],
   }),
   'diesel-enginecare': configurationRule({
     id: 'diesel-enginecare', label: 'Diesel EngineCARE', purchaseContexts: ['shopping', 'owner'], purchaseTiming: 'vehicle-purchase-or-after-sale-within-diesel-warranty',
     selectionModel: 'fixed-time-mileage-hours', termMileage: termMileageMatrix({ 84: [200000] }), serviceIntervals: [], engineHourLimits: [8000],
-    coverageStart: 'Historical guide basis: original warranty start date and zero miles/engine hours; expires at the earliest selected time, mileage, or equivalent engine hours.',
-    purchaseWindow: 'Within the 5-year/100,000-mile/4,000-hour diesel engine warranty under the September 2024 guide; current Ford rating result controls.',
+    coverageStart: 'The current offer confirms whether coverage is measured from the original warranty start date and zero miles or engine hours.',
+    purchaseWindow: 'Request while the applicable 5-year/100,000-mile/4,000-hour diesel engine warranty is active; Bob Maxey confirms current eligibility.',
     inspection: 'Any record or inspection requirement is established by the current Ford program.',
-    compatibility: ['Eligible factory-installed 3.0L, 3.2L, or 6.7L Power Stroke diesel.', 'Fixed referenced limit: 7 years/200,000 miles/8,000 hours.', 'Current availability requires specialist review.'],
+    compatibility: ['Eligible factory-installed 3.0L, 3.2L, or 6.7L Power Stroke diesel.', 'Planning maximum: 7 years/200,000 miles/8,000 hours.', 'Current availability requires specialist review.'],
   }),
   'tirecare-plus': configurationRule({
     id: 'tirecare-plus', label: 'TireCARE Plus', purchaseContexts: ['shopping'], purchaseTiming: 'original-vehicle-transaction-only',
@@ -322,17 +335,17 @@ export const FORD_PROTECT_PRODUCT_RULES = Object.freeze({
   }),
   rentalcare: configurationRule({
     id: 'rentalcare', label: 'RentalCARE', purchaseContexts: ['shopping', 'owner'], purchaseTiming: 'vehicle-purchase-or-after-sale-before-3yr-36k', currentPublicStatus: 'dealer-verification-only', selectionModel: 'dealer-rating-only',
-    coverageStart: 'Historical guide reference: coverage was measured from the warranty start date and zero miles. A current dealer-returned offer must establish whether RentalCARE still exists and every applicable start rule.',
-    purchaseWindow: 'The supplied September 2024 guide described enrollment before the earlier of 3 years or 36,000 miles from the warranty start date. This is a verification request, not an online eligibility decision.',
+    coverageStart: 'Bob Maxey must verify whether RentalCARE is currently offered and confirm its coverage start in the returned offer.',
+    purchaseWindow: 'Request dealer verification before the earlier of 3 years or 36,000 miles from the warranty start date. This is not an online eligibility decision.',
     inspection: 'Do not apply the ESP used-plan inspection rule to RentalCARE. Bob Maxey must verify any current product-specific enrollment requirement.',
-    compatibility: ['Historical materials described restrictions when another plan already supplied rental benefits.', 'Vehicle, state, benefits, term, mileage, price, product status, and compatibility require a current dealer result.'], source: GUIDE_SOURCE, configurationSource: GUIDE_SOURCE,
+    compatibility: ['RentalCARE may conflict with another plan that already provides rental benefits.', 'Vehicle, state, benefits, term, mileage, price, current product status, and compatibility require a dealer result.'], source: GUIDE_SOURCE, configurationSource: GUIDE_SOURCE,
   }),
   leasecare: configurationRule({
     id: 'leasecare', label: 'LeaseCARE', purchaseContexts: ['shopping', 'owner'], purchaseTiming: 'vehicle-purchase-or-after-sale-before-3yr-36k', currentPublicStatus: 'dealer-verification-only', selectionModel: 'dealer-rating-only',
-    coverageStart: 'Historical guide reference: coverage was measured from the warranty start date and zero miles. A current dealer-returned offer must establish whether LeaseCARE still exists and every applicable start rule.',
-    purchaseWindow: 'The supplied September 2024 guide described enrollment before the earlier of 3 years or 36,000 miles from the warranty start date. This is a verification request, not an online eligibility decision.',
+    coverageStart: 'Bob Maxey must verify whether LeaseCARE is currently offered and confirm its coverage start in the returned offer.',
+    purchaseWindow: 'Request dealer verification before the earlier of 3 years or 36,000 miles from the warranty start date. This is not an online eligibility decision.',
     inspection: 'Do not apply the ESP used-plan inspection rule to LeaseCARE. Bob Maxey must verify any current product-specific enrollment requirement.',
-    compatibility: ['Historical materials described restrictions with Core/Mechanical, Premium Maintenance, and RentalCARE products.', 'Vehicle, state, benefits, term, mileage, price, product status, and compatibility require a current dealer result.'], source: GUIDE_SOURCE, configurationSource: GUIDE_SOURCE,
+    compatibility: ['LeaseCARE may conflict with Core/Mechanical, Premium Maintenance, and RentalCARE products.', 'Vehicle, state, benefits, term, mileage, price, current product status, and compatibility require a dealer result.'], source: GUIDE_SOURCE, configurationSource: GUIDE_SOURCE,
   }),
   'off-road-coverage': configurationRule({
     id: 'off-road-coverage', label: 'Off-Road Coverage Request', purchaseContexts: ['shopping', 'owner'], purchaseTiming: 'off-road-limited-post-sale', currentPublicStatus: 'dealer-verification-required', selectionModel: 'dealer-rating-only',
@@ -558,6 +571,37 @@ const normalizePowertrain = (value) => {
   return 'unknown';
 };
 
+const normalizeTransactionMethod = (value) => {
+  const normalized = normalizeText(value).toLowerCase();
+  if (/^cash$/.test(normalized)) return 'cash';
+  if (/financ|loan/.test(normalized)) return 'finance';
+  if (/lease/.test(normalized)) return 'lease';
+  return 'undecided';
+};
+
+const readPriorCoverageValue = (quote = {}) => {
+  const priorCoverage = quote.priorCoverage && typeof quote.priorCoverage === 'object'
+    ? quote.priorCoverage
+    : {};
+  return quote.cspPriorCoverageStatus
+    ?? quote.priorCoverageStatus
+    ?? quote.qualifyingPriorCoverage
+    ?? quote.cspPriorCoverage
+    ?? priorCoverage.status
+    ?? priorCoverage.type
+    ?? null;
+};
+
+const normalizePriorCoverageReadiness = (value) => {
+  if (value === true) return true;
+  if (value === false) return false;
+  const normalized = normalizeText(value).toLowerCase();
+  if (!normalized || /unknown|unsure|not sure|verify|pending/.test(normalized)) return null;
+  if (/^no$|^none$|no prior|never had|not covered|without coverage/.test(normalized)) return false;
+  if (/active|current|ending|expir|factory|oem|warranty|ford protect|extended service|\besp\b/.test(normalized)) return true;
+  return null;
+};
+
 const readVehicleValue = (quote, keys) => {
   const vehicle = quote?.vehicle && typeof quote.vehicle === 'object' ? quote.vehicle : {};
   for (const key of keys) {
@@ -597,8 +641,21 @@ const resolveQuoteFacts = (quote = {}) => {
   const powertrain = normalizePowertrain(readVehicleValue(quote, ['powertrain', 'fuelType', 'engineType']));
   const state = normalizeText(readVehicleValue(quote, ['state', 'registrationState']));
   const planPath = normalizeText(quote.planPath).toLowerCase();
-  const program = normalizeText(quote.program).toLowerCase();
-  const engine = normalizeText(readVehicleValue(quote, ['engine', 'engineDescription', 'engineSize']));
+  const rawProgram = normalizeText(quote.program).toLowerCase();
+  const program = /enginecare|diesel-enginecare/.test(rawProgram)
+    ? 'enginecare'
+    : /continued|\bcsp\b/.test(rawProgram)
+      ? 'csp'
+      : /extended|\besp\b/.test(rawProgram)
+        ? 'esp'
+        : rawProgram;
+  const engine = normalizeText(readVehicleValue(quote, ['engine', 'engineDescription', 'engineSize']))
+    || normalizeText(quote.decodedVehicle?.engineDescription || quote.decodedVehicle?.engineDisplacementL);
+  const engineHours = toFiniteNumber(readVehicleValue(quote, ['currentEngineHours', 'engineHours', 'totalEngineHours']));
+  const transactionMethod = normalizeTransactionMethod(quote.transactionMethod);
+  const priorCoverageReadiness = normalizePriorCoverageReadiness(readPriorCoverageValue(quote));
+  const explicitVehicleSituation = normalizeText(quote.vehicleSituation).toLowerCase();
+  const vehicleSituationExplicit = Object.prototype.hasOwnProperty.call(VEHICLE_SITUATIONS, explicitVehicleSituation);
   const situationValue = normalizeText(quote.vehicleSituation || quote.vehicleCondition || quote.purchaseSituation).toLowerCase();
   const purchaseContextValue = normalizeText(quote.purchaseContext || quote.customerContext || quote.ownershipStage).toLowerCase();
   const vehicleSituation = /owned|after.?sale|already/.test(situationValue)
@@ -611,7 +668,25 @@ const resolveQuoteFacts = (quote = {}) => {
           ? planPath === 'new' ? 'new-purchase' : 'used-purchase'
           : 'owned-after-sale';
   const purchaseContext = VEHICLE_SITUATIONS[vehicleSituation].purchaseContext;
-  return { make, year, mileage, inService, purchaseDate, asOf, powertrain, state, planPath, program, engine, purchaseContext, vehicleSituation };
+  return {
+    make,
+    year,
+    mileage,
+    inService,
+    purchaseDate,
+    asOf,
+    powertrain,
+    state,
+    planPath,
+    program,
+    engine,
+    engineHours,
+    transactionMethod,
+    priorCoverageReadiness,
+    purchaseContext,
+    vehicleSituation,
+    vehicleSituationExplicit,
+  };
 };
 
 export const getProductPurchaseContext = (quote = {}) => resolveQuoteFacts(quote).purchaseContext;
@@ -650,12 +725,12 @@ export function getWarrantyInspectionStatus(quote = {}) {
       : 'Warranty record review needed';
   const message = likelyWithin === true
     ? warrantyRecordConfirmed
-      ? 'Ford records confirm the vehicle remains within the New Vehicle Limited Warranty, so the referenced used-plan checklist condition does not apply.'
-      : 'If Ford records confirm the vehicle remains within the New Vehicle Limited Warranty, the referenced used-plan checklist condition does not apply.'
+      ? 'Ford records confirm the vehicle remains within the New Vehicle Limited Warranty, so Ford’s Used Vehicle Inspection Checklist is not required for this used-plan ESP path.'
+      : 'If Ford records confirm the vehicle remains within the New Vehicle Limited Warranty, Ford’s Used Vehicle Inspection Checklist is not required for this used-plan ESP path.'
     : likelyWithin === false
       ? warrantyRecordConfirmed
-        ? 'Ford records confirm the vehicle is outside the New Vehicle Limited Warranty. The referenced used-plan rule requires a completed Used Vehicle Inspection Checklist before enrollment.'
-        : 'If Ford records confirm the vehicle is outside the New Vehicle Limited Warranty, the referenced used-plan rule requires a completed Used Vehicle Inspection Checklist before enrollment.'
+        ? 'Ford records confirm the vehicle is outside the New Vehicle Limited Warranty. A participating Ford dealership must complete Ford’s Used Vehicle Inspection Checklist before enrollment.'
+        : 'If Ford records confirm the vehicle is outside the New Vehicle Limited Warranty, a participating Ford dealership must complete Ford’s Used Vehicle Inspection Checklist before enrollment.'
       : 'Bob Maxey must confirm the original in-service date and current Ford warranty record. The result determines whether an ESP used-plan inspection is required.';
 
   return {
@@ -730,7 +805,7 @@ const purchaseOnlyCatalogProduct = ({
     dealerConfirmation,
     inspectionPolicy: 'This is not an after-sale ESP enrollment path; product-specific transaction and vehicle eligibility rules apply.',
   },
-  cautions: [...cautions, 'Historical guide terms are planning references only. The current VIN-specific dealer result and issued agreement control.'],
+  cautions: [...cautions, 'Bob Maxey confirms the product, term, vehicle, state, use, and current Ford offer. The issued agreement controls.'],
   officialSources,
 });
 
@@ -773,15 +848,15 @@ export const quoteProducts = Object.freeze([
     detailSections: [
       { title: 'New-plan path', items: ['Designed for an eligible vehicle still inside the purchase window confirmed by Ford records.', 'The current Ford FAQ uses the New Vehicle Limited Warranty as the public purchase window.'] },
       { title: 'Used-plan path', items: ['Can provide an after-warranty path with time and mileage beginning under used-plan agreement rules.', 'Ford and Bob Maxey must confirm vehicle history, inspection status, usage, and available combinations.'] },
-      { title: 'Inspection rule', items: ['No Bob Maxey Used Vehicle Inspection Checklist is required for ESP used-plan enrollment while the vehicle remains within the New Vehicle Limited Warranty.', 'Outside the New Vehicle Limited Warranty, the checklist is required before an ESP used plan can be finalized.'] },
+      { title: 'Inspection rule', items: ['No Used Vehicle Inspection Checklist is required for ESP used-plan enrollment while the vehicle remains within the New Vehicle Limited Warranty.', 'Outside the New Vehicle Limited Warranty, a participating dealership, such as Bob Maxey, must complete the checklist before an ESP used plan can be finalized.'] },
     ],
     eligibility: {
       headline: 'New- and used-plan eligibility is determined from the Ford vehicle record.',
       requirements: ['VIN and current odometer', 'Original in-service date', 'Registration state and vehicle use', 'Required inspection when outside the New Vehicle Limited Warranty'],
       dealerConfirmation,
-      inspectionPolicy: 'For ESP used-plan enrollment: no used-vehicle inspection while within the New Vehicle Limited Warranty; outside it, a Bob Maxey Used Vehicle Inspection Checklist is required before coverage can be finalized.',
+      inspectionPolicy: 'For ESP used-plan enrollment: no used-vehicle inspection while within the New Vehicle Limited Warranty; outside it, a completed Used Vehicle Inspection Checklist from a participating dealership, such as Bob Maxey, is required before coverage can be finalized.',
     },
-    cautions: ['This site organizes likely choices but does not reproduce Ford’s live rating system.', 'The issued agreement controls covered components, exclusions, start rules, deductible, term, and benefits.'],
+    cautions: ['Bob Maxey confirms the choices available for the VIN before purchase.', 'The issued agreement controls covered components, exclusions, start rules, deductible, term, and benefits.'],
     officialSources: [
       { label: 'Ford Protect Extended Service Plans', url: 'https://fordprotect.ford.com/extended-service-plan' },
       { label: 'Ford Protect FAQ', url: 'https://fordprotect.ford.com/faq' },
@@ -811,7 +886,7 @@ export const quoteProducts = Object.freeze([
       { id: 'premium-maintenance', name: 'Premium Maintenance', summary: 'For eligible gas, hybrid, plug-in hybrid, and diesel vehicles.' },
       { id: 'premium-maintenance-ev', name: 'Premium Maintenance EV', summary: 'EV-specific scheduled inspections, services, and eligible wear-item coverage.' },
     ],
-    highlights: ['Scheduled maintenance based on the vehicle’s maintenance guide', 'Multipoint inspections and tire rotations', 'Selected wear items such as brake pads, belts, hoses, shocks or struts, and wiper blades where included', '$0 deductible for covered maintenance'],
+    highlights: ['Scheduled maintenance based on the vehicle’s maintenance guide', 'Multi-point inspections and tire rotations', 'Selected wear items such as brake pads, belts, hoses, shocks or struts, and wiper blades where included', '$0 deductible for covered maintenance'],
     detailSections: [
       { title: 'Ownership value', items: ['Locks in a planned service program rather than paying separately at each eligible visit.', 'Keeps Ford-authorized maintenance records together for convenience and future ownership confidence.'] },
       { title: 'EV path', items: ['Premium Maintenance EV follows the eligible EV maintenance schedule.', 'Do not add separate maintenance when PremiumCARE Plus EV already includes the applicable maintenance bundle.'] },
@@ -851,13 +926,13 @@ export const quoteProducts = Object.freeze([
     catalogBadges: ['After-sale request', 'Multiple service levels', 'Dealer review'],
     planOptions: [
       { id: 'extra-maintenance', name: 'Extra Maintenance Plan', summary: 'Scheduled maintenance plus listed wear items for eligible vehicles; purchase and servicing restrictions apply.' },
-      { id: 'limited-maintenance', name: 'Limited Maintenance Plan', summary: 'Eligible oil and filter service, multipoint inspection, tire rotation, and scheduled diesel exhaust fluid top-off.' },
-      { id: 'basic-maintenance', name: 'Basic Maintenance Plan', summary: 'Eligible oil and filter service, multipoint inspection, and tire rotation with narrower vehicle eligibility.' },
+      { id: 'limited-maintenance', name: 'Limited Maintenance Plan', summary: 'Eligible oil and filter service, multi-point inspection, tire rotation, and scheduled diesel exhaust fluid top-off.' },
+      { id: 'basic-maintenance', name: 'Basic Maintenance Plan', summary: 'Eligible oil and filter service, multi-point inspection, and tire rotation with narrower vehicle eligibility.' },
     ],
-    highlights: ['A simpler routine-service path may be available when full Premium Maintenance is not the right fit', 'Limited and Basic plan structures are recognized in Ford’s maintenance terms', 'The supplied September 2024 Michigan guide describes Limited and Basic plans as purchasable during vehicle ownership', 'Bob Maxey selects the current eligible level rather than promising an unavailable plan'],
+    highlights: ['A simpler routine-service path may be available when full Premium Maintenance is not the right fit', 'Available services can be matched to the vehicle’s powertrain and maintenance schedule', 'Some maintenance choices may be requested during vehicle ownership', 'Bob Maxey confirms the current eligible level and service interval for this VIN'],
     detailSections: [
-      { title: 'Important differences', items: ['Extra Maintenance includes listed wear items but has narrower vehicle and purchase rules.', 'Limited Maintenance includes a focused scheduled-service package.', 'Basic Maintenance has the narrowest package and excludes vehicles requiring full-synthetic oil under the referenced guide.'] },
-      { title: 'Service and transfer rules', items: ['Extra and Basic plans can carry selling-dealer service restrictions.', 'Limited and Basic plans are nontransferable under the referenced Ford maintenance terms.', 'The current Ford offer and agreement must confirm every rule.'] },
+      { title: 'Important differences', items: ['Extra Maintenance can include selected wear items but has narrower vehicle and purchase rules.', 'Limited Maintenance provides a focused scheduled-service package.', 'Basic Maintenance is the narrowest package and may not be available for vehicles requiring full-synthetic oil.'] },
+      { title: 'Service and transfer rules', items: ['Some maintenance plans can require service at the selling dealer.', 'Some plans may not transfer to a future owner.', 'The current Ford offer and agreement confirm the services, interval, eligibility, and ownership rules.'] },
     ],
     eligibility: {
       headline: 'These are dealer-matched maintenance requests, not guaranteed online selections.',
@@ -865,7 +940,7 @@ export const quoteProducts = Object.freeze([
       dealerConfirmation,
       inspectionPolicy: 'A used-vehicle inspection is not presented as a maintenance-plan enrollment requirement; plan, vehicle, oil, and service eligibility still require review.',
     },
-    cautions: ['Extra and Basic Maintenance exclude EVs and vehicles requiring full-synthetic oil under the referenced program materials.', 'The September 2024 Michigan guide is historical planning evidence, not current pricing or guaranteed availability.'],
+    cautions: ['Extra and Basic Maintenance are not presented for EVs and may exclude vehicles requiring full-synthetic oil.', 'Availability, included services, purchase timing, transferability, and price must be confirmed for the vehicle before purchase.'],
     officialSources: [
       { label: 'Ford Protect maintenance terms', url: 'https://fordprotect.ford.com/fplp-8324-mntc/' },
     ],
@@ -931,10 +1006,10 @@ export const quoteProducts = Object.freeze([
     warrantyApplicability: ['within-diesel-engine-warranty'],
     catalogBadges: ['After-sale request', 'Diesel-only', 'Specialist review'],
     planOptions: [
-      { id: 'diesel-enginecare-plus', name: 'Diesel EngineCARE Plus', summary: 'The broader listed-component diesel engine protection level in the referenced Ford guide.' },
-      { id: 'diesel-enginecare', name: 'Diesel EngineCARE', summary: 'A focused listed-component diesel engine protection level in the referenced Ford guide.' },
+      { id: 'diesel-enginecare-plus', name: 'Diesel EngineCARE Plus', summary: 'The broader listed-component protection request for an eligible Power Stroke diesel engine.' },
+      { id: 'diesel-enginecare', name: 'Diesel EngineCARE', summary: 'A focused listed-component protection request for an eligible Power Stroke diesel engine.' },
     ],
-    highlights: ['Designed around eligible factory-installed Power Stroke diesel engines', 'The referenced guide identifies 3.0L, 3.2L, and 6.7L Power Stroke applications', 'The referenced enrollment window is during the applicable 5-year/100,000-mile/4,000-hour diesel engine warranty', 'Current engine, hours, use, and program rules require specialist confirmation'],
+    highlights: ['Designed around eligible factory-installed Power Stroke diesel engines', 'Planning eligibility includes selected 3.0L, 3.2L, and 6.7L Power Stroke applications', 'Enrollment is requested while the applicable diesel engine warranty is active', 'Engine, mileage, hours, vehicle use, and current program eligibility require specialist confirmation'],
     detailSections: [
       { title: 'Why request it', items: ['Focuses the request on eligible diesel engine components rather than a broad vehicle plan.', 'Can be compared with a full ESP when both paths are available.'] },
       { title: 'What Bob Maxey verifies', items: ['Engine family and displacement', 'Original in-service date, mileage, and engine hours', 'Commercial or specialty use', 'Current Ford terms and available coverage level'] },
@@ -945,7 +1020,7 @@ export const quoteProducts = Object.freeze([
       dealerConfirmation,
       inspectionPolicy: 'The diesel product request requires record-level specialist review; any inspection requirement is determined by the current Ford program and agreement.',
     },
-    cautions: ['The 5-year/100,000-mile/4,000-hour and engine-size references come from the supplied September 2024 Michigan guide and must be re-confirmed.', 'This catalog does not promise current terms or pricing.'],
+    cautions: ['Bob Maxey must confirm the applicable diesel warranty, engine, mileage, and engine-hour limits for the VIN.', 'The returned Ford offer and agreement—not this planning catalog—control current eligibility, coverage, terms, and price.'],
     officialSources: [
       { label: 'Ford Protect agreement library', url: 'https://fordprotect.ford.com/fl8250contract' },
     ],
@@ -960,23 +1035,23 @@ export const quoteProducts = Object.freeze([
     familyLabel: 'Rental support',
     name: 'RentalCARE',
     shortName: 'RentalCARE',
-    eyebrow: 'Historical product · current dealer verification required',
+    eyebrow: 'Availability requires dealer verification',
     value: 'Ask Bob Maxey to check whether a current RentalCARE offer exists for the vehicle.',
-    description: 'The supplied September 2024 Ford retail guide describes RentalCARE, but current public Ford shopping pages do not establish an active customer offer. This card creates a verification request only.',
+    description: 'RentalCARE is not presented as currently available online. This card sends a dealer-verification request so Bob Maxey can check for a vehicle-specific offer.',
     image: '/assets/ford-official/ford-why-1.png',
     imageAlt: 'Ford vehicle from official Ford Protect marketing media',
     badge: 'Dealer verification only',
     requestMode: 'specialist-request',
     powertrains: ['gas', 'hybrid', 'plug-in-hybrid', 'diesel', 'electric'],
     warrantyApplicability: ['within-3-years-36000-miles'],
-    catalogBadges: ['Verification request', 'Historical guide reference', 'No online eligibility promise'],
+    catalogBadges: ['Dealer verification', 'Vehicle-specific review', 'Current offer required'],
     planOptions: [
-      { id: 'rentalcare', name: 'RentalCARE verification', summary: 'Ask the dealership to confirm whether this historical product and a vehicle-specific offer are currently available.' },
+      { id: 'rentalcare', name: 'RentalCARE verification', summary: 'Ask Bob Maxey to confirm whether RentalCARE and a vehicle-specific offer are currently available.' },
     ],
-    highlights: ['Historical materials describe rental support for qualifying repair events', 'The supplied guide used a before-the-earlier-of 3-year/36,000-mile enrollment window', 'No term, mileage, deductible, benefit, price, or availability is promised online', 'A current Ford/dealer response and issued agreement must supply every customer-facing detail'],
+    highlights: ['May provide rental support for qualifying repair events when offered', 'Time-and-mileage enrollment limits may apply', 'No term, mileage, benefit, price, or availability is confirmed online', 'A current dealer response and issued agreement supply the final details'],
     detailSections: [
-      { title: 'What the historical guide described', items: ['A rental-support path for qualifying repair events.', 'A limited time-and-mileage enrollment window measured from warranty start.'] },
-      { title: 'What Bob Maxey must return', items: ['Confirmation that RentalCARE is currently offered for the VIN and state.', 'The actual benefits, term, mileage, deductible, price, coverage start, compatibility, and agreement.'] },
+      { title: 'What it may provide', items: ['Rental support for qualifying repair events when included in a current offer.', 'A limited enrollment window based on vehicle time and mileage may apply.'] },
+      { title: 'What Bob Maxey must return', items: ['Confirmation that RentalCARE is currently offered for the VIN and state.', 'The actual benefits, term, mileage, price, coverage start, compatibility, and agreement.'] },
     ],
     eligibility: {
       headline: 'A dealer-verification request—not a statement that RentalCARE is currently available.',
@@ -984,7 +1059,7 @@ export const quoteProducts = Object.freeze([
       dealerConfirmation,
       inspectionPolicy: 'The ESP used-plan inspection rule does not establish RentalCARE eligibility. Bob Maxey must confirm any current product-specific enrollment requirement.',
     },
-    cautions: ['Do not present RentalCARE as eligible or selectable until a current Ford/dealer offer confirms it.', 'Historical terms, benefit amounts, and compatibility rules are reference evidence only.'],
+    cautions: ['RentalCARE is a verification request until a current dealer offer confirms availability.', 'The returned offer and issued agreement control the terms, benefits, price, and compatibility.'],
     officialSources: [
       { label: 'Ford Protect agreement terms recognizing RentalCARE', url: 'https://fordprotect.ford.com/media/contracts/t-and-c/ESC-103-NAT-wKey-OCT-2023.pdf' },
       { label: 'Ford Protect agreement library', url: 'https://fordprotect.ford.com/fl8250contract' },
@@ -1000,23 +1075,23 @@ export const quoteProducts = Object.freeze([
     familyLabel: 'Coordinated vehicle support',
     name: 'LeaseCARE',
     shortName: 'LeaseCARE',
-    eyebrow: 'Historical product · current dealer verification required',
+    eyebrow: 'Availability requires dealer verification',
     value: 'Ask Bob Maxey to check whether a current LeaseCARE offer exists for the vehicle.',
-    description: 'The supplied September 2024 Ford retail guide describes LeaseCARE, but current public Ford shopping pages do not establish an active customer offer. This card creates a verification request only.',
+    description: 'LeaseCARE is not presented as currently available online. This card sends a dealer-verification request so Bob Maxey can check for a vehicle-specific offer.',
     image: '/assets/ford-official/ford-why-2.png',
     imageAlt: 'Ford owner receiving dealership support from official Ford Protect marketing media',
     badge: 'Dealer verification only',
     requestMode: 'specialist-request',
     powertrains: ['gas', 'hybrid', 'plug-in-hybrid', 'diesel', 'electric'],
     warrantyApplicability: ['within-3-years-36000-miles'],
-    catalogBadges: ['Verification request', 'Historical guide reference', 'No online eligibility promise'],
+    catalogBadges: ['Dealer verification', 'Vehicle-specific review', 'Current offer required'],
     planOptions: [
-      { id: 'leasecare', name: 'LeaseCARE verification', summary: 'Ask the dealership to confirm whether this historical product and a vehicle-specific offer are currently available.' },
+      { id: 'leasecare', name: 'LeaseCARE verification', summary: 'Ask Bob Maxey to confirm whether LeaseCARE and a vehicle-specific offer are currently available.' },
     ],
-    highlights: ['Historical materials describe an elected repair-and-convenience plan', 'The supplied guide used a before-the-earlier-of 3-year/36,000-mile enrollment window', 'No term, mileage, deductible, benefit, price, or availability is promised online', 'A current Ford/dealer response and issued agreement must supply every customer-facing detail'],
+    highlights: ['May provide agreement-defined repair and convenience benefits when offered', 'Time-and-mileage enrollment limits may apply', 'No term, mileage, benefit, price, or availability is confirmed online', 'A current dealer response and issued agreement supply the final details'],
     detailSections: [
-      { title: 'What the historical guide described', items: ['An elected plan with repair and convenience benefits.', 'A limited time-and-mileage enrollment window measured from warranty start.'] },
-      { title: 'What Bob Maxey must return', items: ['Confirmation that LeaseCARE is currently offered for the VIN and state.', 'The actual benefits, compatible products, term, mileage, deductible, price, coverage start, and agreement.'] },
+      { title: 'What it may provide', items: ['Agreement-defined repair and convenience benefits when included in a current offer.', 'A limited enrollment window based on vehicle time and mileage may apply.'] },
+      { title: 'What Bob Maxey must return', items: ['Confirmation that LeaseCARE is currently offered for the VIN and state.', 'The actual benefits, compatible products, term, mileage, price, coverage start, and agreement.'] },
     ],
     eligibility: {
       headline: 'A dealer-verification request—not a statement that LeaseCARE is currently available.',
@@ -1024,7 +1099,7 @@ export const quoteProducts = Object.freeze([
       dealerConfirmation,
       inspectionPolicy: 'The ESP used-plan inspection rule does not establish LeaseCARE eligibility. Bob Maxey must confirm any current product-specific enrollment requirement.',
     },
-    cautions: ['Historical materials described compatibility restrictions with other coverage products.', 'Do not present LeaseCARE benefits, combinations, terms, deductible, or price as available until the current Ford/dealer offer confirms them.'],
+    cautions: ['Compatibility restrictions with other coverage products may apply.', 'LeaseCARE benefits, combinations, terms, and price require a current dealer offer.'],
     officialSources: [
       { label: 'Ford Protect agreement library', url: 'https://fordprotect.ford.com/fl8250contract' },
     ],
@@ -1083,7 +1158,7 @@ export const quoteProducts = Object.freeze([
     planOptions: [{ id: 'tirecare-plus', name: 'TireCARE Plus', summary: 'Road-hazard tire and wheel protection with eligible cosmetic wheel coverage.' }],
     highlights: ['Eligible covered tire repair or replacement', 'Eligible covered wheel repair or replacement', 'Cosmetic wheel coverage where included', 'No mileage limit in current public material'],
     requirements: ['Selected before the original eligible vehicle transaction is completed', 'Eligible tire and wheel size/material/finish', 'Eligible vehicle, use, state, and agreement'],
-    cautions: ['Carbon-fiber, chrome/chrome-clad, oversized, modified, off-road, commercial, or specialty applications can have exclusions or require a specific option.', 'The historical guide’s 1- through 8-year matrix must not override the current public up-to-seven-year presentation.'],
+    cautions: ['Carbon-fiber, chrome/chrome-clad, oversized, modified, off-road, commercial, or specialty applications can have exclusions or require a specific option.', 'Current public information describes terms up to seven years. Bob Maxey confirms the exact term returned for the vehicle.'],
     officialSources: [{ label: 'Ford Protect TireCARE Plus', url: 'https://fordprotect.ford.com/tirecare' }],
   }),
   purchaseOnlyCatalogProduct({
@@ -1097,7 +1172,7 @@ export const quoteProducts = Object.freeze([
     image: '/assets/ford-official/dentcare.png',
     imageAlt: 'Ford Protect DentCARE paintless dent repair protection',
     planOptions: [{ id: 'dentcare', name: 'DentCARE', summary: 'Agreement-defined paintless dent repair for eligible dents and dings.' }],
-    highlights: ['Paintless dent repair for eligible damage', 'Helps preserve the factory finish', '$0 deductible in referenced Ford material', 'Mobile or dealer service may be available under the agreement'],
+    highlights: ['Paintless dent repair for eligible damage', 'Helps preserve the factory finish', '$0 deductible where included in the current offer', 'Mobile or dealer service may be available under the agreement'],
     requirements: ['Selected before the original eligible vehicle transaction is completed', 'Eligible metal body panels', 'Eligible dent size, location, vehicle, use, and state'],
     cautions: ['Plastic, fiberglass, composite, previously damaged, inaccessible, or oversized areas can be excluded.'],
     officialSources: [{ label: 'Ford Protect DentCARE', url: 'https://fordprotect.ford.com/dentcare' }],
@@ -1168,7 +1243,7 @@ export const quoteProducts = Object.freeze([
     planOptions: [{ id: 'theftcare', name: 'TheftCARE', summary: 'Agreement-defined theft deterrent and benefit for eligible vehicles.' }],
     highlights: ['Theft-deterrent product/application', 'Choose an eligible term and benefit level', 'Referenced guide included $2,500 and $5,000 benefit levels', 'Dealer verifies state and provider terms'],
     requirements: ['Selected before the original eligible vehicle transaction is completed', 'Eligible vehicle, use, state, provider, term, and benefit level', 'Application and documentation completed as required'],
-    cautions: ['TheftCARE is not comprehensive insurance and does not replace required auto coverage.', 'The historical guide benefit levels are not a promise of current availability.'],
+    cautions: ['TheftCARE is not comprehensive insurance and does not replace required auto coverage.', 'Bob Maxey confirms the benefit level and current availability for the eligible vehicle transaction.'],
     officialSources: [{ label: 'Ford Protect TheftCARE', url: 'https://fordprotect.ford.com/theftcare' }],
   }),
   purchaseOnlyCatalogProduct({
@@ -1229,7 +1304,17 @@ export const createDefaultQuoteProductSelection = (productId, variantId) => {
 export const validateQuoteProductSelection = (productId, selection = {}, { includeDealerOnly = false } = {}) => {
   const product = getQuoteProductDefinition(productId);
   if (!product) return { valid: false, code: 'unknown-product', message: 'Unknown Ford Protect product.' };
-  const variant = product.configuration.variants.find((item) => item.id === selection.variantId)
+  const requestedVariantId = normalizeText(selection.variantId || selection.optionId);
+  const requestedVariant = requestedVariantId
+    ? product.configuration.variants.find((item) => item.id === requestedVariantId)
+    : null;
+  if (requestedVariantId && !requestedVariant) {
+    return { valid: false, code: 'invalid-variant', message: 'Choose a product option listed for this product.' };
+  }
+  if (!requestedVariantId && product.configuration.variants.length > 1) {
+    return { valid: false, code: 'missing-variant', message: 'Choose which product option you want Bob Maxey to review.' };
+  }
+  const variant = requestedVariant
     || product.configuration.variants.find((item) => item.customerSelectable)
     || product.configuration.variants[0];
   if (!variant) return { valid: false, code: 'missing-configuration', message: 'A dealer-returned configuration is required.' };
@@ -1284,12 +1369,12 @@ const espStatus = (facts, warranty) => {
     warranty.inspectionRequiredForUsedEsp,
   );
   if (warranty.likelyWithinNewVehicleLimitedWarranty === false) return status(
-    warranty.warrantyRecordConfirmed ? 'used-path-review' : 'record-review',
+    'new-plan-outside-public-window',
+    false,
+    'New-plan window has ended',
+    'muted',
+    'The entered time or mileage has reached the New Vehicle Limited Warranty boundary, so the new-plan path cannot be used. Choose the used-plan path and let Bob Maxey verify the VIN-specific offer and inspection requirement.',
     null,
-    warranty.warrantyRecordConfirmed ? 'Explore the used-plan path' : 'Used path · Ford record review',
-    'warning',
-    warranty.message,
-    warranty.inspectionRequiredForUsedEsp,
   );
   return status('record-review', null, 'Ford record review', 'review', 'The in-service date or mileage is incomplete. Bob Maxey will determine whether the new- or used-plan path applies.', null);
 };
@@ -1302,35 +1387,40 @@ const premiumMaintenanceStatus = (facts, warranty) => {
 
 const maintenanceEssentialsStatus = (facts) => {
   if (facts.powertrain === 'electric') return status('not-applicable', false, 'Choose an EV maintenance path', 'muted', 'Extra, Limited, and Basic maintenance choices are not presented for EVs. Ask about Premium Maintenance EV instead.', false);
-  return status('dealer-rating-only', false, 'Dealer rating required', 'muted', 'Extra, Limited, and Basic maintenance matrices come from the September 2024 guide and are not independently verified by current public Ford sources. Bob Maxey may check the current dealer rating system, but these choices are not customer-guaranteed online.', false);
+  return status('dealer-rating-only', false, 'Dealer verification required', 'muted', 'These maintenance alternatives are not selectable online. Bob Maxey can check current availability and return the choices offered for the VIN.', false);
 };
 
 const cspStatus = (facts) => {
   if (facts.state.toLowerCase() === 'california') return status('state-unavailable', false, 'Not available in California', 'muted', 'Ford’s public CSP information says Continued Service Plan is not available in California.', false);
   const modelAge = facts.year ? facts.asOf.getFullYear() - facts.year : null;
-  if ((facts.mileage !== null && facts.mileage > 140000) || (modelAge !== null && modelAge > 12)) return status('outside-published-enrollment', false, 'Outside published enrollment range', 'muted', 'Ford publishes CSP enrollment eligibility up to 12 model years and 140,000 miles. A specialist can verify whether another path applies.', false);
-  if (facts.program === 'csp') return status('selected-for-review', null, 'Selected · no inspection', 'positive', 'CSP is selected for a vehicle-specific offer. Ford’s buyer guide says no waiting period or vehicle inspection is required.', false);
+  if ((facts.mileage !== null && facts.mileage > CSP_ENROLLMENT_LIMITS.miles) || (modelAge !== null && modelAge > CSP_ENROLLMENT_LIMITS.modelYears)) return status('outside-published-enrollment', false, 'Outside published enrollment range', 'muted', 'Ford publishes CSP enrollment eligibility up to 12 model years and 140,000 miles. A specialist can verify whether another path applies.', false);
+  if (facts.priorCoverageReadiness === false) return status('qualifying-prior-coverage-not-indicated', false, 'Qualifying prior coverage is required', 'muted', 'Continued Service Plan is a continuation path for eligible OEM warranty or Ford Protect coverage. The entered answer does not indicate qualifying prior coverage.', false);
+  if (facts.program === 'csp' && facts.priorCoverageReadiness === null) return status('prior-coverage-answer-required', null, 'Confirm the prior-coverage situation', 'warning', 'Tell Bob Maxey whether eligible OEM warranty or Ford Protect coverage is active, ending, or expiring. Ford records and the returned CSP offer make the final determination.', false);
+  if (facts.program === 'csp') return status('selected-for-review', null, 'Selected · no inspection', 'positive', 'CSP is selected for a vehicle-specific offer. Ford’s buyer guide says no waiting period or vehicle inspection is required; Ford records must confirm the qualifying prior coverage.', false);
   return status('continuation-review', null, 'For expiring coverage', 'review', 'Consider CSP when eligible OEM warranty or Ford Protect coverage is ending. No CSP enrollment inspection is required under Ford’s current buyer guide.', false);
 };
 
 const dieselStatus = (facts) => {
   if (facts.powertrain !== 'diesel') return status('not-applicable', false, 'Diesel vehicles only', 'muted', 'Diesel EngineCARE is reserved for eligible factory-installed Power Stroke diesel applications.', null);
   const window = evaluateWindow({ facts, ...DIESEL_ENGINE_WINDOW });
-  if (window.within === false) return status('outside-reference-window', false, 'Likely outside reference window', 'muted', 'The vehicle appears outside the referenced 5-year/100,000-mile window. Engine hours and current Ford rules must also be checked.', null);
-  const recognizedEngine = /\b(3\.0|3\.2|6\.7)\s*l\b|power\s*stroke/i.test(facts.engine);
-  if (window.within === true && recognizedEngine) return status('specialist-fit', null, 'Likely specialist fit', 'positive', 'The entered details align with the historical guide’s basic diesel window. Bob Maxey must confirm engine hours and the current Ford offer.', null);
+  if (window.within === false) return status('outside-reference-window', false, 'Likely outside enrollment window', 'muted', 'The vehicle appears outside the 5-year/100,000-mile planning window. Engine hours and current Ford rules must also be checked.', null);
+  if (facts.engineHours !== null && facts.engineHours >= DIESEL_ENGINE_HOUR_ENROLLMENT_LIMIT) return status('outside-engine-hour-window', false, 'Outside planning engine-hour window', 'muted', 'The entered engine hours have reached the 4,000-hour Diesel EngineCARE planning boundary. Bob Maxey can verify whether another current path applies.', null);
+  const displacementMatch = facts.engine.match(/\b(\d(?:\.\d+)?)\s*l\b/i);
+  const recognizedEngine = displacementMatch ? ['3.0', '3.2', '6.7'].includes(displacementMatch[1]) : false;
+  if (displacementMatch && !recognizedEngine) return status('engine-not-in-reference-list', false, 'Engine needs another coverage path', 'muted', 'The entered diesel engine displacement is not one of the 3.0L, 3.2L, or 6.7L Power Stroke applications shown for Diesel EngineCARE planning.', null);
+  if (window.within === true && recognizedEngine && facts.engineHours !== null) return status('specialist-fit', null, 'Likely specialist fit', 'positive', 'The entered time, mileage, engine, and engine-hour details appear to fit the published Diesel EngineCARE enrollment factors. Bob Maxey must confirm the current Ford offer.', null);
   return status('specialist-review', null, 'Power Stroke review', 'review', 'Enter the engine description and let Bob Maxey verify engine family, mileage, age, hours, use, and current program eligibility.', null);
 };
 
 const limitedWindowElectedPlanStatus = (facts, label) => {
   const window = evaluateWindow({ facts, ...RENTALCARE_WINDOW });
   if (window.within === false) {
-    return status('outside-reference-window', false, 'Outside referenced enrollment window', 'muted', `${label} must be purchased before the earlier of 3 years or 36,000 miles from the warranty start date under the supplied Ford retail guide.`, false);
+    return status('outside-reference-window', false, 'Dealer verification required', 'muted', `The entered age or mileage may be outside the applicable ${label} enrollment window. Ask Bob Maxey to confirm current availability.`, false);
   }
   if (window.within === true) {
-    return status('specialist-verification', null, 'Dealer verification required', 'review', `The vehicle appears to fit the historical ${label} timing reference, but that does not establish current availability. Bob Maxey must confirm the program and return the VIN-specific combinations, benefits, terms, deductible, and price.`, false);
+    return status('specialist-verification', null, 'Dealer verification required', 'review', `The entered vehicle details may fit a limited ${label} enrollment window. Bob Maxey must confirm current availability and return the VIN-specific benefits, terms, and price.`, false);
   }
-  return status('specialist-verification', null, 'Dealer verification required', 'review', `The historical ${label} timing reference cannot establish current availability. Bob Maxey must check the warranty start date, mileage, product status, and current Ford/dealer offer.`, false);
+  return status('specialist-verification', null, 'Dealer verification required', 'review', `Bob Maxey must check the warranty start date, mileage, product status, and current dealer offer before presenting ${label} as available.`, false);
 };
 
 const offRoadStatus = (facts) => {
@@ -1356,7 +1446,7 @@ const offRoadStatus = (facts) => {
 
 const purchaseContextStatus = (product, facts) => {
   const contexts = Array.isArray(product.purchaseContexts) ? product.purchaseContexts : ['owner'];
-  if (!contexts.length || product.customerSelectable === false) return status('dealer-rating-only', false, 'Not a standalone customer selection', 'muted', 'This historical, agreement-level, or dealer-returned item is not a standalone customer-selectable product. Bob Maxey can verify whether the current Ford system returns an eligible path.', false);
+  if (!contexts.length || product.customerSelectable === false) return status('dealer-rating-only', false, 'Not selectable online', 'muted', 'This item is not a standalone online selection. Bob Maxey can check whether a current vehicle-specific option is available.', false);
   if (!contexts.includes(facts.purchaseContext)) {
     if (product.id === 'ford-credit-gap') return status('original-finance-only', false, 'Available only with eligible vehicle financing', 'muted', 'Ford Credit GAP must be selected with an eligible original vehicle financing transaction. It cannot be added after that financing transaction is completed.', false);
     if (product.id === 'wearcare') return status('original-lease-only', false, 'Available only when signing an eligible lease', 'muted', 'WearCare must be selected when an eligible original vehicle lease is signed. It cannot be added later as an after-sale ownership product.', false);
@@ -1365,8 +1455,14 @@ const purchaseContextStatus = (product, facts) => {
   }
   if (contexts.length === 1 && contexts[0] === 'shopping') {
     const vehicleLabel = facts.vehicleSituation === 'new-purchase' ? 'new vehicle' : 'used vehicle';
-    if (product.id === 'ford-credit-gap') return status('purchase-planning', null, 'Eligible financing transaction only · verify', 'review', `GAP may be considered only if this ${vehicleLabel} is being financed through an eligible original transaction. Bob Maxey must verify the lender, vehicle, amount financed, state, disclosures, and contract.`, false);
-    if (product.id === 'wearcare') return status('purchase-planning', null, 'Eligible lease signing only · verify', 'review', `WearCare may be considered only if this ${vehicleLabel} is being placed on an eligible original lease. Bob Maxey must verify the vehicle, lease program, state, mileage allowance, disclosures, and agreement.`, false);
+    if (product.id === 'ford-credit-gap') {
+      if (!['finance', 'undecided'].includes(facts.transactionMethod)) return status('transaction-method-unavailable', false, 'Requires eligible financing', 'muted', `GAP cannot be requested when this ${vehicleLabel} transaction is marked ${facts.transactionMethod}. Choose finance or undecided only if that accurately reflects the planned transaction.`, false);
+      return status('purchase-planning', null, 'Eligible financing transaction only · verify', 'review', `GAP may be considered only if this ${vehicleLabel} is being financed through an eligible original transaction. Bob Maxey must verify the lender, vehicle, amount financed, state, disclosures, and contract.`, false);
+    }
+    if (product.id === 'wearcare') {
+      if (!['lease', 'undecided'].includes(facts.transactionMethod)) return status('transaction-method-unavailable', false, 'Requires an eligible lease', 'muted', `WearCare cannot be requested when this ${vehicleLabel} transaction is marked ${facts.transactionMethod}. Choose lease or undecided only if that accurately reflects the planned transaction.`, false);
+      return status('purchase-planning', null, 'Eligible lease signing only · verify', 'review', `WearCare may be considered only if this ${vehicleLabel} is being placed on an eligible original lease. Bob Maxey must verify the vehicle, lease program, state, mileage allowance, disclosures, and agreement.`, false);
+    }
     return status('purchase-planning', null, `Plan with this ${vehicleLabel} purchase · verify`, 'review', `This product may be considered before completing this eligible ${vehicleLabel} transaction. Bob Maxey must verify the VIN, product, vehicle, state, term, and agreement; this planning choice is not a confirmed offer.`, false);
   }
   return null;
@@ -1391,19 +1487,272 @@ const purchaseOnlyStateStatus = (product, facts, selectedVariantId = '') => {
 
   if (product.id === 'windshieldcare') {
     if (state === 'florida') {
-      return status('state-unavailable', false, 'Not available in Florida', 'muted', 'Ford’s current WindshieldCARE information and the supplied retail guide identify Florida as unavailable. Choose another eligible product or ask Bob Maxey to confirm a current alternative.', false);
+      return status('state-unavailable', false, 'Not available in Florida', 'muted', 'Ford’s current WindshieldCARE information identifies Florida as unavailable. Choose another eligible product or ask Bob Maxey to confirm a current alternative.', false);
     }
     if (selectedVariantId === 'windshieldcare-plus-ev' && ['georgia', 'maine', 'newyork', 'texas'].includes(state)) {
-      return status('state-unavailable', false, 'EV glass option unavailable in this state', 'muted', 'The supplied Ford retail guide identifies WindshieldCARE Plus EV as unavailable in Georgia, Maine, New York, and Texas in addition to Florida. Bob Maxey must verify whether a current alternative exists.', false);
+      return status('state-unavailable', false, 'EV glass option unavailable in this state', 'muted', 'WindshieldCARE Plus EV is not offered in this planning flow for Georgia, Maine, New York, Texas, or Florida. Bob Maxey can check whether a current alternative exists.', false);
     }
   }
 
   if (product.id === 'triplecare-plus' && state === 'florida') {
-    return status('state-unavailable', false, 'Not available in Florida', 'muted', 'Ford’s published TripleCARE Plus information and the supplied retail guide identify Florida as unavailable. Tire-and-wheel or dent coverage may have separate rules, which Bob Maxey must verify.', false);
+    return status('state-unavailable', false, 'Not available in Florida', 'muted', 'Ford’s published TripleCARE Plus information identifies Florida as unavailable. Tire-and-wheel or dent coverage may have separate rules, which Bob Maxey must verify.', false);
   }
 
   return null;
 };
+
+const validationIssue = (code, message, {
+  field = '',
+  productId = '',
+  eligibility = null,
+  type = 'selection',
+} = {}) => ({ code, message, field, productId, eligibility, type });
+
+const primaryProductIdFor = (program, quote = {}) => {
+  if (program === 'esp') return 'extended-service-plan';
+  if (program === 'csp') return 'continued-service-plan';
+  if (program === 'enginecare') return normalizeText(quote.engineCareLevel || quote.planId) || 'diesel-enginecare';
+  return '';
+};
+
+/**
+ * Validates the customer's primary-program request against known public rules
+ * and the historical planning matrices. A `null` eligibility result always
+ * means dealer/VIN verification is still required; this function never turns
+ * planning data into a confirmed offer.
+ */
+export function validatePrimaryPlanEligibility(quote = {}) {
+  const facts = resolveQuoteFacts(quote);
+  const warranty = getWarrantyInspectionStatus(quote);
+  const blockingIssues = [];
+  const reviewIssues = [];
+  const addBlocking = (code, message, options = {}) => blockingIssues.push(validationIssue(code, message, options));
+  const addReview = (code, message, options = {}) => reviewIssues.push(validationIssue(code, message, { ...options, type: 'review' }));
+  const program = facts.program;
+  const productId = primaryProductIdFor(program, quote);
+  let productStatus = status('program-not-selected', null, 'Choose a coverage program', 'review', 'Choose the Ford Protect coverage program you want Bob Maxey to review.', null);
+
+  if (!facts.vehicleSituationExplicit) {
+    addBlocking('vehicle-situation-required', 'Choose whether this is a new-vehicle purchase, used-vehicle purchase, or an after-sale request for a vehicle already owned.', { field: 'vehicleSituation' });
+  }
+
+  if (program === 'products-only') {
+    productStatus = status('products-only-request', null, 'Ford Protect products only', 'review', 'No primary mechanical coverage is requested. Bob Maxey will verify each selected product, its purchase timing, compatibility, term, and current offer.', null);
+    addReview('products-only-verification', 'Every selected product remains subject to its own vehicle, transaction, timing, state, compatibility, and current dealer-offer requirements.', { field: 'requestedProductIds' });
+  } else if (!['esp', 'csp', 'enginecare'].includes(program)) {
+    addBlocking('missing-program', 'Choose Extended Service Plan, Continued Service Plan, or Diesel EngineCARE.', { field: 'program' });
+  } else if (program === 'esp') {
+    productStatus = espStatus(facts, warranty);
+    const planPath = facts.planPath;
+    const planId = normalizeText(quote.planId);
+    const termMonths = toFiniteNumber(quote.termMonths);
+    const termMiles = toFiniteNumber(quote.termMiles);
+
+    if (!['new', 'used'].includes(planPath)) addBlocking('missing-plan-path', 'Choose the new-plan or used-plan measurement path.', { field: 'planPath' });
+    if (!planId) addBlocking('missing-plan', 'Choose an Extended Service Plan coverage level.', { field: 'planId' });
+    if (productStatus.eligible === false) addBlocking(productStatus.code, productStatus.message, { field: 'planPath', eligibility: false, type: 'eligibility' });
+
+    if (planPath && planId) {
+      const matrix = getTermMatrix({ planId, planPath, mileage: facts.mileage ?? 0 });
+      if (termMonths === null) addBlocking('missing-term', 'Choose a protection term.', { field: 'termMonths' });
+      if (termMiles === null) addBlocking('missing-mileage-limit', 'Choose the mileage limit paired with the protection term.', { field: 'termMiles' });
+      if (termMonths !== null && termMiles !== null && !matrix.isAvailable(termMonths, termMiles)) {
+        addBlocking(
+          matrix.months.length ? 'invalid-reference-combination' : 'no-reference-grid',
+          matrix.months.length
+            ? 'That term and mileage do not form an available combination for this plan and measurement path. Choose another combination shown.'
+            : 'Self-service term choices are not available for this plan, measurement path, and current mileage. A specialist will help identify another supported path.',
+          { field: 'termMonths', type: 'selection' },
+        );
+      }
+
+      const deductibleId = normalizeText(quote.deductible);
+      const deductible = deductibleOptions.find((option) => option.id === deductibleId);
+      if (!deductibleId) addBlocking('missing-deductible', 'Choose a deductible to request.', { field: 'deductible' });
+      else if (!deductible || !isDeductibleAvailable(deductible, { planId, planPath, termMiles })) {
+        addBlocking('invalid-deductible', 'That deductible is not available for this plan, measurement path, and mileage. Choose another displayed option.', { field: 'deductible' });
+      }
+
+      const selectedBenefits = [...new Set(Array.isArray(quote.addOns) ? quote.addOns.map((id) => normalizeText(id)).filter(Boolean) : [])];
+      for (const benefitId of selectedBenefits) {
+        const benefit = protectionOptions.find((option) => option.id === benefitId);
+        if (!benefit || !isProtectionOptionAvailable(benefit, { planId, planPath, termMonths, termMiles })) {
+          addBlocking('invalid-plan-benefit', `The selected plan benefit "${benefitId}" is not available for this plan, measurement path, and term.`, { field: 'addOns' });
+        }
+      }
+
+      addReview('historical-matrix-verification', matrix.notice, { field: 'termMonths' });
+    }
+  } else if (program === 'csp') {
+    productStatus = cspStatus(facts);
+    const cspLevel = normalizeText(quote.cspLevel);
+    if (facts.purchaseContext !== 'owner') addBlocking('csp-owner-context-required', 'Continued Service Plan is an after-sale continuation path for a vehicle the customer already owns.', { field: 'vehicleSituation', eligibility: false, type: 'eligibility' });
+    if (!CSP_LEVELS.includes(cspLevel)) addBlocking(cspLevel ? 'invalid-csp-level' : 'missing-csp-level', 'Choose Ultimate or Standard Plus for specialist review.', { field: 'cspLevel' });
+    if (productStatus.eligible === false) addBlocking(productStatus.code, productStatus.message, { field: productStatus.code === 'state-unavailable' ? 'state' : 'cspPriorCoverageStatus', eligibility: false, type: 'eligibility' });
+    if (facts.priorCoverageReadiness === null) {
+      addBlocking('prior-coverage-answer-required', 'Indicate whether qualifying OEM warranty or Ford Protect coverage is active, ending, or expiring.', { field: 'cspPriorCoverageStatus' });
+    }
+    addReview('csp-record-verification', 'Ford records and the returned CSP offer must confirm prior coverage, effective date, level, deductible, monthly amount, state availability, and vehicle eligibility.', { field: 'cspPriorCoverageStatus' });
+  } else {
+    productStatus = dieselStatus(facts);
+    const level = normalizeText(quote.engineCareLevel || quote.planId);
+    if (!DIESEL_ENGINECARE_LEVELS.includes(level)) addBlocking(level ? 'invalid-enginecare-level' : 'missing-enginecare-level', 'Choose Diesel EngineCARE or Diesel EngineCARE Plus for specialist review.', { field: 'engineCareLevel' });
+    if (facts.engineHours !== null && facts.engineHours < 0) addBlocking('invalid-current-engine-hours', 'Current engine hours cannot be negative.', { field: 'currentEngineHours' });
+    if (productStatus.eligible === false) addBlocking(productStatus.code, productStatus.message, { field: productStatus.code.includes('hour') ? 'currentEngineHours' : productStatus.code.includes('engine') ? 'engine' : 'mileage', eligibility: false, type: 'eligibility' });
+    if (!facts.engine) addReview('engine-description-verification', 'The factory-installed engine family and displacement still require Ford record review.', { field: 'engine' });
+    if (facts.engineHours === null) addReview('engine-hours-verification', 'Current engine hours are not entered; Bob Maxey must verify that the vehicle is still within the 4,000-hour planning window.', { field: 'currentEngineHours' });
+    addReview('enginecare-current-offer-required', 'The current VIN-specific Ford result controls Diesel EngineCARE availability and enrollment.', { field: 'engineCareLevel' });
+  }
+
+  const knownIneligible = blockingIssues.some((issue) => issue.eligibility === false);
+  const validForRequest = blockingIssues.length === 0;
+  return {
+    valid: validForRequest,
+    validForRequest,
+    eligible: knownIneligible ? false : null,
+    program,
+    productId,
+    status: productStatus,
+    code: blockingIssues[0]?.code || productStatus.code,
+    label: blockingIssues.length ? 'Coverage request needs attention' : productStatus.label,
+    message: blockingIssues[0]?.message || productStatus.message,
+    blockingIssues,
+    reviewIssues,
+    issues: [...blockingIssues, ...reviewIssues],
+    requiredFields: [...new Set(blockingIssues.map((issue) => issue.field).filter(Boolean))],
+    requiresDealerVerification: true,
+    planningOnly: true,
+  };
+}
+
+const productSelectionFor = (quote, productId) => {
+  if (quote.productSelections?.[productId] && typeof quote.productSelections[productId] === 'object') return quote.productSelections[productId];
+  if (quote.requestedProductConfigurations?.[productId] && typeof quote.requestedProductConfigurations[productId] === 'object') return quote.requestedProductConfigurations[productId];
+  return {};
+};
+
+const offRoadParentIdsFor = (quote = {}) => {
+  const selection = productSelectionFor(quote, 'off-road-coverage');
+  return [...new Set([
+    quote.offRoadUnderlyingProductId,
+    quote.underlyingOffRoadProductId,
+    selection.underlyingProductId,
+    selection.existingProductId,
+    ...(Array.isArray(quote.existingFordProtectProductIds) ? quote.existingFordProtectProductIds : []),
+    ...(Array.isArray(quote.existingProductIds) ? quote.existingProductIds : []),
+  ].map((id) => normalizeText(id)).filter(Boolean))];
+};
+
+/**
+ * Validates every requested ancillary product in context, including its stored
+ * configuration and known cross-product dependencies. Products with a `null`
+ * catalog eligibility remain valid dealer-verification requests; products with
+ * `false` eligibility or invalid/missing choices are rejected from output.
+ */
+export function validateQuoteProductRequests(quote = {}) {
+  const requestedIds = [...new Set((Array.isArray(quote.requestedProductIds) ? quote.requestedProductIds : [])
+    .map((id) => normalizeText(id)).filter(Boolean))];
+  const catalog = getQuoteProductCatalog(quote);
+  const catalogById = new Map(catalog.map((product) => [product.id, product]));
+  const issuesByProduct = new Map();
+  const requestIssues = [];
+  const primaryIds = new Set(['extended-service-plan', 'continued-service-plan', 'diesel-enginecare', 'diesel-enginecare-plus']);
+  const facts = resolveQuoteFacts(quote);
+  const reject = (productId, issue) => {
+    const issues = issuesByProduct.get(productId) || [];
+    if (!issues.some((item) => item.code === issue.code)) issues.push(issue);
+    issuesByProduct.set(productId, issues);
+  };
+
+  for (const productId of requestedIds) {
+    const product = catalogById.get(productId);
+    if (!product) {
+      reject(productId, validationIssue('unknown-product', 'The saved product reference is not in the current customer-facing catalog.', { productId }));
+      continue;
+    }
+    if (primaryIds.has(productId)) {
+      reject(productId, validationIssue('primary-product-in-additional-list', 'Primary coverage must be selected through the coverage program, not as an additional product.', { productId }));
+      continue;
+    }
+    if (!facts.vehicleSituationExplicit) {
+      reject(productId, validationIssue('vehicle-situation-required', 'Choose whether this is a new-vehicle purchase, used-vehicle purchase, or an after-sale request before adding products.', { productId, field: 'vehicleSituation' }));
+      continue;
+    }
+    if (product.status?.eligible === false) {
+      reject(productId, validationIssue(product.status.code, product.status.message, { productId, eligibility: false, type: 'eligibility' }));
+      continue;
+    }
+    const selection = productSelectionFor(quote, productId);
+    if (selection.confirmed !== true) {
+      reject(productId, validationIssue('configuration-not-confirmed', 'Review and confirm this product request before continuing.', { productId, field: `productSelections.${productId}` }));
+      continue;
+    }
+    const configuration = validateQuoteProductSelection(productId, selection, { includeDealerOnly: false });
+    if (!configuration.valid) {
+      reject(productId, validationIssue(configuration.code, configuration.message, { productId, field: `productSelections.${productId}` }));
+    }
+  }
+
+  const program = facts.program;
+  const selectedSet = new Set(requestedIds);
+  const maintenanceIds = new Set(['premium-maintenance', 'premium-maintenance-ev', 'maintenance-essentials']);
+  const hasMaintenance = requestedIds.some((id) => maintenanceIds.has(id))
+    || (normalizeText(quote.maintenanceId) && normalizeText(quote.maintenanceId) !== 'none');
+  if (selectedSet.has('leasecare')) {
+    if (['esp', 'enginecare'].includes(program)) {
+      reject('leasecare', validationIssue('leasecare-mechanical-conflict', 'LeaseCARE cannot be combined here with a Core/Mechanical protection plan. Remove LeaseCARE or change the primary coverage request.', { productId: 'leasecare', type: 'conflict' }));
+    }
+    if (hasMaintenance) {
+      reject('leasecare', validationIssue('leasecare-maintenance-conflict', 'LeaseCARE cannot be combined here with Premium Maintenance.', { productId: 'leasecare', type: 'conflict' }));
+    }
+    if (selectedSet.has('rentalcare')) {
+      reject('leasecare', validationIssue('leasecare-rentalcare-conflict', 'LeaseCARE and RentalCARE cannot be combined in the same request.', { productId: 'leasecare', type: 'conflict' }));
+    }
+  }
+  if (selectedSet.has('rentalcare') && (Array.isArray(quote.addOns) ? quote.addOns : []).some((id) => ['first-day', 'enhanced-rental'].includes(id))) {
+    reject('rentalcare', validationIssue('rentalcare-benefit-conflict', 'RentalCARE cannot be combined with an ESP request that retains First-Day Rental or Enhanced Rental because the rental benefits overlap.', { productId: 'rentalcare', type: 'conflict' }));
+  }
+
+  if (selectedSet.has('off-road-coverage')) {
+    const explicitParents = offRoadParentIdsFor(quote);
+    const requestedParents = requestedIds.filter((id) => OFF_ROAD_PARENT_PRODUCTS.includes(id) && !issuesByProduct.has(id));
+    const recognizedParents = [...new Set([...explicitParents, ...requestedParents])].filter((id) => OFF_ROAD_PARENT_PRODUCTS.includes(id));
+    if (!recognizedParents.length) {
+      reject('off-road-coverage', validationIssue('off-road-parent-required', 'Off-Road coverage requires an eligible TireCARE, TireCARE Plus, TripleCARE, or TripleCARE Plus product. Select one with this vehicle purchase or identify the eligible plan already owned.', { productId: 'off-road-coverage', field: 'offRoadUnderlyingProductId', type: 'dependency' }));
+    }
+  }
+
+  const rejectedProductIds = requestedIds.filter((id) => issuesByProduct.has(id));
+  const acceptedProductIds = requestedIds.filter((id) => !issuesByProduct.has(id));
+  if (program === 'products-only' && acceptedProductIds.length === 0) {
+    requestIssues.push(validationIssue(
+      'products-only-product-required',
+      'Choose and confirm at least one product that is available for this vehicle situation.',
+      { field: 'requestedProductIds' },
+    ));
+  }
+  const productResults = Object.fromEntries(requestedIds.map((id) => [id, {
+    valid: !issuesByProduct.has(id),
+    issues: issuesByProduct.get(id) || [],
+    status: catalogById.get(id)?.status || null,
+  }]));
+  const issues = [
+    ...requestIssues,
+    ...rejectedProductIds.flatMap((id) => issuesByProduct.get(id) || []),
+  ];
+  const validForRequest = rejectedProductIds.length === 0 && requestIssues.length === 0;
+
+  return {
+    valid: validForRequest,
+    validForRequest,
+    requestedProductIds: requestedIds,
+    acceptedProductIds,
+    rejectedProductIds,
+    productResults,
+    issues,
+    requiresDealerVerification: acceptedProductIds.length > 0,
+  };
+}
 
 /**
  * Returns every offering with a conservative, quote-specific status. Consumers
@@ -1420,6 +1769,10 @@ export function getQuoteProductCatalog(quote = {}, options = {}) {
   const warranty = getWarrantyInspectionStatus(quote);
   return quoteProducts.map((product) => {
     const selectedVariantId = quote.productSelections?.[product.id]?.variantId;
+    const selectedVariant = product.configuration?.variants?.find((item) => item.id === selectedVariantId)
+      || product.configuration?.variants?.find((item) => item.customerSelectable !== false)
+      || product.configuration?.variants?.[0];
+    const canonicalRule = FORD_PROTECT_PRODUCT_RULES[product.id];
     let productStatus = purchaseContextStatus(product, facts);
     const stateStatus = purchaseOnlyStateStatus(product, facts, selectedVariantId);
     if (stateStatus && productStatus?.eligible !== false) productStatus = stateStatus;
@@ -1449,6 +1802,9 @@ export function getQuoteProductCatalog(quote = {}, options = {}) {
       purchaseTimingDetail: timing.detail,
       purchaseWindow: timing.purchaseWindow,
       coverageStart: timing.coverageStart,
+      currentPublicStatus: selectedVariant?.currentPublicStatus
+        || canonicalRule?.currentPublicStatus
+        || product.currentPublicStatus,
       purchaseContext: facts.purchaseContext,
       vehicleSituation: facts.vehicleSituation,
       recommended,

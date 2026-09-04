@@ -36,7 +36,7 @@ export default function FaqSection({ onQuote, onContact, onNavigate }) {
     <section className="faq-section faq-section--professional" id="faq">
       <div className="page-shell help-hero">
         <div><span>Bob Maxey Ford Protect help center</span><h1>Ford Protect answers, all in one place.</h1><p>Find coverage guides, eligibility rules, payment information and practical ownership answers—without leaving the Bob Maxey site.</p></div>
-        <label className="help-search"><Search /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search a question, product or term" /></label>
+        <label className="help-search"><Search aria-hidden="true" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search a question, product or term" aria-label="Search help topics" /></label>
       </div>
 
       <div className="page-shell help-paths" aria-label="Help topics">

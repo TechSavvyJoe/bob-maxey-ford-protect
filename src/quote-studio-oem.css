@@ -276,7 +276,7 @@ body.modal-open { overflow: hidden !important; overscroll-behavior: none; }
 .studio-v5 .term-path-switch button.is-selected { background: var(--oem-blue); color: #fff; box-shadow: none; }
 
 .studio-v5 .inspection-inline { margin-top: 13px; border-top: 1px solid var(--oem-line-soft); color: var(--oem-copy); }
-.studio-v5 .inspection-inline summary { min-height: 42px; padding: 10px 0 0; display: grid; grid-template-columns: 20px minmax(0, auto) 1fr 18px; align-items: center; gap: 8px; list-style: none; cursor: pointer; }
+.studio-v5 .inspection-inline summary { min-height: 44px; padding: 10px 0 0; display: grid; grid-template-columns: 20px minmax(0, auto) 1fr 18px; align-items: center; gap: 8px; list-style: none; cursor: pointer; }
 .studio-v5 .inspection-inline summary::-webkit-details-marker { display: none; }
 .studio-v5 .inspection-inline summary > svg:first-child { color: var(--oem-green); }
 .studio-v5 .inspection-inline.is-required summary > svg:first-child { color: #845100; }
@@ -316,7 +316,7 @@ body.modal-open { overflow: hidden !important; overscroll-behavior: none; }
 .studio-v5 .studio-plan-rail button strong { font-size: 13px; }
 .studio-v5 .studio-plan-rail button small { font-size: 11px; }
 .studio-v5 .plan-coverage-table { display: none; }
-.studio-v5 .selected-plan-detail { margin-top: 9px; color: var(--oem-blue-dark); font-size: 13px; font-weight: 780; }
+.studio-v5 .selected-plan-detail { min-height: 44px; margin-top: 9px; color: var(--oem-blue-dark); font-size: 13px; font-weight: 780; }
 .studio-v5 .csp-section,
 .studio-v5 .csp-term-card,
 .studio-v5 .csp-options-note { border: 1px solid var(--oem-line); border-radius: 10px; background: #fff; box-shadow: none; }
@@ -418,7 +418,7 @@ body.modal-open { overflow: hidden !important; overscroll-behavior: none; }
 .studio-v5 .term-recommendation__copy > strong { color: var(--oem-ink); font-size: 15px; line-height: 1.2; }
 .studio-v5 .term-recommendation__copy > span { grid-column: 1 / -1; color: var(--oem-copy); font-size: 11.5px; line-height: 1.35; }
 .studio-v5 .term-recommendation > button {
-  min-height: 38px;
+  min-height: 44px;
   padding: 7px 12px;
   display: inline-flex;
   align-items: center;
@@ -910,7 +910,7 @@ body.modal-open { overflow: hidden !important; overscroll-behavior: none; }
   .studio-v5 .term-recommendation__copy > small { font-size: 8.5px; }
   .studio-v5 .term-recommendation__copy > strong { font-size: 13px; white-space: normal; }
   .studio-v5 .term-recommendation__copy > span { display: none; }
-  .studio-v5 .term-recommendation > button { min-width: 58px; min-height: 34px; padding: 5px 8px; font-size: 11px; }
+  .studio-v5 .term-recommendation > button { min-width: 58px; min-height: 44px; padding: 5px 8px; font-size: 11px; }
   .studio-v5 .term-recommendation__action-full { display: none; }
   .studio-v5 .term-recommendation__action-compact { display: inline; }
   .studio-v5 .guided-term-picker { border-radius: 8px; }
@@ -1105,7 +1105,7 @@ body.modal-open { overflow: hidden !important; overscroll-behavior: none; }
 .studio-v5 .product-configurator__error { margin: 10px 0 0; padding: 10px 12px; border-left: 4px solid #ba1a1a; background: #fff0f0; color: #8f1515; font-size: 13px; font-weight: 720; }
 
 .studio-v5 .proposal-document__journey,
-.studio-v5 .proposal-document__configuration { color: var(--oem-blue-dark) !important; font-size: 11px !important; font-weight: 800; }
+.studio-v5 .proposal-document__configuration { color: var(--oem-blue-dark) !important; font-size: 12px !important; font-weight: 800; }
 
 /* Keep the product story detailed without turning the guide into a second full page. */
 .studio-v5 .product-detail-modal { width: min(1120px, calc(100vw - 40px)); max-height: min(900px, calc(100dvh - 32px)); }
@@ -1135,6 +1135,7 @@ body.modal-open { overflow: hidden !important; overscroll-behavior: none; }
   .studio-v5 .product-configurator > header > strong { max-width: none; text-align: left; }
   .studio-v5 .product-configurator__variants,
   .studio-v5 .product-configurator__fields { padding: 12px 14px; grid-template-columns: minmax(0, 1fr); }
+  .studio-v5 .product-configurator__fields select { font-size: 16px; }
   .studio-v5 .product-configurator__facts { padding: 12px 14px; grid-template-columns: minmax(0, 1fr); }
   .studio-v5 .product-configurator__facts span { min-height: 48px; }
   .studio-v5 .product-configurator__returned { margin: 12px 14px; }

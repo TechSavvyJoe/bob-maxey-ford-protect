@@ -183,7 +183,7 @@ export const evPlanData = [
   {
     id: 'premium-plus-ev',
     planPaths: ['new'],
-    planPathNotice: 'The supplied September 2024 guide lists PremiumCARE Plus EV as a new-plan bundle; it does not contain a PremiumCARE Plus EV used-plan matrix. A current Ford offer must confirm any different path.',
+    planPathNotice: 'PremiumCARE Plus EV is presented as a new-plan bundle. A used-plan choice is not offered online; Bob Maxey can check whether another current EV path is available.',
     purchaseContexts: ['shopping', 'owner'],
     quoteSeed: { program: 'esp', planId: 'premium-plus-ev', powertrain: 'Electric' },
     name: 'PremiumCARE Plus EV',
@@ -392,7 +392,7 @@ export const faqItems = [
   ['When does coverage begin?', 'For a new-plan agreement, time is generally measured from the original in-service date and mileage from zero. Used-plan agreements can use different start rules. Bob Maxey confirms the correct plan type before purchase.'],
   ['Can I buy coverage for an electric vehicle?', 'Yes. Ford Protect currently offers PremiumCARE Plus EV, PremiumCARE EV, ExtraCARE EV and BaseCARE EV, plus Premium Maintenance EV for eligible vehicles.'],
   ['Is the high-voltage EV battery covered?', 'The high-voltage traction-battery assembly has its own 8-year/100,000-mile manufacturer warranty and is not eligible for Ford Protect extended-service-plan coverage. Ford warranty records and the issued agreement control the vehicle-specific result.'],
-  ['Can I choose a deductible and term?', 'Available years, mileage limits and deductible choices depend on vehicle age, mileage, plan, state, use and Ford eligibility. Static choices shown here are planning references from the supplied September 2024 Michigan guide; Ford’s current VIN-specific dealer result must verify the actual combination.'],
+  ['Can I choose a deductible and term?', 'Available terms, mileage limits and deductibles depend on the vehicle, plan, state and use. Bob Maxey confirms the choices available for your VIN before purchase.'],
   ['Are rental and roadside benefits included?', 'Eligible Ford Protect plans include roadside and rental benefits, with limits that vary by plan and agreement. Optional enhanced benefits may also be available.'],
   ['Can a business, snow-plow or upfit vehicle be covered?', 'Possibly. Commercial use, snow-plow use, incomplete vehicles and medium-duty vehicles require a dedicated eligibility and rating review.'],
   ['Can I cancel or transfer my plan?', 'Ford Protect plans can have cancellation and transfer provisions, fees and state-specific rules. Bob Maxey will provide the agreement that applies to the selected plan before purchase.'],

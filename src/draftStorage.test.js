@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createQuoteId, loadDrafts, saveDraft, safeParseJson } from './draftStorage.js';
+import { createQuoteId, DRAFT_STORAGE_KEY, loadDrafts, saveDraft, safeParseJson } from './draftStorage.js';
 
 const memoryStorage = () => {
   const values = new Map();
@@ -15,7 +15,7 @@ test('safeParseJson returns its fallback for malformed data', () => {
   assert.deepEqual(safeParseJson('{broken', []), []);
 });
 
-test('saved drafts omit customer PII, VIN, ZIP, notes and consent', () => {
+test('saved drafts omit customer PII, VIN-derived facts, ZIP, notes and consent', () => {
   const storage = memoryStorage();
   const now = new Date('2026-09-03T12:00:00.000Z');
   saveDraft({
@@ -31,10 +31,70 @@ test('saved drafts omit customer PII, VIN, ZIP, notes and consent', () => {
   assert.equal('notes' in draft, false);
   assert.equal('consent' in draft, false);
   assert.equal('customer' in draft, false);
-  assert.equal('vin' in draft.decodedVehicle, false);
-  assert.equal(draft.decodedVehicle.trim, 'ST-Line');
+  assert.equal('decodedVehicle' in draft, false);
   assert.equal(draft.productSelections.tirecare.variantId, 'tirecare-plus');
   assert.equal('customerNote' in draft.productSelections.tirecare, false);
+});
+
+test('saved drafts retain non-sensitive product-rule decisions and Off-Road dependency data', () => {
+  const storage = memoryStorage();
+  const now = new Date('2026-09-03T12:00:00.000Z');
+  saveDraft({
+    id: 'BMX-RULE-DRAFT',
+    vehicleSituation: 'owned-after-sale',
+    purchaseContext: 'owner',
+    transactionMethod: 'undecided',
+    program: 'products-only',
+    cspPriorCoverageStatus: 'ford-protect-active-or-ending',
+    currentEngineHours: '2450',
+    offRoadUnderlyingProductId: 'triplecare-plus',
+    requestedProductIds: ['off-road-coverage'],
+    productSelections: {
+      'off-road-coverage': {
+        variantId: 'off-road-coverage',
+        underlyingProductId: 'triplecare-plus',
+        confirmed: true,
+      },
+    },
+    vin: '1EXAMPLEVINVALUE1',
+    decodedVehicle: { trim: 'Badlands', engineDescription: '2.7L V6' },
+    zip: '48081',
+    notes: 'Call after 5',
+    consent: true,
+    customer: { firstName: 'Pat', email: 'pat@example.com', phone: '5551234567' },
+  }, storage, now);
+
+  const [draft] = loadDrafts(storage, now);
+  assert.equal(draft.transactionMethod, 'undecided');
+  assert.equal(draft.cspPriorCoverageStatus, 'ford-protect-active-or-ending');
+  assert.equal(draft.currentEngineHours, 2450);
+  assert.equal(draft.offRoadUnderlyingProductId, 'triplecare-plus');
+  assert.equal(draft.productSelections['off-road-coverage'].underlyingProductId, 'triplecare-plus');
+  assert.equal('vin' in draft, false);
+  assert.equal('decodedVehicle' in draft, false);
+  assert.equal('zip' in draft, false);
+  assert.equal('notes' in draft, false);
+  assert.equal('consent' in draft, false);
+  assert.equal('customer' in draft, false);
+});
+
+test('loading a legacy draft removes its VIN and decoded facts together', () => {
+  const storage = memoryStorage();
+  const now = new Date('2026-09-03T12:00:00.000Z');
+  storage.setItem(DRAFT_STORAGE_KEY, JSON.stringify([{
+    id: 'BMX-LEGACY',
+    savedAt: now.toISOString(),
+    vin: '1EXAMPLEVINVALUE1',
+    decodedVehicle: { vin: '1EXAMPLEVINVALUE1', trim: 'ST-Line', source: 'NHTSA vPIC' },
+    year: '2024',
+    make: 'Ford',
+    model: 'Edge',
+  }]));
+
+  const [draft] = loadDrafts(storage, now);
+  assert.equal(draft.id, 'BMX-LEGACY');
+  assert.equal('vin' in draft, false);
+  assert.equal('decodedVehicle' in draft, false);
 });
 
 test('blocked browser storage fails closed without breaking the quote flow', () => {

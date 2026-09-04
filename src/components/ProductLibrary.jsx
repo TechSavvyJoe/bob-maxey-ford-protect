@@ -103,7 +103,7 @@ export default function ProductLibrary({ onQuote, onOpenProduct }) {
               <button key={item.id} className={!query && category?.id === item.id ? 'is-active' : ''} type="button" role="tab" aria-selected={!query && category?.id === item.id} onClick={() => { setQuery(''); setCategoryId(item.id); }}>{item.label}</button>
             ))}
           </div>
-          <label className="product-search"><Search /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search products or coverage needs" /></label>
+          <label className="product-search"><Search aria-hidden="true" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search products or coverage needs" aria-label="Search products or coverage needs" /></label>
         </div>
 
         {!query && category && (

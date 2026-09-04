@@ -21,6 +21,26 @@ const xmlEscape = (value = '') => String(value)
 
 const cleanLines = (lines) => lines.filter(Boolean).join('\n');
 
+const ALLOWED_CAMPAIGN_FIELDS = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term'];
+
+export const minimizeLeadUrl = (value = '', { keepCampaign = false } = {}) => {
+  if (!value) return '';
+  try {
+    const input = new URL(String(value));
+    if (!['http:', 'https:'].includes(input.protocol)) return '';
+    const output = new URL(input.pathname || '/', input.origin);
+    if (keepCampaign) {
+      ALLOWED_CAMPAIGN_FIELDS.forEach((field) => {
+        const campaignValue = input.searchParams.get(field)?.trim().slice(0, 160);
+        if (campaignValue) output.searchParams.set(field, campaignValue);
+      });
+    }
+    return output.toString();
+  } catch {
+    return '';
+  }
+};
+
 const productConfigurationText = (product) => {
   const configuration = product.configuration || {};
   const parts = [
@@ -37,6 +57,7 @@ const productConfigurationText = (product) => {
 export function buildLeadComments(quote, plan) {
   const snapshot = buildQuoteSnapshot({ quote, plan });
   const isEngineCare = snapshot.program === 'enginecare';
+  const isProductsOnly = snapshot.program === 'products-only';
   const selectedOptions = !isEngineCare && quote.addOns?.length
     ? protectionOptions.filter((item) => quote.addOns.includes(item.id)).map((item) => item.title).join(', ')
     : 'None requested';
@@ -60,15 +81,21 @@ export function buildLeadComments(quote, plan) {
       `DEDUCTIBLE: ${snapshot.coverage.deductible.label}`,
       `SPECIALIST RECORD REVIEW: ${snapshot.coverage.inspection.message}`,
     ]
-    : isCsp
-    ? ['COVERAGE PATH: Continued Service Plan', 'TERM: Monthly', 'MILEAGE: No annual mileage limit', 'DEDUCTIBLE REQUEST: Confirmed with CSP offer', 'INSPECTION: Ford CSP guide states no enrollment inspection is required']
-    : [
+    : isProductsOnly
+      ? [
+        'REQUEST TYPE: Ford Protect products only',
+        'PRODUCT CONFIGURATION: Each selected product has its own option, term, mileage, benefit, and eligibility rules',
+        'PRODUCT ELIGIBILITY: Bob Maxey must confirm each product against the current vehicle, transaction, state, and Ford offer',
+      ]
+      : isCsp
+        ? ['COVERAGE PATH: Continued Service Plan', 'TERM: Monthly', 'MILEAGE: No annual mileage limit', 'DEDUCTIBLE REQUEST: Confirmed with CSP offer', 'INSPECTION: Ford CSP guide states no enrollment inspection is required']
+        : [
       `COVERAGE PATH: ${quote.planPath === 'used' ? 'Used plan - term and mileage begin at contract signature/current odometer' : 'New plan - term and mileage measured from original in-service date/zero miles'}`,
       `TERM: ${quote.termMonths || 0} months${quote.termMonths ? ` (${quote.termMonths / 12} years)` : ''}`,
       `${quote.planPath === 'used' ? 'ADDITIONAL MILEAGE' : 'TOTAL ODOMETER LIMIT'}: ${Number(quote.termMiles || 0).toLocaleString()} miles`,
       `DEDUCTIBLE REQUEST: ${quote.deductible === 'disappearing' ? 'Disappearing deductible' : `$${quote.deductible || 100}`}`,
       `INSPECTION: ${quote.inspection?.shortLabel || quote.inspection?.title || 'Ford record review required'}`,
-    ];
+        ];
   const store = locations.find((item) => item.name === quote.store)?.descriptor || quote.store || 'Bob Maxey Ford of Howell';
   const leadType = leadTypeFor(quote);
   const customerJourney = quote.purchaseContext === 'shopping'
@@ -98,6 +125,7 @@ export function buildLeadComments(quote, plan) {
     `STORE: ${store}`,
     `CUSTOMER JOURNEY: ${customerJourney}`,
     `VEHICLE SITUATION: ${quote.vehicleSituation || 'Not selected'}`,
+    quote.purchaseContext === 'shopping' ? `EXPECTED TRANSACTION: ${quote.transactionMethod || 'Not selected'}` : '',
     '',
     `VEHICLE: ${quote.year || ''} ${quote.make || ''} ${quote.model || ''}`.trim(),
     quote.vin ? `VIN: ${quote.vin}` : 'VIN: Not provided',
@@ -111,22 +139,26 @@ export function buildLeadComments(quote, plan) {
     `REGISTERED: ${quote.state || ''} ${quote.zip || ''}`.trim(),
     '',
     ...termLines.slice(0, 1),
-    `${isEngineCare ? 'DIESEL ENGINECARE LEVEL' : 'PLAN'}: ${snapshot.coverage.planName}`,
+    `${isEngineCare ? 'DIESEL ENGINECARE LEVEL' : isProductsOnly ? 'REQUEST' : 'PLAN'}: ${snapshot.coverage.planName}`,
+    isCsp ? `QUALIFYING PRIOR COVERAGE: ${quote.cspPriorCoverageStatus || 'Not provided'}` : '',
+    isEngineCare ? `CURRENT ENGINE HOURS: ${quote.currentEngineHours || 'Not provided'}` : '',
     ...termLines.slice(1),
-    isEngineCare ? '' : `PLAN OPTIONS REQUESTED: ${selectedOptions}`,
+    isEngineCare || isProductsOnly ? '' : `PLAN OPTIONS REQUESTED: ${selectedOptions}`,
     `MAINTENANCE: ${maintenance}`,
-    `ADDITIONAL PRODUCTS REQUESTED: ${additionalProducts}`,
-    quote.paymentPreference ? `PAYMENT PREFERENCE: ${quote.paymentPreference}` : '',
+    `${isProductsOnly ? 'PRODUCTS REQUESTED' : 'ADDITIONAL PRODUCTS REQUESTED'}: ${additionalProducts}`,
+    quote.paymentPreference ? `PAYMENT PREFERENCE: ${snapshot.payment.preference}` : '',
     '',
     `OWNERSHIP GOAL: Keep ${quote.keepYears || 0} years; approximately ${Number(quote.annualMiles || 0).toLocaleString()} miles/year`,
-    `PREFERRED CONTACT: ${quote.preferredContact || 'phone'}`,
+    `PREFERRED CONTACT: ${snapshot.contact.preferredMethod}`,
     `CONTACT CONSENT: ${quote.consent ? 'Granted for this Ford Protect request' : 'Not granted'}`,
     quote.consent ? `CONTACT CONSENT VERSION: ${quote.consentVersion || CONTACT_CONSENT_VERSION}` : '',
     quote.consent ? `CONTACT CONSENT ACCEPTED AT: ${quote.consentAcceptedAt || 'Timestamp missing - do not process until confirmed'}` : '',
     quote.consent ? `CONTACT CONSENT TEXT: ${quote.consentText || CONTACT_CONSENT_TEXT}` : '',
     quote.notes ? `CUSTOMER NOTES: ${quote.notes}` : '',
     '',
-    'IMPORTANT: Website selection is a coverage request, not a final contract or price. Confirm current Ford eligibility, warranty and inspection status, agreement, term, products, options, deductible, price, and state availability before sale.',
+    isProductsOnly
+      ? 'IMPORTANT: Website selection is a product request, not a final contract or price. Confirm current product eligibility, purchase timing, configuration, any product-specific inspection requirement, agreement, price, and state availability before enrollment.'
+      : 'IMPORTANT: Website selection is a coverage request, not a final contract or price. Confirm current Ford eligibility, warranty and inspection status, agreement, term, products, options, deductible, price, and state availability before sale.',
   ]);
 }
 
@@ -177,8 +209,8 @@ export function createAdfXml({ quote, plan, pageUrl = '', referrer = '' }) {
     <provider>
        <name part="full" type="business">${xmlEscape(leadSourceFor(quote))}</name>
       <service>${xmlEscape(leadType)}</service>
-      <url>${xmlEscape(pageUrl)}</url>
-      <id source="Referrer">${xmlEscape(referrer)}</id>
+      <url>${xmlEscape(minimizeLeadUrl(pageUrl, { keepCampaign: true }))}</url>
+      <id source="Referrer">${xmlEscape(minimizeLeadUrl(referrer))}</id>
     </provider>
   </prospect>
 </adf>`;

@@ -1,6 +1,7 @@
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { hiddenCustomerProductIds, productCategories } from '../src/data.js';
 
 const distRoot = fileURLToPath(new URL('../dist/', import.meta.url));
 
@@ -41,11 +42,34 @@ const appSource = readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8
 const catalogSource = readFileSync(new URL('../src/components/ProductLibrary.jsx', import.meta.url), 'utf8');
 const deployWorkflow = readFileSync(new URL('../.github/workflows/deploy-pages.yml', import.meta.url), 'utf8');
 const generatedProductRoutes = deployWorkflow.match(/product_routes=\([\s\S]*?\n\s*\)/)?.[0] || '';
+const generatedProductRouteIds = new Set(generatedProductRoutes
+  .split(/\r?\n/)
+  .map((line) => line.trim())
+  .filter((line) => /^[a-z0-9][a-z0-9-]*$/i.test(line)));
+const hiddenProductIdSet = new Set(hiddenCustomerProductIds);
+const visibleProductRouteIds = productCategories
+  .flatMap((category) => category.products)
+  .filter((product) => !hiddenProductIdSet.has(product.id))
+  .map((product) => product.id);
+const missingProductRoutes = visibleProductRouteIds.filter((id) => !generatedProductRouteIds.has(id));
+if (missingProductRoutes.length) {
+  throw new Error(`Deployment workflow is missing visible product routes: ${missingProductRoutes.join(', ')}.`);
+}
 for (const hiddenRoute of ['fba-upgrade', 'lincoln-cpo']) {
   if (generatedProductRoutes.includes(hiddenRoute)) throw new Error(`Deployment workflow exposes hidden certified-product route: ${hiddenRoute}`);
 }
 if (!appSource.includes('normalizeHiddenProductPath()') || !appSource.includes('!hiddenCustomerProductIdSet.has(product.id)')) {
   throw new Error('Application routing is missing its hidden certified-product guard.');
+}
+const requiredSpaAccessibility = [
+  ['skip-navigation link', 'href="#main-content"'],
+  ['skip-navigation target', 'id="main-content"'],
+  ['route-specific document title', 'document.title = routeTitle'],
+  ['route-change focus management', 'mainRef.current?.focus'],
+  ['route announcement', 'aria-live="polite"'],
+];
+for (const [label, sourceFragment] of requiredSpaAccessibility) {
+  if (!appSource.includes(sourceFragment)) throw new Error(`Application is missing ${label}.`);
 }
 if (!catalogSource.includes('!hiddenIds.has(product.id)')) {
   throw new Error('Customer product catalog is missing its hidden-product guard.');
@@ -64,4 +88,4 @@ for (const [label, sourceFragment] of requiredFlowGuards) {
   if (!quoteSource.includes(sourceFragment)) throw new Error(`Quote flow is missing ${label}.`);
 }
 
-console.log('Release audit passed: public copy, hidden routes, CRM controls, and required-step guards are clean.');
+console.log('Release audit passed: public copy, complete Pages routes, SPA accessibility, CRM controls, and required-step guards are clean.');

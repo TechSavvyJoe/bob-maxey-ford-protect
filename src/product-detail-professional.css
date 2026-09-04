@@ -286,3 +286,56 @@
 @media (prefers-reduced-motion: reduce) {
   .pdoem-page *, .pdoem-page *::before, .pdoem-page *::after { scroll-behavior: auto !important; transition: none !important; animation: none !important; }
 }
+
+/* Release accessibility pass: explanatory copy and controls remain legible at
+   the smallest supported viewport without changing the editorial hierarchy. */
+.pdoem-eyebrow,
+.pdoem-facts span,
+.pdoem-topic-nav button span,
+.pdoem-note,
+.pdoem-benefit small,
+.pdoem-rail__review > span,
+.pdoem-decision-note > span,
+.pdoem-information__list small,
+.pdoem-verification-grid small,
+.pdoem-use-flow > div:not(.pdoem-section-heading) > span,
+.pdoem-agreement small {
+  font-size: 12px;
+}
+
+.pdoem-breadcrumb button,
+.pdoem-back,
+.pdoem-button,
+.pdoem-button--text,
+.pdoem-agreement button {
+  min-height: 44px;
+}
+
+.pdoem-search {
+  min-height: 44px;
+  height: 44px;
+}
+
+.pdoem-search input {
+  min-height: 44px;
+  font-size: 16px;
+}
+
+@media (max-width: 720px) {
+  .pdoem-topic-nav {
+    overflow-x: visible;
+  }
+
+  .pdoem-topic-nav > div {
+    width: 100%;
+    min-width: 0;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .pdoem-topic-nav button {
+    width: auto;
+    min-width: 0;
+    min-height: 44px;
+    padding-inline: 8px;
+  }
+}

@@ -1,5 +1,5 @@
 export const DRAFT_STORAGE_KEY = 'bobMaxeyProtectQuotes';
-export const DRAFT_SCHEMA_VERSION = 2;
+export const DRAFT_SCHEMA_VERSION = 4;
 export const DRAFT_TTL_DAYS = 30;
 
 const MAX_DRAFTS = 8;
@@ -9,21 +9,6 @@ const asArray = (value) => Array.isArray(value) ? value : [];
 const asObject = (value) => value && typeof value === 'object' && !Array.isArray(value) ? value : {};
 const text = (value, fallback = '', maxLength = 500) => typeof value === 'string' ? value.slice(0, maxLength) : fallback;
 const numberOrNull = (value) => value !== '' && value !== null && value !== undefined && Number.isFinite(Number(value)) ? Number(value) : null;
-
-const sanitizeDecodedVehicle = (value) => {
-  const source = asObject(value);
-  const allowedTextFields = [
-    'year', 'make', 'model', 'trim', 'series', 'bodyClass', 'bodyCabType', 'driveType',
-    'fuelType', 'electrificationLevel', 'powertrain', 'engineCylinders',
-    'engineDisplacementL', 'engineModel', 'engineConfiguration', 'engineHorsepower',
-    'engineDescription', 'transmissionStyle', 'transmissionSpeeds', 'transmission',
-    'gvwr', 'doors', 'vehicleType', 'manufacturer', 'modelId', 'plantCity',
-    'plantState', 'plantCountry', 'plant', 'source', 'decodedAt',
-  ];
-  return Object.fromEntries(allowedTextFields
-    .map((field) => [field, text(source[field])])
-    .filter(([, fieldValue]) => fieldValue));
-};
 
 const sanitizeProductSelections = (value) => Object.fromEntries(Object.entries(asObject(value))
   .filter(([id, selection]) => typeof id === 'string' && id.length <= 80 && selection && typeof selection === 'object' && !Array.isArray(selection))
@@ -36,6 +21,7 @@ const sanitizeProductSelections = (value) => Object.fromEntries(Object.entries(a
     serviceInterval: numberOrNull(selection.serviceInterval),
     engineHours: numberOrNull(selection.engineHours),
     benefitAmount: numberOrNull(selection.benefitAmount),
+    underlyingProductId: text(selection.underlyingProductId, '', 80),
     confirmed: selection.confirmed === true,
   }]));
 
@@ -70,6 +56,7 @@ export function sanitizeDraft(quote = {}, now = new Date()) {
     expiresAt: new Date(Date.parse(effectiveSavedAt) + DRAFT_TTL_DAYS * DAY_MS).toISOString(),
     purchaseContext: text(source.purchaseContext),
     vehicleSituation: text(source.vehicleSituation),
+    transactionMethod: text(source.transactionMethod),
     year: text(source.year),
     make: text(source.make),
     model: text(source.model),
@@ -79,13 +66,13 @@ export function sanitizeDraft(quote = {}, now = new Date()) {
     usage: text(source.usage, 'Personal'),
     powertrain: text(source.powertrain, 'Gas'),
     snowPlow: text(source.snowPlow, 'No'),
-    // Keep useful planning facts, but never persist the VIN returned by the decoder.
-    decodedVehicle: sanitizeDecodedVehicle(source.decodedVehicle),
     program: text(source.program),
     planPath: text(source.planPath),
     planId: text(source.planId),
     cspLevel: text(source.cspLevel),
+    cspPriorCoverageStatus: text(source.cspPriorCoverageStatus),
     engineCareLevel: text(source.engineCareLevel),
+    currentEngineHours: numberOrNull(source.currentEngineHours),
     termMonths: numberOrNull(source.termMonths),
     termMiles: numberOrNull(source.termMiles),
     deductible: text(source.deductible),
@@ -93,6 +80,7 @@ export function sanitizeDraft(quote = {}, now = new Date()) {
     planBenefitsDecision: text(source.planBenefitsDecision),
     requestedProductIds: asArray(source.requestedProductIds).filter((item) => typeof item === 'string'),
     productSelections,
+    offRoadUnderlyingProductId: text(source.offRoadUnderlyingProductId, '', 80),
     additionalProductsDecision: text(source.additionalProductsDecision),
     maintenanceId: text(source.maintenanceId, 'none'),
     maintenanceName: text(source.maintenanceName),

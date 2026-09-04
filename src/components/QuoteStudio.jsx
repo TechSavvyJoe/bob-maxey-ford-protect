@@ -17,9 +17,11 @@ import {
 import { createAdfXml, CRM_DESTINATION, downloadLeadXml, submitCrmLead } from '../crmLead';
 import {
   createDefaultQuoteProductSelection, getQuoteProductCatalog, getWarrantyInspectionStatus,
-  getProductTimingPresentation, quoteProducts, validateQuoteProductSelection, VEHICLE_SITUATIONS,
+  getProductTimingPresentation, quoteProducts, validatePrimaryPlanEligibility,
+  validateQuoteProductRequests, validateQuoteProductSelection, VEHICLE_SITUATIONS,
 } from '../quoteProducts';
-import { buildProposalModel } from '../quoteOutput';
+import { buildProposalModel, formatPhoneNumber, getPaymentPreferenceLabel, getPreferredContactLabel } from '../quoteOutput';
+import { getProposalCoverageChunks, getProposalProductChunks } from '../proposalLayout';
 import { CONTACT_CONSENT_TEXT, CONTACT_CONSENT_VERSION, createConsentMetadata } from '../consent';
 import { createQuoteId, deleteDraft, saveDraft } from '../draftStorage';
 import { decodeVinWithVpic, normalizeVin, VIN_PATTERN } from '../vinDecoder';
@@ -35,10 +37,10 @@ const optionIcons = {
 };
 
 const paymentChoices = [
-  { value: 'Review interest-free financing if eligible', title: 'Show the interest-free payment option', text: 'Ford currently advertises interest-free financing for eligible Ford Protect Extended Service Plans for up to 30 months. The returned offer controls the down payment and schedule.' },
-  { value: 'Pay in full', title: 'Show the total plan price', text: 'Review the complete specialist-confirmed price as one amount.' },
-  { value: 'Compare total price and eligible financing', title: 'Compare both choices', text: 'See the complete price and any eligible interest-free payment option together.' },
-  { value: 'Not sure yet', title: 'Help me decide', text: 'Ask the Bob Maxey specialist to explain both paths.' },
+  { value: 'Review interest-free financing if eligible', title: getPaymentPreferenceLabel('Review interest-free financing if eligible'), text: 'Ford currently advertises interest-free financing for eligible Ford Protect Extended Service Plans for up to 30 months. The returned offer controls the down payment and schedule.' },
+  { value: 'Pay in full', title: getPaymentPreferenceLabel('Pay in full'), text: 'Review the complete specialist-confirmed price as one amount.' },
+  { value: 'Compare total price and eligible financing', title: getPaymentPreferenceLabel('Compare total price and eligible financing'), text: 'See the complete price and any eligible interest-free payment option together.' },
+  { value: 'Not sure yet', title: getPaymentPreferenceLabel('Not sure yet'), text: 'Ask the Bob Maxey specialist to explain both paths.' },
 ];
 
 const normalizePaymentPreference = (value) => {
@@ -71,7 +73,7 @@ const dieselCareDetail = {
   tagline: 'Focused Ford-backed protection for eligible Power Stroke diesel engine components.',
   coverageModel: 'Listed-component coverage. The current Ford offer and issued agreement identify the exact eligible components, engine, use, mileage, engine hours, and exclusions.',
   stat: '7 yrs / 200k',
-  statLabel: 'referenced maximum, plus 8,000 engine hours',
+  statLabel: 'planning maximum, plus 8,000 engine hours',
   maxTerm: '7 years / 200,000 miles / 8,000 engine hours on eligible vehicles',
   coverageGroups: [
     { title: 'Core engine assembly', summary: 'Agreement-listed internal and structural diesel-engine components.', items: ['Cylinder block and heads', 'Internally lubricated parts', 'Timing components', 'Oil pump and pan', 'Water pump'] },
@@ -79,6 +81,18 @@ const dieselCareDetail = {
   ],
   benefits: [],
   bestFor: 'Eligible 3.0L, 3.2L, or 6.7L Power Stroke owners who want focused diesel-engine protection.',
+};
+
+const productsOnlyDetail = {
+  type: 'FORD PROTECT PRODUCT REQUEST',
+  tagline: 'Build a request around eligible maintenance, tire-and-wheel, mobility, lease, or vehicle-care products.',
+  coverageModel: 'Each selected product keeps its own purchase-timing, compatibility, vehicle, state, configuration, and dealer-verification rules.',
+  stat: 'Product-specific',
+  statLabel: 'terms and eligibility',
+  maxTerm: 'Confirmed separately for each selected product',
+  coverageGroups: [],
+  benefits: [],
+  bestFor: 'Customers who want eligible Ford Protect ownership products without requesting a mechanical service contract.',
 };
 
 const vehicleSituations = [
@@ -107,6 +121,20 @@ const vehicleSituations = [
     Icon: KeyRound,
   },
 ];
+
+const transactionMethods = [
+  { value: 'finance', label: 'Finance', description: 'Include finance-only products.' },
+  { value: 'lease', label: 'Lease', description: 'Include lease-only products.' },
+  { value: 'cash', label: 'Pay in full', description: 'Exclude finance- and lease-only products.' },
+  { value: 'undecided', label: 'Not sure yet', description: 'Show both for dealer review.' },
+];
+const transactionMethodValues = new Set(transactionMethods.map((item) => item.value));
+
+const localToday = () => {
+  const date = new Date();
+  const offset = date.getTimezoneOffset() * 60000;
+  return new Date(date.getTime() - offset).toISOString().slice(0, 10);
+};
 
 const coveragePlanIds = new Set([...planData, ...evPlanData].map((item) => item.id));
 const hasOwn = (object, key) => Object.prototype.hasOwnProperty.call(object || {}, key);
@@ -343,7 +371,7 @@ function PlanRail({ plans, selectedId, planPath, onSelect, onDetails, compact = 
               <ShieldCheck />
               <span>
                 <strong>{item.name}</strong>
-                <small>{available ? `${item.count} covered components` : 'New-plan only in the supplied guide'}</small>
+                <small>{available ? `${item.count} covered components` : 'Not offered on this used-plan path'}</small>
                 {!available && <small id={`${item.id}-path-notice`}>Ford must verify whether a current offer provides another path.</small>}
               </span>
               {selectedItem && <CheckCircle2 className="plan-rail-check" />}
@@ -366,28 +394,34 @@ function PlanRail({ plans, selectedId, planPath, onSelect, onDetails, compact = 
 
 function Summary({ quote, plan, eligibility, selectedProducts = [], inspection }) {
   const selectedOptions = protectionOptions.filter((item) => quote.addOns.includes(item.id));
+  const productsOnly = quote.program === 'products-only';
+  const extras = selectedProducts.map((item) => item.name || item.title);
   const planConfirmed = quote.program === 'esp' ? Boolean(quote.planId && quote.planPath)
     : quote.program === 'csp' ? Boolean(quote.cspLevel)
       : quote.program === 'enginecare' ? Boolean(quote.engineCareLevel) : false;
-  const term = !planConfirmed ? 'Choose coverage first' : quote.program === 'csp'
+  const term = productsOnly
+    ? (extras.length ? 'Set for each selected product' : 'Choose a product to configure')
+    : !planConfirmed ? 'Choose coverage first' : quote.program === 'csp'
     ? 'Monthly / no annual mileage limit'
     : quote.program === 'enginecare'
       ? '7 years / 200,000 total miles / 8,000 engine hours'
     : quote.termMonths && quote.termMiles
       ? `${formatTerm(quote.termMonths)} / ${formatMiles(quote.termMiles)} ${quote.planPath === 'used' ? 'additional' : 'total'} miles`
       : 'Choose term & mileage';
-  const deductible = !planConfirmed ? 'Not selected' : quote.program === 'csp'
+  const deductible = productsOnly
+    ? (extras.length ? 'Reviewed product by product' : 'Confirmed after product selection')
+    : !planConfirmed ? 'Not selected' : quote.program === 'csp'
     ? 'Confirmed with CSP offer'
     : quote.program === 'enginecare'
       ? '$100'
     : !quote.deductible ? 'Choose a deductible' : quote.deductible === 'disappearing' ? 'Disappearing' : `$${quote.deductible}`;
   const vehicle = [quote.year, quote.make, quote.model].filter(Boolean).join(' ') || 'Complete vehicle details';
-  const planLabel = planConfirmed ? plan.name : 'Choose a coverage level';
+  const planLabel = productsOnly ? 'Ford Protect products only' : planConfirmed ? plan.name : 'Choose a coverage level';
   const rows = [
     [CarFront, 'Vehicle', vehicle],
-    [ShieldCheck, 'Plan', planLabel],
-    [CalendarDays, 'Term', term],
-    [CircleDollarSign, 'Deductible', deductible],
+    [ShieldCheck, productsOnly ? 'Request type' : 'Plan', planLabel],
+    [CalendarDays, productsOnly ? 'Product terms' : 'Term', term],
+    [CircleDollarSign, productsOnly ? 'Eligibility' : 'Deductible', deductible],
   ];
 
   const summaryRows = (
@@ -398,8 +432,9 @@ function Summary({ quote, plan, eligibility, selectedProducts = [], inspection }
     </div>
   );
 
-  const extras = selectedProducts.map((item) => item.name || item.title);
-  const compactTerm = quote.program === 'csp'
+  const compactTerm = productsOnly
+    ? (extras.length ? `${extras.length} configured product${extras.length === 1 ? '' : 's'}` : 'Choose product options')
+    : quote.program === 'csp'
     ? 'Monthly coverage'
     : quote.program === 'enginecare'
       ? '7 years · 200,000 miles · 8,000 hours'
@@ -450,7 +485,7 @@ function Summary({ quote, plan, eligibility, selectedProducts = [], inspection }
 }
 
 function StudioFooter({ step, quote, saved, onBack, onContinue, onSave, onSubmit, submitting, ready, status }) {
-  const termAction = quote.program === 'enginecare' ? 'Review plan limits' : quote.program === 'csp' ? 'Review monthly path' : 'Choose term & mileage';
+  const termAction = quote.program === 'enginecare' ? 'Review plan limits' : quote.program === 'csp' ? 'Review monthly path' : quote.program === 'products-only' ? 'Review product path' : 'Choose term & mileage';
   const labels = ['Continue to coverage', termAction, 'Continue to options', 'Continue to contact details', 'Review request', 'Submit for specialist review'];
   return (
     <footer className={`studio-footer ${step === 0 ? 'is-first-step' : ''}`}>
@@ -502,6 +537,7 @@ function PlanHelp({ plan, detail, onClose }) {
 }
 
 function ProductConfigurator({ product, selection, powertrain, onChange }) {
+  const verificationOnly = product.currentPublicStatus === 'dealer-verification-only';
   const variants = productVariantsForVehicle(product, powertrain);
   const activeVariant = variants.find((item) => item.id === selection?.variantId) || variants[0] || productVariant(product, selection);
   if (!activeVariant) return null;
@@ -519,14 +555,14 @@ function ProductConfigurator({ product, selection, powertrain, onChange }) {
 
   return (
     <section className="product-configurator" aria-labelledby="product-configurator-title">
-      <header><span><small>BUILD YOUR REQUEST</small><h3 id="product-configurator-title">Choose the option you want Bob Maxey to verify.</h3></span><strong>{productSelectionLabel(product, selection)}</strong></header>
+      <header><span><small>{verificationOnly ? 'DEALER VERIFICATION REQUEST' : 'BUILD YOUR REQUEST'}</small><h3 id="product-configurator-title">{verificationOnly ? 'Confirm the product you want Bob Maxey to check.' : 'Choose the option you want Bob Maxey to verify.'}</h3></span><strong>{productSelectionLabel(product, selection)}</strong></header>
       {variants.length > 1 && (
         <div className="product-configurator__variants" role="radiogroup" aria-label={`${product.name} option`} onKeyDown={handleRovingChoiceKeyDown}>
           {variants.map((variant) => <button key={variant.id} type="button" role="radio" aria-checked={variant.id === activeVariant.id} tabIndex={variant.id === activeVariant.id ? 0 : -1} className={variant.id === activeVariant.id ? 'is-selected' : ''} onClick={() => updateVariant(variant.id)}><span>{variant.label}</span>{variant.id === activeVariant.id && <Check />}</button>)}
         </div>
       )}
       {mode === 'dealer-returned' || mode === 'monthly' ? (
-        <div className="product-configurator__returned"><ClipboardCheck /><span><strong>{mode === 'monthly' ? 'Monthly vehicle-specific offer' : 'Configured with the original transaction'}</strong><small>The current Ford or Ford Credit offer supplies the final option, term, price, and agreement details.</small></span></div>
+        <div className="product-configurator__returned"><ClipboardCheck /><span><strong>{product.id === 'off-road-coverage' ? 'Eligible underlying product required' : mode === 'monthly' ? 'Monthly vehicle-specific offer' : 'Configured with the original transaction'}</strong><small>{product.id === 'off-road-coverage' ? 'Choose the TireCARE or TripleCARE product this request should be paired with. Bob Maxey will verify it in the current dealer system.' : 'The current Ford or Ford Credit offer supplies the final option, term, price, and agreement details.'}</small></span></div>
       ) : mode === 'fixed' ? (
         <div className="product-configurator__facts"><span><small>TERM</small><strong>{compactTerm(selection?.termMonths || activeVariant.defaults.termMonths)}</strong></span><span><small>MILEAGE</small><strong>{formatMiles(selection?.termMiles || activeVariant.defaults.termMiles)} miles</strong></span><span><small>ENGINE HOURS</small><strong>{formatMiles(selection?.engineHours || activeVariant.defaults.engineHours)}</strong></span></div>
       ) : (
@@ -537,6 +573,7 @@ function ProductConfigurator({ product, selection, powertrain, onChange }) {
           {activeVariant.id === 'theftcare' && <label><span>Benefit preference</span><select value={selection?.benefitAmount || 2500} onChange={(event) => onChange({ ...selection, benefitAmount: Number(event.target.value), powertrain })}><option value="2500">$2,500</option><option value="5000">$5,000</option></select></label>}
         </div>
       )}
+      {product.id === 'off-road-coverage' && <div className="product-configurator__fields"><label><span>Underlying Ford Protect product</span><select value={selection?.underlyingProductId || ''} onChange={(event) => onChange({ ...selection, underlyingProductId: event.target.value, powertrain })}><option value="">Choose the product to verify</option><option value="tirecare">TireCARE</option><option value="tirecare-plus">TireCARE Plus</option><option value="triplecare">TripleCARE</option><option value="triplecare-plus">TripleCARE Plus</option></select></label></div>}
       <div className="product-configurator__basis"><Info /><span><strong>When this coverage starts</strong><small>{activeVariant.startBasisLabel}</small></span></div>
     </section>
   );
@@ -551,6 +588,7 @@ function ProductDetail({ product, selected, selection, powertrain, purchaseConte
     setConfigurationConfirmed(Boolean(selected && selection?.confirmed));
   }, [product?.id, powertrain, selection, selected]);
   if (!product) return null;
+  const verificationOnly = product.currentPublicStatus === 'dealer-verification-only';
   const benefits = (product.benefits || product.highlights || []).map(asDisplayItem).filter(Boolean);
   const covered = productCoverageHighlights(product);
   const considerations = product.considerations || product.limits || product.important || product.cautions || [];
@@ -560,6 +598,7 @@ function ProductDetail({ product, selected, selection, powertrain, purchaseConte
   const eligibilityTitle = product.eligibilityTitle || product.eligibility?.headline || product.status?.label || 'Bob Maxey confirms the current Ford offer';
   const eligibilityText = product.status?.message || product.eligibility?.dealerConfirmation || product.saleWindow || 'Availability depends on the VIN, state, current mileage, warranty status, vehicle use, and current Ford program rules.';
   const validation = validateQuoteProductSelection(product.id, draft || {}, { includeDealerOnly: false });
+  const dependencyValid = product.id !== 'off-road-coverage' || Boolean(draft?.underlyingProductId);
   return (
     <div className="product-detail-backdrop">
       <article ref={modalRef} className="product-detail-modal" role="dialog" aria-modal="true" aria-labelledby="product-detail-title" tabIndex="-1">
@@ -582,14 +621,14 @@ function ProductDetail({ product, selected, selection, powertrain, purchaseConte
           </div>
           {selectable ? <>
             <ProductConfigurator product={product} selection={draft} powertrain={powertrain} onChange={(next) => { setDraft(next); setConfigurationConfirmed(true); }} />
-            <button className={`product-configuration-confirm ${configurationConfirmed ? 'is-confirmed' : ''}`} type="button" aria-pressed={configurationConfirmed} onClick={() => setConfigurationConfirmed(true)}>{configurationConfirmed ? <CheckCircle2 /> : <ClipboardCheck />}<span><strong>{configurationConfirmed ? 'Configuration reviewed' : 'Confirm these product options'}</strong><small>{configurationConfirmed ? 'You can add this product or keep editing the choices above.' : 'The displayed values are recommendations until you confirm them.'}</small></span></button>
+            <button className={`product-configuration-confirm ${configurationConfirmed ? 'is-confirmed' : ''}`} type="button" aria-pressed={configurationConfirmed} onClick={() => setConfigurationConfirmed(true)}>{configurationConfirmed ? <CheckCircle2 /> : <ClipboardCheck />}<span><strong>{configurationConfirmed ? (verificationOnly ? 'Verification request reviewed' : 'Configuration reviewed') : (verificationOnly ? 'Confirm this verification request' : 'Confirm these product options')}</strong><small>{configurationConfirmed ? (verificationOnly ? 'This asks Bob Maxey to check for a current vehicle-specific offer; it is not a confirmed offer.' : 'You can add this product or keep editing the choices above.') : (verificationOnly ? 'Current product availability must be verified by Bob Maxey.' : 'The displayed values are recommendations until you confirm them.')}</small></span></button>
           </> : <div className="product-configurator__returned"><Info /><span><strong>This product cannot be configured for the selected vehicle situation.</strong><small>{product.status?.message || 'Review the purchase-timing explanation above. Bob Maxey can answer questions, but this product cannot be added to this request.'}</small></span></div>}
           {product.eligibility?.inspectionPolicy && <div className="product-detail-modal__inspection is-clear"><ClipboardCheck /><span><small>INSPECTION / RECORD REVIEW</small><strong>Product-specific rule</strong><p>{product.eligibility.inspectionPolicy}</p></span></div>}
           {considerations.length > 0 && <section className="product-detail-modal__important"><h3>Important to know</h3><ul>{considerations.map((item, index) => <li key={`${product.id}-consideration-${index}-${typeof item === 'string' ? item : item.title || item.text || 'item'}`}>{typeof item === 'string' ? item : `${item.title}${item.text ? ` — ${item.text}` : ''}`}</li>)}</ul></section>}
-          {selectable && !validation.valid && <p className="product-configurator__error" role="alert">{validation.message}</p>}
+          {selectable && (!validation.valid || !dependencyValid) && <p className="product-configurator__error" role="alert">{!dependencyValid ? 'Choose the eligible TireCARE or TripleCARE product this Off-Road request should be paired with.' : validation.message}</p>}
           <p className="product-detail-modal__agreement">The current Ford offer and issued agreement control eligibility, covered services, limits, exclusions, term, and price.</p>
         </div>
-        <footer><button className="button button--secondary" type="button" onClick={onClose}>Back to product choices</button>{selectable ? <button className={`button ${selected ? 'button--selected' : 'button--primary'}`} type="button" disabled={!validation.valid || !configurationConfirmed} onClick={() => { onConfigure(product.id, draft); onClose(); }}>{selected ? <><CheckCircle2 /> Save {product.name} changes</> : <>Add {product.name} <PackagePlus /></>}</button> : <button className="button button--secondary" type="button" disabled aria-disabled="true">Not available for this request</button>}</footer>
+        <footer><button className="button button--secondary" type="button" onClick={onClose}>Back to product choices</button>{selectable ? <button className={`button ${selected ? 'button--selected' : 'button--primary'}`} type="button" disabled={!validation.valid || !configurationConfirmed || !dependencyValid} onClick={() => { onConfigure(product.id, draft); onClose(); }}>{selected ? <><CheckCircle2 /> {verificationOnly ? `Save ${product.name} verification request` : `Save ${product.name} changes`}</> : <>{verificationOnly ? `Request ${product.name} dealer verification` : `Add ${product.name}`} <PackagePlus /></>}</button> : <button className="button button--secondary" type="button" disabled aria-disabled="true">Not available for this request</button>}</footer>
       </article>
     </div>
   );
@@ -608,7 +647,7 @@ function AfterSaleNotice({ purchaseContext, onClose }) {
           <p>{shopping ? 'This view includes products that must be chosen as part of the vehicle transaction as well as products that may remain available later. Purchase-timing labels make the difference clear before you add anything.' : 'Products that may still be requested after the sale can be configured here. Purchase-only products remain visible for comparison, but are disabled and explain why they cannot be added after the transaction is complete.'}</p>
           <div className="purchase-rule-summary">
             <article><CarFront /><span><strong>Choose during the vehicle purchase</strong><small>Includes products that must be part of the transaction and products that may also remain available later.</small></span></article>
-            <article><KeyRound /><span><strong>May be requested after the sale</strong><small>Available and dealer-verification paths can be configured; purchase-only products stay visible but disabled.</small></span></article>
+            <article><KeyRound /><span><strong>May be requested after the sale</strong><small>Available products can be configured. Verification-only items ask Bob Maxey to check for a current offer and are never shown as confirmed available.</small></span></article>
           </div>
           <div className="product-detail-modal__eligibility"><ShieldCheck /><span><strong>Every request still receives a Ford record review.</strong><p>VIN, warranty status, state, mileage, powertrain, vehicle use, and current program rules determine the final available products.</p></span></div>
         </div>
@@ -623,20 +662,22 @@ function ProductCard({ product, selected, selection, purchaseContext, featured =
   const availableAfterSale = getProductPurchaseContexts(product).includes('owner');
   const timingLabel = product.purchaseTimingLabel || productTimingLabel(product, purchaseContext);
   const unavailable = product.status?.eligible === false || product.selectable === false;
+  const verificationOnly = product.currentPublicStatus === 'dealer-verification-only';
   return (
-    <article className={`quote-product-card ${selected ? 'is-selected' : ''} ${unavailable ? 'is-unavailable' : ''}`} data-product-id={product.id}>
+    <article className={`quote-product-card ${selected ? 'is-selected' : ''} ${unavailable ? 'is-unavailable' : ''} ${verificationOnly ? 'is-verification-only' : ''}`} data-product-id={product.id}>
       <div className="quote-product-card__media">
         {product.image && <img src={assetUrl(product.image)} alt={product.imageAlt || product.name || product.title} />}
-        {selected && <span className="quote-product-card__selected"><Check /> Selected</span>}
-        <span className={`quote-product-card__timing ${availableAfterSale ? 'is-after-sale' : 'is-sale-only'}`}>{timingLabel}</span>
+        {selected && <span className="quote-product-card__selected"><Check /> {verificationOnly ? 'Verification requested' : 'Selected'}</span>}
+        <span className={`quote-product-card__timing ${verificationOnly ? 'is-verification' : availableAfterSale ? 'is-after-sale' : 'is-sale-only'}`}>{verificationOnly ? 'Dealer verification only' : timingLabel}</span>
       </div>
       <div className="quote-product-card__body">
         <div className="quote-product-card__title"><span className="quote-product-card__icon">{product.category === 'maintenance' ? <Wrench /> : product.category === 'mobility' ? <CarFront /> : <ShieldCheck />}</span><span><small>{product.eyebrow || product.familyLabel || 'FORD PROTECT'}</small><h3>{product.name || product.title}</h3></span></div>
         <p>{product.cardDescription || product.value || product.valueStatement || product.description || product.short}</p>
         <div className="quote-product-card__highlights">{highlights.map((item) => <span key={typeof item === 'string' ? item : item.title}><CheckCircle2 /> {typeof item === 'string' ? item : item.title}</span>)}</div>
+        {verificationOnly && <div className="quote-product-card__verification" role="note"><ClipboardCheck /><span><strong>Current availability is not confirmed</strong><small>Send a dealer-verification request and Bob Maxey will check whether a current vehicle-specific offer is available.</small></span></div>}
         {unavailable && <div className="quote-product-card__unavailable" role="note"><Info /><span><strong>{product.status?.label || 'Not available for this vehicle situation'}</strong><small>{product.status?.message || 'Bob Maxey can explain the purchase-timing rule, but this product cannot be added to this request.'}</small></span></div>}
         {selected && <div className="quote-product-card__configuration"><span><small>YOUR REQUEST</small><strong>{productSelectionLabel(product, selection)}</strong></span><CheckCircle2 /></div>}
-        <div className="quote-product-card__actions"><button className={`button ${selected || unavailable ? 'button--secondary' : 'button--primary'}`} type="button" onClick={() => onDetails(product.id)}>{selected ? 'Edit selection' : unavailable ? 'See why it is unavailable' : 'View details & choose'} <ArrowRight /></button>{selected && <button className="product-remove-link" type="button" onClick={() => onRemove(product.id)}>Remove</button>}</div>
+        <div className="quote-product-card__actions"><button className={`button ${selected || unavailable || verificationOnly ? 'button--secondary' : 'button--primary'}`} type="button" onClick={() => onDetails(product.id)}>{selected ? (verificationOnly ? 'Edit verification request' : 'Edit selection') : unavailable ? 'See why it is unavailable' : verificationOnly ? 'Ask dealer to verify' : 'View details & choose'} <ArrowRight /></button>{selected && <button className="product-remove-link" type="button" onClick={() => onRemove(product.id)}>Remove</button>}</div>
       </div>
     </article>
   );
@@ -670,13 +711,11 @@ function ProposalPreview({ quote, plan, detail, onClose, onDownload, busy }) {
       <b>{pageNumber}</b>
     </footer>
   );
-  const coveragePageCount = Math.max(1, Math.ceil(groups.length / 4));
-  const coverageChunkSize = Math.max(1, Math.ceil(groups.length / coveragePageCount));
-  const coverageChunks = groups.length
-    ? Array.from({ length: coveragePageCount }, (_, index) => groups.slice(index * coverageChunkSize, (index + 1) * coverageChunkSize)).filter((chunk) => chunk.length)
-    : [groups];
-  const productsPageNumber = coverageChunks.length + 2;
-  const nextStepsPageNumber = productsPageNumber + (products.length ? 1 : 0);
+  const coverageChunks = getProposalCoverageChunks(groups);
+  const normalizedCoverageChunks = model.snapshot.program === 'products-only' ? [] : coverageChunks.length ? coverageChunks : [[]];
+  const productChunks = getProposalProductChunks(products);
+  const firstProductsPageNumber = normalizedCoverageChunks.length + 2;
+  const nextStepsPageNumber = firstProductsPageNumber + productChunks.length;
   const pages = [
     {
       title: 'Cover',
@@ -685,48 +724,47 @@ function ProposalPreview({ quote, plan, detail, onClose, onDownload, busy }) {
         <header className="proposal-document__masthead"><span><img src={assetUrl('/assets/bob-maxey-logo.png')} alt="Bob Maxey" /><i /><img src={assetUrl('/assets/ford-official/ford-protect-logo.png')} alt="Ford Protect" /></span><div><small>{documentStatus}</small><strong>{model.document.quoteId}</strong></div></header>
         <div className="proposal-document__hero"><img src={assetUrl(model.cover.vehicleImage)} alt={model.cover.vehicleImageAlt} /><div><span /><h2>{model.cover.headline}</h2><p>{model.cover.subhead}</p></div></div>
         <div className="proposal-document__body proposal-document__body--cover">
-          <div className="proposal-document__identity"><div><small>PREPARED FOR</small><h3>{model.cover.preparedFor}</h3><p>{model.cover.purchaseContextLabel}</p></div><div><CarFront /><span><small>YOUR VEHICLE</small><h3>{model.cover.vehicle}</h3><p>{vehicle.currentMileageLabel}</p></span></div></div>
+          <div className="proposal-document__identity"><div><small>PREPARED FOR</small><h3>{model.cover.preparedFor}</h3><p>{model.cover.purchaseContextLabel}</p></div><div><CarFront /><span><small>YOUR VEHICLE</small><h3>{model.cover.vehicle}</h3></span></div></div>
           <div className="proposal-document__vehicle-facts">{vehicleFacts.map(([label, value]) => <span key={label}><small>{label}</small><strong>{value}</strong></span>)}</div>
-          <section className="proposal-document__plan-intro"><div><small>YOUR SELECTED PROTECTION</small><h2>{model.cover.planName}</h2><p>{coverage.description || model.overview.coverageModel}</p></div><ShieldCheck /></section>
-          <div className="proposal-document__selection"><span><small>Term</small><strong>{model.cover.termLabel}</strong></span><span><small>Mileage</small><strong>{model.cover.mileageLabel}</strong></span><span><small>Deductible</small><strong>{model.cover.deductibleLabel}</strong></span><span><small>Added products</small><strong>{products.length || 'None requested'}</strong></span></div>
-          <div className="proposal-document__band"><span><ShieldCheck /><strong>Ford-backed coverage</strong></span><span><MapPin /><strong>Nationwide dealer support</strong></span><span><CarFront /><strong>Rental benefits where included</strong></span></div>
+          <section className="proposal-document__plan-intro"><div><small>{model.snapshot.program === 'products-only' ? 'YOUR PRODUCT REQUEST' : 'YOUR SELECTED PROTECTION'}</small><h2>{model.cover.planName}</h2><p>{coverage.description || model.overview.coverageModel}</p></div><ShieldCheck /></section>
+          <div className="proposal-document__selection">{model.snapshot.program === 'products-only' ? <><span><small>Request type</small><strong>Ford Protect products only</strong></span><span><small>Products selected</small><strong>{products.length}</strong></span><span><small>Expected transaction</small><strong>{model.snapshot.transactionMethodLabel}</strong></span><span><small>Configuration</small><strong>Product-specific</strong></span></> : <><span><small>Term</small><strong>{model.cover.termLabel}</strong></span><span><small>Mileage</small><strong>{model.cover.mileageLabel}</strong></span><span><small>{model.snapshot.program === 'csp' ? 'Prior coverage' : 'Deductible'}</small><strong>{model.snapshot.program === 'csp' ? coverage.qualification.cspPriorCoverageLabel : model.cover.deductibleLabel}</strong></span><span><small>Added products</small><strong>{products.length || 'None requested'}</strong></span></>}</div>
+          <div className="proposal-document__band">{model.snapshot.program === 'products-only' ? <><span><ShieldCheck /><strong>Product-specific protection</strong></span><span><CarFront /><strong>VIN and transaction review</strong></span><span><FileText /><strong>Current agreement controls</strong></span></> : <><span><ShieldCheck /><strong>Ford-backed coverage</strong></span><span><MapPin /><strong>Nationwide dealer support</strong></span><span><CarFront /><strong>Rental benefits where included</strong></span></>}</div>
         </div>
         {documentFooter('Personalized Ford Protect request', 1)}
       </section>,
     },
-    ...coverageChunks.map((pageGroups, chunkIndex) => {
+    ...normalizedCoverageChunks.map((pageGroups, chunkIndex) => {
       const isFirstCoveragePage = chunkIndex === 0;
-      const isLastCoveragePage = chunkIndex === coverageChunks.length - 1;
+      const isLastCoveragePage = chunkIndex === normalizedCoverageChunks.length - 1;
       const pageNumber = chunkIndex + 2;
       return {
-        title: coverageChunks.length > 1 ? `${plan.name} ${chunkIndex + 1}` : plan.name,
+        title: normalizedCoverageChunks.length > 1 ? `${plan.name} ${chunkIndex + 1}` : plan.name,
         description: isFirstCoveragePage ? 'Plan terms and covered systems' : 'Additional covered systems',
         content: <section className="proposal-document proposal-document--coverage" key={`coverage-${chunkIndex}`}>
           <header className="proposal-document__title-band"><div><span /><small>{isFirstCoveragePage ? 'YOUR SELECTED COVERAGE' : 'COVERAGE CONTINUED'}</small><h2>{isFirstCoveragePage ? plan.name : `${plan.name} covered systems`}</h2><p>{isFirstCoveragePage ? model.overview.coverageModel : 'More of the systems and component examples included in your selected protection level.'}</p></div><img src={assetUrl('/assets/ford-official/ford-protect-logo.png')} alt="Ford Protect" /></header>
           <div className="proposal-document__body">
-            {isFirstCoveragePage && <div className="proposal-document__plan-facts"><span><small>Coverage model</small><strong>{coverage.programLabel}</strong></span><span><small>Term</small><strong>{model.cover.termLabel}</strong></span><span><small>Mileage</small><strong>{model.cover.mileageLabel}</strong></span><span><small>Deductible</small><strong>{model.cover.deductibleLabel}</strong></span>{model.overview.componentCount && <span><small>Published component count</small><strong>{model.overview.componentCount}</strong></span>}</div>}
+            {isFirstCoveragePage && <div className="proposal-document__plan-facts"><span><small>Coverage model</small><strong>{coverage.programLabel}</strong></span><span><small>Term</small><strong>{model.cover.termLabel}</strong></span><span><small>Mileage</small><strong>{model.cover.mileageLabel}</strong></span><span><small>{model.snapshot.program === 'csp' ? 'Prior coverage' : 'Deductible'}</small><strong>{model.snapshot.program === 'csp' ? coverage.qualification.cspPriorCoverageLabel : model.cover.deductibleLabel}</strong></span>{model.overview.componentCount && <span><small>Published component count</small><strong>{model.overview.componentCount}</strong></span>}</div>}
             <div className="proposal-document__section-heading"><span><small>{isFirstCoveragePage ? 'KEY COVERED SYSTEMS' : 'MORE COVERED SYSTEMS'}</small><h2>{isFirstCoveragePage ? model.coverage.headline : `Continue exploring ${plan.name}.`}</h2></span><p>{isFirstCoveragePage ? model.overview.bestFor : 'Component examples are organized by vehicle system for easy review.'}</p></div>
             <div className="proposal-document__coverage-grid">{pageGroups.map((group) => <article key={group.title}><CheckCircle2 /><div><h3>{group.title}</h3><p>{group.summary}</p><ul>{group.items.slice(0, 5).map((item) => <li key={item}>{item}</li>)}</ul></div></article>)}</div>
             {isLastCoveragePage && benefits.length > 0 && <section className="proposal-document__benefits"><small>PLAN BENEFITS</small><div>{benefits.map((benefit) => <span key={benefit.title}><CheckCircle2 /><strong>{benefit.title}</strong>{benefit.text && <small>{benefit.text}</small>}</span>)}</div></section>}
             {isLastCoveragePage && <p className="proposal-document__legal">{model.coverage.note}</p>}
           </div>
-          {documentFooter(`${plan.name} coverage ${coverageChunks.length > 1 ? `${chunkIndex + 1} of ${coverageChunks.length}` : 'overview'}`, pageNumber)}
+          {documentFooter(`${plan.name} coverage ${normalizedCoverageChunks.length > 1 ? `${chunkIndex + 1} of ${normalizedCoverageChunks.length}` : 'overview'}`, pageNumber)}
         </section>,
       };
     }),
-    ...(products.length ? [{
-      title: 'Products',
-      description: 'Additional selections and inspection',
-      content: <section className="proposal-document proposal-document--products" key="products">
-        <header className="proposal-document__title-band"><div><span /><small>YOUR OWNERSHIP PLAN</small><h2>Additional protection selected for your Ford.</h2><p>Each requested product is reviewed for vehicle-specific eligibility and current Ford availability.</p></div><img src={assetUrl('/assets/ford-official/ford-protect-logo.png')} alt="Ford Protect" /></header>
+    ...productChunks.map((pageProducts, chunkIndex) => ({
+      title: productChunks.length > 1 ? `Products ${chunkIndex + 1}` : 'Products',
+      description: chunkIndex === productChunks.length - 1 ? 'Selections, eligibility, and product review' : model.snapshot.program === 'products-only' ? 'Selected product details' : 'Additional product details',
+      content: <section className="proposal-document proposal-document--products" key={`products-${chunkIndex}`}>
+        <header className="proposal-document__title-band"><div><span /><small>{model.snapshot.program === 'products-only' ? 'YOUR PRODUCT REQUEST' : 'YOUR OWNERSHIP PLAN'}</small><h2>{model.snapshot.program === 'products-only' ? 'Ford Protect products selected for your vehicle.' : 'Additional protection selected for your Ford.'}</h2><p>Each requested product is reviewed for vehicle-specific eligibility, purchase timing, configuration, and current Ford availability.</p></div><img src={assetUrl('/assets/ford-official/ford-protect-logo.png')} alt="Ford Protect" /></header>
         <div className="proposal-document__body">
-          <div className="proposal-document__products">{products.map((product) => <article key={product.id}>{product.image && <img src={assetUrl(product.image)} alt={product.imageAlt || product.name} />}<div><small>{product.familyLabel || 'FORD PROTECT PRODUCT'}</small><h3>{product.name}</h3>{product.configuration?.labels?.length > 0 && <p className="proposal-document__configuration">{product.configuration.labels.join(' · ')}</p>}<p>{product.value || product.description}</p><ul>{product.highlights.slice(0, 4).map((item) => <li key={item}><Check /> {item}</li>)}</ul>{product.eligibility?.headline && <span className="proposal-document__product-status"><CheckCircle2 /> {product.eligibility.headline}</span>}</div></article>)}</div>
-          <div className={`proposal-document__inspection ${model.overview.inspection.required ? 'is-required' : 'is-clear'}`}><ClipboardCheck /><span><small>VEHICLE INSPECTION PATH</small><strong>{model.overview.inspection.title}</strong><p>{model.overview.inspection.message}</p>{model.overview.inspection.caveat && <em>{model.overview.inspection.caveat}</em>}</span></div>
-          <div className="proposal-document__product-summary"><span><small>PRIMARY COVERAGE</small><strong>{coverage.planName}</strong></span><span><small>ADDITIONAL PRODUCTS</small><strong>{products.length ? products.map((product) => product.name).join(', ') : 'None requested'}</strong></span><span><small>PAYMENT PREFERENCE</small><strong>{model.requestSummary.payment.preference}</strong></span></div>
+          <div className="proposal-document__products">{pageProducts.map((product) => <article key={product.id}>{product.image && <img src={assetUrl(product.image)} alt={product.imageAlt || product.name} />}<div><small>{product.familyLabel || 'FORD PROTECT PRODUCT'}</small><h3>{product.name}</h3>{product.configuration?.labels?.length > 0 && <p className="proposal-document__configuration">{product.configuration.labels.join(' · ')}</p>}<p>{product.value || product.description}</p><ul>{product.highlights.slice(0, 4).map((item) => <li key={item}><Check /> {item}</li>)}</ul>{product.eligibility?.headline && <span className="proposal-document__product-status"><CheckCircle2 /> {product.eligibility.headline}</span>}</div></article>)}</div>
+          {chunkIndex === productChunks.length - 1 && <><div className={`proposal-document__inspection ${model.overview.inspection.required ? 'is-required' : 'is-clear'}`}><ClipboardCheck /><span><small>{model.snapshot.program === 'products-only' ? 'PRODUCT ELIGIBILITY PATH' : 'VEHICLE INSPECTION PATH'}</small><strong>{model.overview.inspection.title}</strong><p>{model.overview.inspection.message}</p>{model.overview.inspection.caveat && <em>{model.overview.inspection.caveat}</em>}</span></div><div className="proposal-document__product-summary"><span><small>{model.snapshot.program === 'products-only' ? 'REQUEST TYPE' : 'PRIMARY COVERAGE'}</small><strong>{coverage.planName}</strong></span><span><small>SELECTED PRODUCTS</small><strong>{products.map((product) => product.name).join(', ')}</strong></span><span><small>PAYMENT PREFERENCE</small><strong>{model.requestSummary.payment.preference}</strong></span></div></>}
         </div>
-        {documentFooter('Selected products and eligibility path', productsPageNumber)}
+        {documentFooter(`Selected products ${productChunks.length > 1 ? `${chunkIndex + 1} of ${productChunks.length}` : 'and eligibility path'}`, firstProductsPageNumber + chunkIndex)}
       </section>,
-    }] : []),
+    })),
     {
       title: 'Next steps',
       description: 'Specialist review and contact',
@@ -734,7 +772,7 @@ function ProposalPreview({ quote, plan, detail, onClose, onDownload, busy }) {
         <header className="proposal-document__title-band"><div><span /><small>BOB MAXEY SUPPORT</small><h2>What happens after your request.</h2><p>Your specialist turns these selections into a current, vehicle-specific Ford Protect offer.</p></div><img src={assetUrl('/assets/bob-maxey-logo.png')} alt="Bob Maxey" /></header>
         <div className="proposal-document__body">
           <div className="proposal-document__next-layout"><section><small>YOUR NEXT STEPS</small><div className="proposal-document__steps">{model.nextSteps.map((item) => <article key={item.number}><strong>{item.number}</strong><span><h3>{item.title}</h3><p>{item.text}</p></span></article>)}</div></section><aside><small>REQUEST CONTACT</small><h3>{customer.fullName}</h3><dl><div><dt>Email</dt><dd>{customer.email || 'To be confirmed'}</dd></div><div><dt>Phone</dt><dd>{customer.phone || 'To be confirmed'}</dd></div><div><dt>Preferred method</dt><dd>{model.requestSummary.contact.preferredMethod}</dd></div><div><dt>Location</dt><dd>{store.descriptor}</dd></div></dl></aside></div>
-          <div className="proposal-document__summary"><div><small>REQUEST SUMMARY</small><h3>{vehicle.displayName}</h3><p>{vehicle.currentMileageLabel} · {coverage.planName}</p></div><dl><div><dt>Plan path</dt><dd>{coverage.planPathLabel}</dd></div><div><dt>Term</dt><dd>{coverage.term.label}</dd></div><div><dt>Mileage</dt><dd>{coverage.term.mileageLabel}</dd></div><div><dt>Deductible</dt><dd>{coverage.deductible.label}</dd></div><div><dt>Inspection</dt><dd>{model.overview.inspection.title}</dd></div><div><dt>Reference</dt><dd>{model.document.quoteId}</dd></div></dl></div>
+          <div className="proposal-document__summary"><div><small>REQUEST SUMMARY</small><h3>{vehicle.displayName}</h3><p>{vehicle.currentMileageLabel} · {coverage.planName}</p></div><dl>{model.snapshot.program === 'products-only' ? <><div><dt>Products selected</dt><dd>{products.length}</dd></div><div><dt>Expected transaction</dt><dd>{model.snapshot.transactionMethodLabel}</dd></div><div><dt>Configuration</dt><dd>Product-specific</dd></div></> : <><div><dt>Plan path</dt><dd>{coverage.planPathLabel}</dd></div><div><dt>Term</dt><dd>{coverage.term.label}</dd></div><div><dt>Mileage</dt><dd>{coverage.term.mileageLabel}</dd></div><div><dt>{model.snapshot.program === 'csp' ? 'Prior coverage' : 'Deductible'}</dt><dd>{model.snapshot.program === 'csp' ? coverage.qualification.cspPriorCoverageLabel : coverage.deductible.label}</dd></div></>}<div><dt>Inspection</dt><dd>{model.overview.inspection.title}</dd></div><div><dt>Reference</dt><dd>{model.document.quoteId}</dd></div></dl></div>
           <div className="proposal-document__pricing"><CircleDollarSign /><span><small>{model.overview.pricing.title}</small><strong>{model.overview.pricing.message}</strong></span></div>
           <p className="proposal-document__legal">{model.disclaimer}</p>
         </div>
@@ -746,7 +784,8 @@ function ProposalPreview({ quote, plan, detail, onClose, onDownload, busy }) {
     <div className="proposal-backdrop proposal-backdrop--handoff">
       <div ref={modalRef} className="proposal-preview proposal-preview--handoff" role="dialog" aria-modal="true" aria-label="Personalized Ford Protect proposal preview" tabIndex="-1">
         <header className="proposal-preview__header"><Brand /><div className="proposal-preview__heading"><small>{documentStatus}</small><strong>{vehicle.displayName}</strong><span>Page {pageIndex + 1} of {pages.length} · {model.document.quoteId}</span></div><button type="button" onClick={onClose} aria-label="Close preview" data-dialog-initial-focus><X /></button></header>
-        <div className="proposal-preview__workspace"><nav aria-label="Proposal pages">{pages.map((page, index) => <button key={page.title} type="button" aria-current={pageIndex === index ? 'page' : undefined} className={pageIndex === index ? 'is-current' : ''} onClick={() => setPageIndex(index)}><span>{index + 1}</span><i><strong>{page.title}</strong><small>{page.description}</small></i><ChevronRight /></button>)}</nav><div className="proposal-preview__page" key={pageIndex}>{pages[pageIndex].content}</div></div>
+        <span className="sr-only" role="status" aria-live="polite" aria-atomic="true">Showing proposal page {pageIndex + 1} of {pages.length}: {pages[pageIndex].title}.</span>
+        <div className="proposal-preview__workspace"><nav aria-label="Proposal pages">{pages.map((page, index) => <button key={page.title} type="button" aria-current={pageIndex === index ? 'page' : undefined} className={pageIndex === index ? 'is-current' : ''} onClick={() => setPageIndex(index)}><span>{index + 1}</span><i><strong>{page.title}</strong><small>{page.description}</small></i><ChevronRight /></button>)}</nav><div className="proposal-preview__page" role="region" aria-label={`Proposal page ${pageIndex + 1} of ${pages.length}: ${pages[pageIndex].title}`} key={pageIndex}>{pages[pageIndex].content}</div></div>
         <footer className="proposal-preview__footer"><button className="button button--secondary" type="button" onClick={() => setPageIndex(Math.max(0, pageIndex - 1))} disabled={pageIndex === 0}><ArrowLeft /> Previous</button><div><button className="button button--primary" type="button" onClick={onDownload} disabled={busy}>{busy ? 'Preparing PDF…' : submitted ? 'Download request summary' : 'Download draft proposal'} <Download /></button></div><button className="button button--secondary" type="button" onClick={() => setPageIndex(Math.min(pages.length - 1, pageIndex + 1))} disabled={pageIndex === pages.length - 1}>Next <ArrowRight /></button></footer>
       </div>
     </div>
@@ -859,7 +898,7 @@ function MatrixDrawer({ matrix, quote, recommendation, onClose, onMonth, onMiles
   return (
     <div className="matrix-drawer-backdrop">
       <section ref={modalRef} className="matrix-drawer" role="dialog" aria-modal="true" aria-label="All available term and mileage combinations" tabIndex="-1">
-        <header><div><small>Complete term matrix</small><h2>Available planning combinations</h2><p>Choose a years-and-mileage pairing shown in this planning guide. Ford record review confirms current availability.</p></div><button type="button" onClick={onClose} aria-label="Close term matrix" data-dialog-initial-focus><X /></button></header>
+        <header><div><small>Complete term matrix</small><h2>Available planning combinations</h2><p>Choose a years-and-mileage pairing shown here. Ford record review confirms current availability for the VIN.</p></div><button type="button" onClick={onClose} aria-label="Close term matrix" data-dialog-initial-focus><X /></button></header>
         <div className="matrix-drawer__scroll">
           <div className="term-matrix" style={{ '--term-columns': matrix.months.length }}>
             <div className="term-matrix__corner">{quote.planPath === 'used' ? 'Additional miles' : 'Total mileage'}</div>
@@ -906,9 +945,11 @@ export default function QuoteStudio({ initial = {}, onClose, onToast, onSaved })
   const [showVehicleErrors, setShowVehicleErrors] = useState(false);
   const [stepIssue, setStepIssue] = useState(null);
   const [showPurchaseContextError, setShowPurchaseContextError] = useState(false);
-  const [vinDecodeStatus, setVinDecodeStatus] = useState(() => initial.decodedVehicle
-    ? { tone: 'success', message: 'Saved non-identifying NHTSA vehicle facts loaded. The VIN was not saved; enter it and decode again to refresh these facts.' }
-    : { tone: 'idle', message: '' });
+  const [vinDecodeStatus, setVinDecodeStatus] = useState(() => (
+    initial.decodedVehicle?.vin && initial.vin && initial.decodedVehicle.vin === initial.vin
+      ? { tone: 'success', message: 'Previously decoded NHTSA vehicle facts loaded. Review the details below.' }
+      : { tone: 'idle', message: '' }
+  ));
   const vinRef = useRef(null);
   const vinDecodeAbortRef = useRef(null);
   const studioMainRef = useRef(null);
@@ -921,6 +962,7 @@ export default function QuoteStudio({ initial = {}, onClose, onToast, onSaved })
     id: initial.id || createQuoteId(),
     purchaseContext: initialPurchaseContext,
     vehicleSituation: initialVehicleSituation,
+    transactionMethod: transactionMethodValues.has(initial.transactionMethod) ? initial.transactionMethod : '',
     vin: initial.vin || '',
     decodedVehicle: initial.decodedVehicle || null,
     year: initial.year || '',
@@ -939,7 +981,10 @@ export default function QuoteStudio({ initial = {}, onClose, onToast, onSaved })
     planPath: initial.planPath || '',
     planId: coveragePlanIds.has(initial.planId) ? initial.planId : '',
     cspLevel: initial.cspLevel || '',
+    cspPriorCoverageStatus: initial.cspPriorCoverageStatus || '',
     engineCareLevel: initial.engineCareLevel || '',
+    currentEngineHours: hasOwn(initial, 'currentEngineHours') ? String(initial.currentEngineHours) : '',
+    engine: initial.engine || initial.decodedVehicle?.engineDescription || '',
     termMonths: initial.termMonths || (initial.termYears ? Number(initial.termYears) * 12 : null),
     termMiles: hasOwn(initial, 'termMiles') && initial.termMiles !== '' ? Number(initial.termMiles) : null,
     deductible: hasOwn(initial, 'deductible') ? String(initial.deductible ?? '') : '',
@@ -991,8 +1036,10 @@ export default function QuoteStudio({ initial = {}, onClose, onToast, onSaved })
     ? { id: 'continued-service', name: `Continued Service Plan ${cspLevel.name}`, count: 'Monthly', bestFor: cspLevel.label, description: cspLevel.description }
     : quote.program === 'enginecare'
       ? { ...dieselCareLevel, bestFor: dieselCareLevel.label }
-      : espPlan;
-  const detail = quote.program === 'enginecare' ? dieselCareDetail : productDetails[quote.program === 'csp' ? 'continued-service' : plan.id];
+      : quote.program === 'products-only'
+        ? { id: 'products-only', name: 'Ford Protect products only', count: '', bestFor: productsOnlyDetail.bestFor, description: productsOnlyDetail.tagline }
+        : espPlan;
+  const detail = quote.program === 'enginecare' ? dieselCareDetail : quote.program === 'products-only' ? productsOnlyDetail : productDetails[quote.program === 'csp' ? 'continued-service' : plan.id];
   const modelOptions = [...new Set([quote.model, ...(modelsByMake[quote.make] ?? [])].filter(Boolean))];
   const yearOptions = [...new Set([quote.year, ...years].filter(Boolean))];
   const makeOptions = [...new Set(['Ford', 'Lincoln', quote.make].filter(Boolean))];
@@ -1011,9 +1058,10 @@ export default function QuoteStudio({ initial = {}, onClose, onToast, onSaved })
       ...item,
       category: item.category || (item.familyId === 'maintenance' ? 'maintenance' : item.familyId === 'mobility' ? 'mobility' : 'specialist'),
     }))
-    .sort((left, right) => Number(left.status?.eligible === false) - Number(right.status?.eligible === false)), [quote.year, quote.make, quote.mileage, quote.inService, quote.purchaseDate, quote.powertrain, quote.program, quote.planPath, quote.usage, quote.state, quote.purchaseContext, quote.vehicleSituation, quote.decodedVehicle, quote.productSelections]);
+    .sort((left, right) => Number(left.status?.eligible === false) - Number(right.status?.eligible === false)), [quote.year, quote.make, quote.mileage, quote.inService, quote.purchaseDate, quote.powertrain, quote.program, quote.planPath, quote.usage, quote.state, quote.purchaseContext, quote.vehicleSituation, quote.transactionMethod, quote.cspPriorCoverageStatus, quote.currentEngineHours, quote.engine, quote.decodedVehicle, quote.productSelections]);
   const selectedProducts = useMemo(() => quoteProducts.filter((item) => quote.requestedProductIds.includes(item.id)), [quote.requestedProductIds]);
   const inspection = useMemo(() => {
+    if (quote.program === 'products-only') return { required: null, title: 'Product-specific eligibility review', shortLabel: 'Each product has its own rule', text: 'No blanket ESP used-plan inspection rule applies. Bob Maxey verifies the timing, compatibility, and any current requirement for each selected product.' };
     if (quote.program === 'csp') return { required: false, title: 'No CSP enrollment inspection required', shortLabel: 'No inspection required', text: 'Ford’s current Continued Service Plan buyer guide states that CSP enrollment has no waiting period or vehicle inspection requirement.' };
     if (quote.program === 'enginecare') return { required: null, title: 'Diesel program record review', shortLabel: 'Engine, mileage and hours review', text: 'Diesel EngineCARE uses its own Power Stroke engine, time, mileage, engine-hour, vehicle-use, and current-program eligibility review. Any inspection requirement comes from the current Ford offer.' };
     if (quote.program !== 'esp' || !quote.planPath) return { required: null, title: 'Warranty record review needed', shortLabel: 'Inspection path not determined', text: 'Choose the ESP enrollment path and provide the VIN or original in-service date so Bob Maxey can determine whether a used-plan inspection rule applies.' };
@@ -1037,15 +1085,21 @@ export default function QuoteStudio({ initial = {}, onClose, onToast, onSaved })
     : productCategory === 'all'
       ? productCatalog
       : productCatalog.filter((item) => item.category === productCategory);
+  const today = localToday();
   const phoneDigits = quote.customer.phone.replace(/\D/g, '');
-  const emailValid = /\S+@\S+\.\S+/.test(quote.customer.email);
+  const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i.test(quote.customer.email.trim());
+  const phoneValid = phoneDigits.length >= 10 && phoneDigits.length <= 15;
+  const vinDecoded = Boolean(VIN_PATTERN.test(quote.vin) && quote.decodedVehicle?.vin === quote.vin);
   const contactChannelValid = quote.preferredContact === 'email' ? emailValid
-    : ['phone', 'text'].includes(quote.preferredContact) ? phoneDigits.length >= 10 : false;
+    : ['phone', 'text'].includes(quote.preferredContact) ? phoneValid : false;
+  const displayedPaymentChoices = quote.program === 'esp'
+    ? paymentChoices
+    : paymentChoices.filter((choice) => ['Pay in full', 'Not sure yet'].includes(choice.value));
   const detailsValid = Boolean(
     quote.customer.firstName.trim()
     && quote.customer.lastName.trim()
     && emailValid
-    && phoneDigits.length >= 10
+    && phoneValid
     && contactChannelValid
     && quote.store
     && quote.consent
@@ -1059,34 +1113,35 @@ export default function QuoteStudio({ initial = {}, onClose, onToast, onSaved })
     const mileage = Number(quote.mileage || 0);
     if (quote.program === 'csp' && quote.state === 'California') return { tone: 'review', title: 'CSP not available in California', text: 'Choose an Extended Service Plan path or request a specialist review.' };
     if (quote.program === 'enginecare') return { tone: 'review', title: 'Power Stroke specialist review', text: 'Bob Maxey will confirm the engine family, in-service date, current mileage, engine hours, vehicle use, state, and current Ford offer.' };
-    if (mileage > 160000) return { tone: 'review', title: 'Specialist path required', text: 'The historical guide’s standard used-plan matrix ends at 160,000 current miles.' };
+    if (mileage > 160000) return { tone: 'review', title: 'Specialist path required', text: 'Self-service used-plan choices are not shown above 160,000 current miles. A specialist will check the available Ford Protect paths.' };
     if (quote.snowPlow === 'Yes' || quote.usage === 'Business') return { tone: 'review', title: 'Special-use review required', text: 'Commercial or snow-plow use must be rated and verified correctly.' };
     if (quote.program === 'esp' && quote.planPath === 'new' && !quote.inService) return { tone: 'review', title: 'In-service date needed', text: 'New-plan time and mileage are measured from the original in-service date and zero miles.' };
-    if (inspection.required) return { tone: 'review', title: 'Dealer inspection required first', text: 'Ford records confirm this used-plan ESP path is outside the New Vehicle Limited Warranty. Bob Maxey must complete the referenced used-vehicle inspection before coverage can be finalized.' };
+    if (inspection.required) return { tone: 'review', title: 'Dealer inspection required first', text: 'Ford records confirm this used-plan ESP path is outside the New Vehicle Limited Warranty. A participating Ford dealership must complete Ford’s Used Vehicle Inspection Checklist before coverage can be finalized.' };
     return { tone: inspection.required === false ? 'positive' : inspection.tone || 'review', title: inspection.title || 'Ready for Ford record review', text: inspection.text || 'Bob Maxey will confirm the VIN, current eligibility, available combinations, and price.' };
   }, [quote.program, quote.state, quote.mileage, quote.snowPlow, quote.usage, quote.planPath, quote.inService, inspection.required, inspection.title, inspection.text]);
 
   const vehicleErrors = useMemo(() => ({
     purchaseContext: quote.purchaseContext && quote.vehicleSituation ? '' : 'Choose your vehicle situation.',
+    transactionMethod: quote.purchaseContext !== 'shopping' || transactionMethodValues.has(quote.transactionMethod) ? '' : 'Choose how you expect to complete the vehicle purchase.',
     vin: quote.vin && quote.vin.length !== 17 ? 'Enter all 17 VIN characters or leave it blank for now.' : '',
     year: quote.year ? '' : 'Choose the model year.',
     model: quote.model ? '' : 'Choose the vehicle model.',
-    mileage: quote.mileage !== '' && Number.isFinite(Number(quote.mileage)) && Number(quote.mileage) >= 0 ? '' : 'Enter the current odometer mileage.',
+    mileage: quote.mileage !== '' && Number.isFinite(Number(quote.mileage)) && Number(quote.mileage) >= 0 && Number(quote.mileage) <= 500000 ? '' : 'Enter a current odometer from 0 to 500,000 miles.',
     state: quote.state ? '' : 'Choose the registration state.',
     zip: /^\d{5}$/.test(quote.zip) ? '' : 'Enter a 5-digit ZIP code.',
-    inService: quote.inService || quote.inServiceUnknown ? '' : 'Enter the warranty start date or choose “I don’t know.”',
+    inService: quote.inService && quote.inService > today ? 'The original in-service date cannot be in the future.' : quote.inService || quote.inServiceUnknown ? '' : 'Enter the warranty start date or choose “I don’t know.”',
+    purchaseDate: quote.purchaseDate && quote.purchaseDate > today ? 'The vehicle purchase date cannot be in the future.' : '',
     usage: quote.usage ? '' : 'Choose personal or business use.',
     powertrain: quote.powertrain ? '' : 'Choose the powertrain.',
     snowPlow: quote.snowPlow ? '' : 'Choose whether the vehicle uses a snow plow.',
-  }), [quote.purchaseContext, quote.vehicleSituation, quote.vin, quote.year, quote.model, quote.mileage, quote.state, quote.zip, quote.inService, quote.inServiceUnknown, quote.usage, quote.powertrain, quote.snowPlow]);
+  }), [quote.purchaseContext, quote.vehicleSituation, quote.transactionMethod, quote.vin, quote.year, quote.model, quote.mileage, quote.state, quote.zip, quote.inService, quote.inServiceUnknown, quote.purchaseDate, quote.usage, quote.powertrain, quote.snowPlow, today]);
   const vehicleValid = Object.values(vehicleErrors).every((error) => !error);
-  const coverageValid = quote.program === 'esp'
-    ? Boolean(quote.planPath && quote.planId && selectedEspPlanPathAllowed)
-    : quote.program === 'csp'
-      ? Boolean(quote.cspLevel && quote.state !== 'California')
-      : quote.program === 'enginecare'
-        ? Boolean(quote.engineCareLevel && quote.powertrain === 'Diesel')
-        : false;
+  const primaryValidation = useMemo(() => validatePrimaryPlanEligibility(quote), [quote]);
+  const coverageIssueFields = new Set(['program', 'planPath', 'planId', 'vehicleSituation', 'state', 'cspLevel', 'cspPriorCoverageStatus', 'engineCareLevel', 'engine', 'currentEngineHours', 'mileage']);
+  const coverageBlockingIssues = primaryValidation.blockingIssues.filter((issue) => coverageIssueFields.has(issue.field));
+  const coverageValid = Boolean(quote.program && coverageBlockingIssues.length === 0 && (
+    quote.program !== 'esp' || (quote.planPath && quote.planId && selectedEspPlanPathAllowed)
+  ));
   const termValid = quote.program !== 'esp'
     ? coverageValid
     : Boolean(coverageValid && matrix.months.length && quote.termMonths && quote.termMiles && matrix.isAvailable(Number(quote.termMonths), Number(quote.termMiles)));
@@ -1095,12 +1150,10 @@ export default function QuoteStudio({ initial = {}, onClose, onToast, onSaved })
     planPath: quote.planPath,
     termMiles: quote.termMiles,
   }));
-  const selectedProductSelectionsValid = selectedProducts.length > 0 && selectedProducts.every((product) => {
-    const selection = quote.productSelections?.[product.id];
-    return Boolean(selection?.confirmed && validateQuoteProductSelection(product.id, selection, { includeDealerOnly: false }).valid);
-  });
+  const productRequestValidation = useMemo(() => validateQuoteProductRequests(quote), [quote]);
+  const selectedProductSelectionsValid = selectedProducts.length > 0 && productRequestValidation.validForRequest;
   const productsDecisionValid = quote.additionalProductsDecision === 'none'
-    ? selectedProducts.length === 0
+    ? quote.program !== 'products-only' && selectedProducts.length === 0
     : quote.additionalProductsDecision === 'selected' && selectedProductSelectionsValid;
   const availableAddOnIds = new Set(availableAddOns.map((item) => item.id));
   const benefitsDecisionValid = quote.program !== 'esp' || (
@@ -1113,6 +1166,7 @@ export default function QuoteStudio({ initial = {}, onClose, onToast, onSaved })
     && (quote.program !== 'esp' || (quote.deductible && deductibleAllowed))
     && benefitsDecisionValid
     && productsDecisionValid
+    && primaryValidation.blockingIssues.every((issue) => !['deductible', 'addOns'].includes(issue.field))
     && quote.paymentPreference,
   );
   const stepReadiness = [vehicleValid, coverageValid, termValid, optionsValid, detailsValid, vehicleValid && coverageValid && termValid && optionsValid && detailsValid];
@@ -1131,14 +1185,14 @@ export default function QuoteStudio({ initial = {}, onClose, onToast, onSaved })
       if (!quote.program) return 'Choose Extended Service Plan, Continued Service Plan, or Diesel EngineCARE.';
       if (quote.program === 'esp' && !quote.planPath) return 'Choose how Ford should measure time and mileage for this request.';
       if (quote.program === 'esp' && (!quote.planId || !selectedEspPlanPathAllowed)) return 'Choose a Ford Protect coverage level available for this plan path.';
-      if (quote.program === 'csp' && quote.state === 'California') return 'Continued Service Plan is not available in California. Choose another coverage path.';
+      if (coverageBlockingIssues.length) return coverageBlockingIssues[0].message;
       return 'Choose the coverage level you want Bob Maxey to verify.';
     }
     if (index === 2) return quote.program === 'esp' ? 'Choose a protection term and one of the mileage limits available for that term.' : 'Complete your coverage choice before continuing.';
     if (index === 3) {
       if (quote.program === 'esp' && (!quote.deductible || !deductibleAllowed)) return 'Choose an available deductible.';
       if (!benefitsDecisionValid) return 'Choose plan benefits or explicitly continue with no added plan benefits.';
-      if (!productsDecisionValid) return selectedProducts.length ? 'Finish and save the configuration for every selected product.' : 'Choose products or explicitly continue with no additional products.';
+      if (!productsDecisionValid) return productRequestValidation.issues[0]?.message || (selectedProducts.length ? 'Finish and save the configuration for every selected product.' : quote.program === 'products-only' ? 'Choose and configure at least one product for a product-only request.' : 'Choose products or explicitly continue with no additional products.');
       if (!quote.paymentPreference) return 'Choose how you want the specialist to present payment choices.';
       return 'Review every options decision before continuing.';
     }
@@ -1155,6 +1209,22 @@ export default function QuoteStudio({ initial = {}, onClose, onToast, onSaved })
       document.body.classList.remove('modal-open');
     };
   }, []);
+
+  useEffect(() => {
+    const main = studioMainRef.current;
+    if (!main) return undefined;
+    let secondFrame;
+    const firstFrame = window.requestAnimationFrame(() => {
+      main.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+      secondFrame = window.requestAnimationFrame(() => {
+        main.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+      });
+    });
+    return () => {
+      window.cancelAnimationFrame(firstFrame);
+      if (secondFrame) window.cancelAnimationFrame(secondFrame);
+    };
+  }, [step, quote.program, quote.planPath, quote.vehicleSituation]);
 
   useEffect(() => {
     if (!submissionReceipt) return undefined;
@@ -1243,7 +1313,7 @@ export default function QuoteStudio({ initial = {}, onClose, onToast, onSaved })
     window.setTimeout(() => {
       const main = studioMainRef.current;
       if (main) {
-        main.scrollTo({ top: 0, behavior: 'smooth' });
+        main.scrollTo({ top: 0, left: 0, behavior: 'auto' });
         main.focus({ preventScroll: true });
       }
     }, 0);
@@ -1269,6 +1339,9 @@ export default function QuoteStudio({ initial = {}, onClose, onToast, onSaved })
         next.deductible = '';
         next.addOns = [];
         next.planBenefitsDecision = '';
+        next.paymentPreference = '';
+        if (value !== 'csp') next.cspPriorCoverageStatus = '';
+        if (value !== 'enginecare') next.currentEngineHours = '';
       }
       if (field === 'planPath') {
         const selectedPlan = applicablePlans.find((item) => item.id === current.planId);
@@ -1327,6 +1400,7 @@ export default function QuoteStudio({ initial = {}, onClose, onToast, onSaved })
           make: decoded.make || current.make,
           model: decoded.model || current.model,
           powertrain: nextPowertrain,
+          engine: decoded.engineDescription || current.engine,
           decodedVehicle: decoded,
           ...(powertrainChanged ? {
             program: current.program === 'enginecare' && nextPowertrain !== 'Diesel' ? '' : current.program,
@@ -1360,8 +1434,10 @@ export default function QuoteStudio({ initial = {}, onClose, onToast, onSaved })
         ...current,
         purchaseContext,
         vehicleSituation,
+        transactionMethod: purchaseContext === 'shopping' && transactionMethodValues.has(current.transactionMethod) ? current.transactionMethod : '',
         purchaseDate: purchaseContext === 'owner' ? current.purchaseDate : '',
         program: purchaseContext === 'shopping' && current.program === 'csp' ? 'esp' : current.program,
+        cspPriorCoverageStatus: purchaseContext === 'owner' ? current.cspPriorCoverageStatus : '',
         requestedProductIds,
         productSelections,
         maintenanceId: selectedMaintenanceStillFits ? current.maintenanceId : 'none',
@@ -1586,6 +1662,15 @@ export default function QuoteStudio({ initial = {}, onClose, onToast, onSaved })
                 <StepAlert issue={stepIssue?.step === 0 ? stepIssue.message : ''} />
                 <div className="studio-section">
                   <PurchaseContextSelector value={quote.vehicleSituation} error={showPurchaseContextError} onSelect={selectPurchaseContext} />
+                  {quote.purchaseContext === 'shopping' && (
+                    <section className={`transaction-method ${showVehicleErrors && vehicleErrors.transactionMethod ? 'has-error' : ''}`} aria-labelledby="transaction-method-title">
+                      <header><span><small>VEHICLE TRANSACTION</small><strong id="transaction-method-title">How do you expect to pay for the vehicle?</strong></span><em>Select one so finance- and lease-only products are shown correctly.</em></header>
+                      <div role="radiogroup" aria-labelledby="transaction-method-title" aria-describedby={showVehicleErrors && vehicleErrors.transactionMethod ? 'transaction-method-error' : undefined} onKeyDown={handleRovingChoiceKeyDown}>
+                        {transactionMethods.map((item, index) => <button key={item.value} type="button" role="radio" aria-checked={quote.transactionMethod === item.value} tabIndex={quote.transactionMethod === item.value || (!quote.transactionMethod && index === 0) ? 0 : -1} className={quote.transactionMethod === item.value ? 'is-selected' : ''} onClick={() => update('transactionMethod', item.value)}><span>{quote.transactionMethod === item.value && <Check />}</span><strong>{item.label}</strong><small>{item.description}</small></button>)}
+                      </div>
+                      {showVehicleErrors && vehicleErrors.transactionMethod && <p id="transaction-method-error" className="field-error" role="alert">{vehicleErrors.transactionMethod}</p>}
+                    </section>
+                  )}
                   <div className="studio-section__heading"><div><span>01</span><h2>Vehicle information</h2></div><small>VIN is optional to explore, but needed for final eligibility.</small></div>
                   <div className="studio-fields studio-fields--four">
                     <Field label="VIN" hint="Optional now · 17 characters" error={showVehicleErrors && vehicleErrors.vin}><input ref={vinRef} name="vin" autoCapitalize="characters" spellCheck="false" value={quote.vin} maxLength="17" placeholder="Enter VIN" onChange={(event) => updateVin(event.target.value)} /><button className="vin-decode-button" type="button" onClick={decodeVin} disabled={!VIN_PATTERN.test(quote.vin) || vinDecodeStatus.tone === 'loading'}>{vinDecodeStatus.tone === 'loading' ? 'Decoding…' : 'Decode VIN'}</button></Field>
@@ -1620,8 +1705,8 @@ export default function QuoteStudio({ initial = {}, onClose, onToast, onSaved })
                     <Field label="Current mileage *" error={showVehicleErrors && vehicleErrors.mileage}><input type="number" min="0" max="500000" placeholder="Enter mileage" value={quote.mileage} onChange={(event) => update('mileage', event.target.value)} /></Field>
                     <Field label="State registered *" error={showVehicleErrors && vehicleErrors.state}><select value={quote.state} onChange={(event) => update('state', event.target.value)}><option value="">Select state</option>{states.map((state) => <option key={state}>{state}</option>)}</select></Field>
                     <Field label="ZIP code *" error={showVehicleErrors && vehicleErrors.zip}><input inputMode="numeric" maxLength="5" placeholder="Enter ZIP" value={quote.zip} onChange={(event) => update('zip', event.target.value.replace(/\D/g, ''))} /></Field>
-                    <Field label="Original in-service date *" hint={quote.inServiceUnknown ? 'Bob Maxey will verify the warranty start date in Ford records.' : 'Enter the warranty start date if known.'} error={showVehicleErrors && vehicleErrors.inService}><input type="date" name="inServiceDate" value={quote.inService} disabled={quote.inServiceUnknown} onChange={(event) => update('inService', event.target.value)} /><button className={`field-link ${quote.inServiceUnknown ? 'is-selected' : ''}`} type="button" aria-pressed={quote.inServiceUnknown} onClick={() => setQuote((current) => ({ ...current, inService: '', inServiceUnknown: !current.inServiceUnknown }))}>{quote.inServiceUnknown ? <><Check /> Date marked unknown</> : 'I don’t know the date'}</button></Field>
-                    {quote.vehicleSituation === 'owned-after-sale' && <Field label="Date you purchased the vehicle" hint="Optional · separate from the Ford warranty start date"><input type="date" name="vehiclePurchaseDate" value={quote.purchaseDate} onChange={(event) => update('purchaseDate', event.target.value)} /></Field>}
+                    <Field label="Original in-service date *" hint={quote.inServiceUnknown ? 'Bob Maxey will verify the warranty start date in Ford records.' : 'Enter the warranty start date if known.'} error={showVehicleErrors && vehicleErrors.inService}><input type="date" name="inServiceDate" max={today} value={quote.inService} disabled={quote.inServiceUnknown} onChange={(event) => update('inService', event.target.value)} /><button className={`field-link ${quote.inServiceUnknown ? 'is-selected' : ''}`} type="button" aria-pressed={quote.inServiceUnknown} onClick={() => setQuote((current) => ({ ...current, inService: '', inServiceUnknown: !current.inServiceUnknown }))}>{quote.inServiceUnknown ? <><Check /> Date marked unknown</> : 'I don’t know the date'}</button></Field>
+                    {quote.vehicleSituation === 'owned-after-sale' && <Field label="Date you purchased the vehicle" hint="Optional · separate from the Ford warranty start date" error={showVehicleErrors && vehicleErrors.purchaseDate}><input type="date" name="vehiclePurchaseDate" max={today} value={quote.purchaseDate} onChange={(event) => update('purchaseDate', event.target.value)} /></Field>}
                   </div>
                   <p className="in-service-record-note"><Info /> VIN decoding cannot supply an original in-service or warranty-start date. Bob Maxey must confirm it in Ford records.</p>
                   <div className={`ownership-profile ownership-profile--required ${showVehicleErrors && (vehicleErrors.usage || vehicleErrors.powertrain || vehicleErrors.snowPlow) ? 'has-error' : ''}`}>
@@ -1648,10 +1733,11 @@ export default function QuoteStudio({ initial = {}, onClose, onToast, onSaved })
                 <VehicleStrip quote={quote} onEdit={() => goTo(0)} />
                 <div className="studio-step__heading"><small>STEP 2 OF 6</small><h1>Choose how you want to be protected.</h1><p>Compare Ford Protect paths here without leaving Bob Maxey’s site.</p></div>
                 <StepAlert issue={stepIssue?.step === 1 ? stepIssue.message : ''} />
-                <div className={`program-switch ${quote.purchaseContext === 'shopping' && quote.powertrain !== 'Diesel' ? 'is-single' : ''} ${quote.purchaseContext === 'owner' && quote.powertrain === 'Diesel' ? 'has-three' : ''}`} role="radiogroup" aria-label="Primary coverage program" onKeyDown={handleRovingChoiceKeyDown}>
+                <div className={`program-switch ${quote.purchaseContext === 'owner' && quote.powertrain === 'Diesel' ? 'has-four' : quote.purchaseContext === 'owner' || quote.powertrain === 'Diesel' ? 'has-three' : ''}`} role="radiogroup" aria-label="Coverage request type" onKeyDown={handleRovingChoiceKeyDown}>
                   <button type="button" role="radio" aria-checked={quote.program === 'esp'} tabIndex={quote.program === 'esp' || !quote.program ? 0 : -1} className={quote.program === 'esp' ? 'is-selected' : ''} onClick={() => update('program', 'esp')}><ShieldCheck /><span><strong>Extended Service Plan</strong><small>Choose a plan, fixed term, mileage limit, and deductible.</small></span>{quote.program === 'esp' && <Check />}</button>
                   {quote.purchaseContext === 'owner' && <button type="button" role="radio" aria-checked={quote.program === 'csp'} tabIndex={quote.program === 'csp' ? 0 : -1} className={quote.program === 'csp' ? 'is-selected' : ''} onClick={() => update('program', 'csp')}><CalendarDays /><span><strong>Continued Service Plan</strong><small>Monthly protection for eligible owners whose prior coverage is ending.</small></span>{quote.program === 'csp' && <Check />}</button>}
                   {quote.powertrain === 'Diesel' && <button type="button" role="radio" aria-checked={quote.program === 'enginecare'} tabIndex={quote.program === 'enginecare' ? 0 : -1} className={quote.program === 'enginecare' ? 'is-selected' : ''} onClick={() => update('program', 'enginecare')}><Wrench /><span><strong>Diesel EngineCARE</strong><small>A focused alternative primary plan for eligible Power Stroke engines.</small></span>{quote.program === 'enginecare' && <Check />}</button>}
+                  <button type="button" role="radio" aria-checked={quote.program === 'products-only'} tabIndex={quote.program === 'products-only' ? 0 : -1} className={quote.program === 'products-only' ? 'is-selected' : ''} onClick={() => update('program', 'products-only')}><PackagePlus /><span><strong>Ford Protect products only</strong><small>Request eligible ownership products without a mechanical service contract.</small></span>{quote.program === 'products-only' && <Check />}</button>
                 </div>
                 {!quote.program ? (
                   <div className="coverage-empty-state"><ShieldCheck /><span><strong>Start by choosing a coverage path above.</strong><small>The plan levels and eligibility choices for that path will appear here.</small></span></div>
@@ -1669,15 +1755,23 @@ export default function QuoteStudio({ initial = {}, onClose, onToast, onSaved })
                   <div className="studio-section csp-section">
                     <div className="csp-intro"><div><small>MONTHLY CONTINUED COVERAGE</small><h2>Protection that can continue with your vehicle.</h2><p>Ford publishes Continued Service Plan eligibility up to 12 model years / 140,000 miles at enrollment, with coverage potentially continuing to 14 model years / 160,000 miles. No annual mileage limit applies; current rules and state availability must be confirmed.</p></div><span><CalendarDays /><strong>Monthly</strong><small>Cancel or transfer where agreement rules allow</small></span></div>
                     <div className="csp-levels" role="radiogroup" aria-label="Continued Service Plan coverage level" onKeyDown={handleRovingChoiceKeyDown}>{cspLevels.map((item, index) => <button type="button" role="radio" aria-checked={quote.cspLevel === item.id} tabIndex={quote.cspLevel === item.id || (!quote.cspLevel && index === 0) ? 0 : -1} key={item.id} className={quote.cspLevel === item.id ? 'is-selected' : ''} onClick={() => update('cspLevel', item.id)}><span className="selection-dot">{quote.cspLevel === item.id && <Check />}</span><small>{item.label}</small><strong>{item.name}</strong><p>{item.description}</p></button>)}</div>
+                    <section className="csp-qualification" aria-labelledby="csp-prior-coverage-title"><header><small>REQUIRED ELIGIBILITY ANSWER</small><h3 id="csp-prior-coverage-title">What coverage is active or ending now?</h3><p>CSP continues qualifying OEM warranty or Ford Protect coverage. Ford records make the final determination.</p></header><div role="radiogroup" aria-labelledby="csp-prior-coverage-title" onKeyDown={handleRovingChoiceKeyDown}>{[
+                      { value: 'factory-warranty-active-or-ending', label: 'Factory warranty', text: 'The eligible OEM warranty is active or ending.' },
+                      { value: 'ford-protect-active-or-ending', label: 'Ford Protect plan', text: 'An eligible Ford Protect plan is active or ending.' },
+                      { value: 'none', label: 'No qualifying coverage', text: 'CSP is not the right path; choose another program.' },
+                    ].map((item, index) => <button key={item.value} type="button" role="radio" aria-checked={quote.cspPriorCoverageStatus === item.value} tabIndex={quote.cspPriorCoverageStatus === item.value || (!quote.cspPriorCoverageStatus && index === 0) ? 0 : -1} className={quote.cspPriorCoverageStatus === item.value ? 'is-selected' : ''} onClick={() => update('cspPriorCoverageStatus', item.value)}><span>{quote.cspPriorCoverageStatus === item.value && <Check />}</span><strong>{item.label}</strong><small>{item.text}</small></button>)}</div></section>
                     <button className="inline-detail-link" type="button" onClick={() => setPlanHelp(true)}>See the full Continued Service coverage guide <ArrowRight /></button>
                     {quote.state === 'California' && <div className="inline-warning"><Info /><span><strong>California limitation</strong><small>Ford’s current public information says Continued Service Plan is not available in California.</small></span></div>}
                   </div>
-                ) : (
+                ) : quote.program === 'enginecare' ? (
                   <div className="studio-section csp-section diesel-care-section">
-                    <div className="csp-intro"><div><small>FOCUSED POWER STROKE PROTECTION</small><h2>Choose the diesel coverage level to verify.</h2><p>Diesel EngineCARE is an alternative primary mechanical plan—not an add-on to an ESP. The referenced enrollment window is before the earliest of 5 years, 100,000 miles, or 4,000 engine hours.</p></div><span><Wrench /><strong>7 yrs / 200k</strong><small>8,000-hour referenced maximum where eligible</small></span></div>
+                    <div className="csp-intro"><div><small>FOCUSED POWER STROKE PROTECTION</small><h2>Choose the diesel coverage level to verify.</h2><p>Diesel EngineCARE is an alternative primary mechanical plan—not an add-on to an ESP. Request eligibility before the earliest of 5 years, 100,000 miles, or 4,000 engine hours; Bob Maxey confirms the current limits.</p></div><span><Wrench /><strong>7 yrs / 200k</strong><small>8,000-hour planning maximum where eligible</small></span></div>
                     <div className="csp-levels" role="radiogroup" aria-label="Diesel EngineCARE coverage level" onKeyDown={handleRovingChoiceKeyDown}>{dieselCareLevels.map((item, index) => <button type="button" role="radio" aria-checked={quote.engineCareLevel === item.id} tabIndex={quote.engineCareLevel === item.id || (!quote.engineCareLevel && index === 0) ? 0 : -1} key={item.id} className={quote.engineCareLevel === item.id ? 'is-selected' : ''} onClick={() => update('engineCareLevel', item.id)}><span className="selection-dot">{quote.engineCareLevel === item.id && <Check />}</span><small>{item.label}</small><strong>{item.name}</strong><p>{item.description}</p></button>)}</div>
+                    <section className="diesel-qualification" aria-labelledby="diesel-qualification-title"><header><small>QUALIFICATION DETAILS</small><h3 id="diesel-qualification-title">Help Bob Maxey verify the Power Stroke enrollment window.</h3></header><div className="studio-fields studio-fields--two"><Field label="Factory-installed engine" hint="Review the decoded engine or enter the Power Stroke engine size."><input value={quote.engine} placeholder="Example: 6.7L Power Stroke" onChange={(event) => update('engine', event.target.value)} /></Field><Field label="Current engine hours" hint="Optional now; required for final program verification."><input type="number" min="0" max="20000" inputMode="numeric" value={quote.currentEngineHours} placeholder="Enter engine hours" onChange={(event) => update('currentEngineHours', event.target.value)} /></Field></div></section>
                     <button className="inline-detail-link" type="button" onClick={() => setPlanHelp(true)}>See Diesel EngineCARE coverage details <ArrowRight /></button>
                   </div>
+                ) : (
+                  <div className="studio-section products-only-section"><PackagePlus /><div><small>PRODUCT-ONLY REQUEST</small><h2>Build around the products that fit this vehicle and transaction.</h2><p>Continue without choosing a mechanical service contract. The options step will show every product, clearly marking what can be requested now and what is unavailable for this situation.</p><ul><li><CheckCircle2 /> Each selected product keeps its own term and mileage choices.</li><li><CheckCircle2 /> Vehicle-sale-only items appear only for the matching purchase method.</li><li><CheckCircle2 /> Bob Maxey verifies compatibility and the current offer before purchase.</li></ul></div></div>
                 )}
               </section>
             )}
@@ -1685,13 +1779,13 @@ export default function QuoteStudio({ initial = {}, onClose, onToast, onSaved })
             {step === 2 && (
               <section className="studio-step">
                 <VehicleStrip quote={quote} onEdit={() => goTo(0)} />
-                <div className="studio-step__heading studio-step__heading--compact"><small>STEP 3 OF 6</small><h1>{quote.program === 'csp' ? 'Understand the monthly coverage path.' : quote.program === 'enginecare' ? 'Review the Diesel EngineCARE limits.' : 'Choose how long you want to be protected.'}</h1><p>{quote.program === 'csp' ? 'CSP follows monthly terms rather than a fixed years-and-miles grid.' : quote.program === 'enginecare' ? 'Ford confirms the Power Stroke engine, enrollment window, mileage, hours, use, and current offer.' : 'Pick a term and mileage that fits how you plan to keep and drive your Ford.'}</p></div>
+                <div className="studio-step__heading studio-step__heading--compact"><small>STEP 3 OF 6</small><h1>{quote.program === 'csp' ? 'Understand the monthly coverage path.' : quote.program === 'enginecare' ? 'Review the Diesel EngineCARE limits.' : quote.program === 'products-only' ? 'Review how product terms are selected.' : 'Choose how long you want to be protected.'}</h1><p>{quote.program === 'csp' ? 'CSP follows monthly terms rather than a fixed years-and-miles grid.' : quote.program === 'enginecare' ? 'Ford confirms the Power Stroke engine, enrollment window, mileage, hours, use, and current offer.' : quote.program === 'products-only' ? 'Each additional product keeps its own available term, mileage, benefit, and purchase-timing rules.' : 'Pick a term and mileage that fits how you plan to keep and drive your Ford.'}</p></div>
                 <StepAlert issue={stepIssue?.step === 2 ? stepIssue.message : ''} />
                 {quote.program === 'esp' ? (
                   <div className="term-experience">
                     <div className="studio-section term-builder-section">
                     <div className="term-context"><span><small>SELECTED COVERAGE</small><strong>{plan.name}</strong></span><div className="term-path-switch" role="radiogroup" aria-label="Coverage measurement path" onKeyDown={handleRovingChoiceKeyDown}><button type="button" role="radio" aria-checked={quote.planPath === 'new'} tabIndex={quote.planPath === 'new' ? 0 : -1} className={quote.planPath === 'new' ? 'is-selected' : ''} onClick={() => update('planPath', 'new')}>New plan</button><button type="button" role="radio" aria-checked={quote.planPath === 'used'} tabIndex={quote.planPath === 'used' ? 0 : -1} className={quote.planPath === 'used' ? 'is-selected' : ''} onClick={() => update('planPath', 'used')}>Used plan</button></div></div>
-                    {matrix.months.length ? <TermMatrix matrix={matrix} quote={quote} recommendation={recommendation} onOpenMatrix={() => setShowMatrix(true)} onMonth={chooseMonth} onMiles={(miles) => update('termMiles', miles)} onUseMatch={() => { setQuote((current) => ({ ...current, termMonths: recommendation.months, termMiles: recommendation.miles })); setSaved(false); }} /> : <div className="no-standard-matrix"><ShieldCheck /><h2>Specialist review needed</h2><p>A standard used-plan term grid is not shown beyond the historical guide’s current-mileage range. Continued Service Plan may be a better path.</p><button className="button button--secondary" type="button" onClick={() => { update('program', 'csp'); goTo(1); }}>Explore Continued Service Plan</button></div>}
+                    {matrix.months.length ? <TermMatrix matrix={matrix} quote={quote} recommendation={recommendation} onOpenMatrix={() => setShowMatrix(true)} onMonth={chooseMonth} onMiles={(miles) => update('termMiles', miles)} onUseMatch={() => { setQuote((current) => ({ ...current, termMonths: recommendation.months, termMiles: recommendation.miles })); setSaved(false); }} /> : <div className="no-standard-matrix"><ShieldCheck /><h2>Specialist review needed</h2><p>Self-service used-plan terms are not shown at this mileage. Continued Service Plan or another Ford Protect path may be a better fit.</p><button className="button button--secondary" type="button" onClick={() => { update('program', 'csp'); goTo(1); }}>Explore Continued Service Plan</button></div>}
                     </div>
                   </div>
                 ) : quote.program === 'csp' ? (
@@ -1700,13 +1794,15 @@ export default function QuoteStudio({ initial = {}, onClose, onToast, onSaved })
                     <div className="csp-facts"><div><strong>Monthly</strong><span>Fixed monthly payment shown in the final CSP offer</span></div><div><strong>No annual limit</strong><span>Drive the miles you need while the agreement remains eligible</span></div><div><strong>14 yrs / 160k</strong><span>Published maximum vehicle age / mileage where eligible</span></div></div>
                     <div className="source-note"><Info /><span><strong>Vehicle-specific offer required</strong><small>Coverage level, deductible, monthly amount, effective date, state availability, cancellation, transfer, and expiration are confirmed in the returned CSP agreement.</small></span></div>
                   </div>
-                ) : (
+                ) : quote.program === 'enginecare' ? (
                   <div className="studio-section csp-term-card enginecare-term-card">
                     <div className="csp-term-card__hero"><Wrench /><span><small>SELECTED POWER STROKE PATH</small><h2>{dieselCareLevel.name}</h2><p>{dieselCareLevel.description}</p></span></div>
-                    <div className="csp-facts"><div><strong>7 years</strong><span>84-month referenced maximum where eligible</span></div><div><strong>200,000 miles</strong><span>Published total-mileage maximum where eligible</span></div><div><strong>8,000 hours</strong><span>Published engine-hour maximum where eligible</span></div></div>
+                    <div className="csp-facts"><div><strong>7 years</strong><span>84-month planning maximum where eligible</span></div><div><strong>200,000 miles</strong><span>Planning total-mileage maximum where eligible</span></div><div><strong>8,000 hours</strong><span>Planning engine-hour maximum where eligible</span></div></div>
                     <div className="enginecare-eligibility-strip"><ClipboardCheck /><div><small>ENROLLMENT WINDOW</small><strong>Before the earliest of 5 years, 100,000 miles, or 4,000 engine hours</strong><span>Eligible 3.0L, 3.2L, or 6.7L Power Stroke engine, vehicle use, state, and the current Ford offer must be confirmed.</span></div><em>$100 deductible</em></div>
-                    <div className="source-note"><Info /><span><strong>Referenced limits—not an automatic offer</strong><small>The returned Ford Protect agreement controls the approved coverage level, effective date, term, mileage, hours, deductible, price, exclusions, transfer, and cancellation provisions.</small></span></div>
+                    <div className="source-note"><Info /><span><strong>Vehicle-specific confirmation required</strong><small>The returned Ford Protect agreement controls the approved coverage level, effective date, term, mileage, hours, deductible, price, exclusions, transfer, and cancellation provisions.</small></span></div>
                   </div>
+                ) : (
+                  <div className="studio-section products-only-term"><PackagePlus /><div><small>NO PRIMARY TERM TO CHOOSE</small><h2>Configure each product in the next step.</h2><p>Maintenance, tire-and-wheel, mobility, lease, and vehicle-care products do not share one service-contract term. Open each product to see and select the combinations available for that product.</p></div><div className="products-only-term__steps"><span><strong>1</strong><span>Open a product</span></span><span><strong>2</strong><span>Choose its available option</span></span><span><strong>3</strong><span>Save it to the request</span></span></div></div>
                 )}
               </section>
             )}
@@ -1714,38 +1810,38 @@ export default function QuoteStudio({ initial = {}, onClose, onToast, onSaved })
             {step === 3 && (
               <section className="studio-step studio-products-step">
                 <VehicleStrip quote={quote} onEdit={() => goTo(0)} />
-                <div className="studio-step__heading studio-step__heading--products"><div><small>STEP 4 OF 6</small><h1>Choose your options and payment review.</h1><p>Required decisions are shown together below. Additional products remain optional, but you must choose products or explicitly continue without them.</p></div><button type="button" onClick={() => setAfterSaleNotice(true)}><Info /> When products can be purchased</button></div>
+                <div className="studio-step__heading studio-step__heading--products"><div><small>STEP 4 OF 6</small><h1>Choose your options and payment review.</h1><p>{quote.program === 'products-only' ? 'Select and configure at least one product, then choose how you want the specialist to present pricing.' : 'Required decisions are shown together below. Additional products remain optional, but you must choose products or explicitly continue without them.'}</p></div><button type="button" onClick={() => setAfterSaleNotice(true)}><Info /> When products can be purchased</button></div>
                 <StepAlert issue={stepIssue?.step === 3 ? stepIssue.message : ''} />
 
                 <section className="options-readiness" tabIndex="-1" aria-labelledby="options-readiness-title">
-                  <div><small>BEFORE YOU CONTINUE</small><h2 id="options-readiness-title">Four decisions, all in one place.</h2></div>
+                  <div><small>BEFORE YOU CONTINUE</small><h2 id="options-readiness-title">{quote.program === 'products-only' ? 'Two decisions, all in one place.' : quote.program === 'esp' ? 'Four decisions, all in one place.' : 'Two decisions, all in one place.'}</h2></div>
                   <ul>
-                    <li className={quote.program !== 'esp' || (quote.deductible && deductibleAllowed) ? 'is-complete' : 'is-missing'}>{quote.program !== 'esp' || (quote.deductible && deductibleAllowed) ? <CheckCircle2 /> : <span>1</span>}<strong>Deductible</strong><small>{quote.program !== 'esp' ? 'Set by the returned Ford offer' : quote.deductible ? `${quote.deductible === 'disappearing' ? 'Disappearing' : `$${quote.deductible}`} selected` : 'Selection needed'}</small></li>
-                    <li className={benefitsDecisionValid ? 'is-complete' : 'is-missing'}>{benefitsDecisionValid ? <CheckCircle2 /> : <span>2</span>}<strong>Plan benefits</strong><small>{quote.planBenefitsDecision === 'selected' ? `${quote.addOns.length} requested` : quote.planBenefitsDecision === 'none' || quote.program !== 'esp' ? 'Reviewed—none added' : 'Decision needed'}</small></li>
-                    <li className={productsDecisionValid ? 'is-complete' : 'is-missing'}>{productsDecisionValid ? <CheckCircle2 /> : <span>3</span>}<strong>Additional products</strong><small>{quote.additionalProductsDecision === 'selected' ? `${selectedProducts.length} configured` : quote.additionalProductsDecision === 'none' ? 'Reviewed—none added' : 'Decision needed'}</small></li>
-                    <li className={quote.paymentPreference ? 'is-complete' : 'is-missing'}>{quote.paymentPreference ? <CheckCircle2 /> : <span>4</span>}<strong>Payment review</strong><small>{quote.paymentPreference ? paymentChoices.find((item) => item.value === quote.paymentPreference)?.title : 'Selection needed'}</small></li>
+                    {quote.program === 'esp' && <li className={quote.deductible && deductibleAllowed ? 'is-complete' : 'is-missing'}>{quote.deductible && deductibleAllowed ? <CheckCircle2 /> : <span>1</span>}<strong>Deductible</strong><small>{quote.deductible ? `${quote.deductible === 'disappearing' ? 'Disappearing' : `$${quote.deductible}`} selected` : 'Selection needed'}</small></li>}
+                    {quote.program === 'esp' && <li className={benefitsDecisionValid ? 'is-complete' : 'is-missing'}>{benefitsDecisionValid ? <CheckCircle2 /> : <span>2</span>}<strong>Plan benefits</strong><small>{quote.planBenefitsDecision === 'selected' ? `${quote.addOns.length} requested` : quote.planBenefitsDecision === 'none' ? 'Reviewed—none added' : 'Decision needed'}</small></li>}
+                    <li className={productsDecisionValid ? 'is-complete' : 'is-missing'}>{productsDecisionValid ? <CheckCircle2 /> : <span>{quote.program === 'esp' ? '3' : '1'}</span>}<strong>{quote.program === 'products-only' ? 'Product selection' : 'Additional products'}</strong><small>{quote.additionalProductsDecision === 'selected' ? `${selectedProducts.length} configured` : quote.additionalProductsDecision === 'none' && quote.program !== 'products-only' ? 'Reviewed—none added' : 'Decision needed'}</small></li>
+                    <li className={quote.paymentPreference ? 'is-complete' : 'is-missing'}>{quote.paymentPreference ? <CheckCircle2 /> : <span>{quote.program === 'esp' ? '4' : '2'}</span>}<strong>Payment review</strong><small>{quote.paymentPreference ? paymentChoices.find((item) => item.value === quote.paymentPreference)?.title : 'Selection needed'}</small></li>
                   </ul>
                 </section>
 
-                <div className="options-decision-grid">
+                <div className={`options-decision-grid ${quote.program === 'products-only' ? 'is-products-only' : ''}`}>
                   {quote.program === 'esp' ? (
                     <section className="studio-section plan-settings-card" aria-labelledby="plan-settings-title">
                       <div className="studio-section__heading"><div><span>01</span><h2 id="plan-settings-title">Deductible and plan benefits</h2></div><small>Both decisions are required</small></div>
                       <div className="plan-settings-card__group"><h3 id="deductible-label">Choose a deductible</h3><div className="deductible-grid" role="radiogroup" aria-labelledby="deductible-label" onKeyDown={handleRovingChoiceKeyDown}>{deductibleOptions.filter((item) => isDeductibleAvailable(item, { planId: quote.planId, planPath: quote.planPath, termMiles: quote.termMiles })).map((item, index) => <button key={item.id} type="button" role="radio" aria-checked={quote.deductible === item.id} tabIndex={quote.deductible === item.id || (!quote.deductible && index === 0) ? 0 : -1} className={`${quote.deductible === item.id ? 'is-selected' : ''} ${item.recommended ? 'is-recommended' : ''}`} onClick={() => update('deductible', item.id)}><span>{quote.deductible === item.id && <Check />}</span><strong>{item.label}</strong><small>{item.help}</small>{item.recommended && <em>COMMON CHOICE</em>}</button>)}</div></div>
                       <div className="plan-settings-card__group"><div className="group-heading"><span><h3>Review plan benefit requests</h3><p>Request only the benefits you want the specialist to verify.</p></span><button type="button" aria-pressed={quote.planBenefitsDecision === 'none'} className={quote.planBenefitsDecision === 'none' ? 'is-selected' : ''} onClick={() => { setQuote((current) => ({ ...current, addOns: [], planBenefitsDecision: 'none' })); setStepIssue(null); }}>No added plan benefits {quote.planBenefitsDecision === 'none' && <Check />}</button></div><div className="addon-grid">{availableAddOns.map((choice) => { const Icon = optionIcons[choice.id] || ShieldCheck; const selected = quote.addOns.includes(choice.id); return <button key={choice.id} className={selected ? 'is-selected' : ''} type="button" aria-pressed={selected} onClick={() => toggleAddOn(choice.id)}><span className="addon-check">{selected && <Check />}</span><Icon /><span><strong>{choice.title}</strong><small>{choice.short}</small></span></button>; })}</div><p>Ford’s returned offer and issued agreement determine which benefits are available with the selected vehicle, plan, and term.</p></div>
                     </section>
-                  ) : quote.program === 'csp' ? <section className="studio-section csp-options-note"><ShieldCheck /><span><small>CONTINUED SERVICE PLAN</small><h2>Ford confirms the deductible and included benefits in the returned offer.</h2><p>CSP requires no enrollment inspection. Exact coverage, deductible, and price remain vehicle-specific.</p></span></section> : <section className="studio-section csp-options-note enginecare-options-note"><Wrench /><span><small>DIESEL ENGINECARE</small><h2>{dieselCareLevel.name} uses the published $100 deductible.</h2><p>Bob Maxey verifies the eligible Power Stroke engine, mileage, engine hours, vehicle use, coverage level, limits, and current price.</p></span></section>}
+                  ) : quote.program === 'csp' ? <section className="studio-section csp-options-note"><ShieldCheck /><span><small>CONTINUED SERVICE PLAN</small><h2>Ford confirms the deductible and included benefits in the returned offer.</h2><p>CSP requires no enrollment inspection. Exact coverage, deductible, and price remain vehicle-specific.</p></span></section> : quote.program === 'enginecare' ? <section className="studio-section csp-options-note enginecare-options-note"><Wrench /><span><small>DIESEL ENGINECARE</small><h2>{dieselCareLevel.name} uses the published $100 deductible.</h2><p>Bob Maxey verifies the eligible Power Stroke engine, mileage, engine hours, vehicle use, coverage level, limits, and current price.</p></span></section> : null}
 
                   <section className="studio-section payment-choice payment-choice--cards" aria-labelledby="payment-choice-title">
                     <div className="studio-section__heading"><div><span>02</span><h2 id="payment-choice-title">How should we present payment choices?</h2></div><small>Choose one</small></div>
-                    <p>Ford currently advertises interest-free financing for eligible Ford Protect Extended Service Plans for up to 30 months. The current offer controls the down payment, number of installments, due dates, method, and eligibility.</p>
-                    <div className="payment-choice-grid" role="radiogroup" aria-label="Payment review preference" onKeyDown={handleRovingChoiceKeyDown}>{paymentChoices.map((choice, index) => <button key={choice.value} type="button" role="radio" aria-checked={quote.paymentPreference === choice.value} tabIndex={quote.paymentPreference === choice.value || (!quote.paymentPreference && index === 0) ? 0 : -1} className={quote.paymentPreference === choice.value ? 'is-selected' : ''} onClick={() => update('paymentPreference', choice.value)}><span>{quote.paymentPreference === choice.value ? <Check /> : null}</span><strong>{choice.title}</strong><small>{choice.text}</small></button>)}</div>
+                    <p>{quote.program === 'esp' ? 'Eligible Ford Protect Extended Service Plans may offer interest-free payments for up to 30 months. The current offer confirms any down payment, installment schedule, payment method, and eligibility.' : 'Choose how you want the Bob Maxey specialist to present the current product pricing and any payment choices that are actually available.'}</p>
+                    <div className="payment-choice-grid" role="radiogroup" aria-label="Payment review preference" onKeyDown={handleRovingChoiceKeyDown}>{displayedPaymentChoices.map((choice, index) => <button key={choice.value} type="button" role="radio" aria-checked={quote.paymentPreference === choice.value} tabIndex={quote.paymentPreference === choice.value || (!quote.paymentPreference && index === 0) ? 0 : -1} className={quote.paymentPreference === choice.value ? 'is-selected' : ''} onClick={() => update('paymentPreference', choice.value)}><span>{quote.paymentPreference === choice.value ? <Check /> : null}</span><strong>{choice.title}</strong><small>{choice.text}</small></button>)}</div>
                   </section>
                 </div>
 
                 <section className="product-marketplace" aria-labelledby="additional-products-title">
                   <header className="product-marketplace__header"><div><small>{quote.vehicleSituation === 'new-purchase' ? 'PRODUCTS FOR A NEW BOB MAXEY VEHICLE PURCHASE' : quote.vehicleSituation === 'used-purchase' ? 'PRODUCTS FOR A USED BOB MAXEY VEHICLE PURCHASE' : 'AFTER-SALE ELIGIBILITY & TIMING'}</small><h2 id="additional-products-title">{quote.vehicleSituation === 'new-purchase' ? 'Choose products to review with this new-vehicle purchase.' : quote.vehicleSituation === 'used-purchase' ? 'Choose products to review with this used-vehicle purchase.' : 'See what can still be requested after the sale.'}</h2><p>Available products can be configured. Products outside this vehicle situation remain visible with the reason they cannot be added.</p></div><button type="button" onClick={() => setAfterSaleNotice(true)}>Review purchase timing <ArrowRight /></button></header>
-                  <div className="product-decision"><button type="button" aria-pressed={quote.additionalProductsDecision === 'none'} className={quote.additionalProductsDecision === 'none' ? 'is-selected' : ''} onClick={() => { setQuote((current) => ({ ...current, requestedProductIds: [], productSelections: {}, maintenanceId: 'none', maintenanceName: '', additionalProductsDecision: 'none' })); setStepIssue(null); }}><X /> Continue with no additional products {quote.additionalProductsDecision === 'none' && <CheckCircle2 />}</button><span>{selectedProducts.length ? `${selectedProducts.length} product${selectedProducts.length === 1 ? '' : 's'} selected` : 'No product has been selected yet'}</span></div>
+                  <div className="product-decision">{quote.program !== 'products-only' ? <button type="button" aria-pressed={quote.additionalProductsDecision === 'none'} className={quote.additionalProductsDecision === 'none' ? 'is-selected' : ''} onClick={() => { setQuote((current) => ({ ...current, requestedProductIds: [], productSelections: {}, maintenanceId: 'none', maintenanceName: '', additionalProductsDecision: 'none' })); setStepIssue(null); }}><X /> Continue with no additional products {quote.additionalProductsDecision === 'none' && <CheckCircle2 />}</button> : <strong><PackagePlus /> Choose and configure at least one product below.</strong>}<span>{selectedProducts.length ? `${selectedProducts.length} product${selectedProducts.length === 1 ? '' : 's'} selected` : 'No product has been selected yet'}</span></div>
                   <div className="product-category-rail" role="tablist" aria-label="Product categories" onKeyDown={handleRovingChoiceKeyDown}>{productCategories.map((category) => <button id={`product-tab-${category}`} key={category} type="button" role="tab" aria-selected={productCategory === category} aria-controls="product-category-panel" tabIndex={productCategory === category ? 0 : -1} className={productCategory === category ? 'is-selected' : ''} onClick={() => setProductCategory(category)}>{category === 'recommended' ? <Sparkles /> : category === 'all' ? <Grid3X3 /> : category === 'maintenance' ? <Wrench /> : category === 'mobility' ? <CarFront /> : <ShieldCheck />}<span>{category.replace('-', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase())}</span></button>)}</div>
                   {productCategory === 'recommended' && productCatalog.length > visibleProducts.length && <button className="view-all-products" type="button" onClick={() => setProductCategory('all')}>Showing {visibleProducts.length} recommendations · View all {productCatalog.length} products and timing rules <ArrowRight /></button>}
                   <div id="product-category-panel" className="quote-product-grid" role="tabpanel" aria-labelledby={`product-tab-${productCategory}`}>{visibleProducts.map((product) => <ProductCard key={product.id} product={product} selected={quote.requestedProductIds.includes(product.id)} selection={quote.productSelections?.[product.id]} purchaseContext={quote.purchaseContext} onDetails={setProductHelpId} onRemove={toggleRequestedProduct} />)}</div>
@@ -1765,15 +1861,15 @@ export default function QuoteStudio({ initial = {}, onClose, onToast, onSaved })
                       <Field label="First name *" error={showErrors && !quote.customer.firstName.trim() ? 'Enter a first name' : ''}><input autoComplete="given-name" aria-invalid={showErrors && !quote.customer.firstName.trim()} value={quote.customer.firstName} onChange={(event) => updateCustomer('firstName', event.target.value)} /></Field>
                       <Field label="Last name *" error={showErrors && !quote.customer.lastName.trim() ? 'Enter a last name' : ''}><input autoComplete="family-name" aria-invalid={showErrors && !quote.customer.lastName.trim()} value={quote.customer.lastName} onChange={(event) => updateCustomer('lastName', event.target.value)} /></Field>
                       <Field label="Email *" error={showErrors && !emailValid ? 'Enter a valid email' : ''}><input type="email" autoComplete="email" aria-invalid={showErrors && !emailValid} value={quote.customer.email} onChange={(event) => updateCustomer('email', event.target.value)} /></Field>
-                      <Field label="Mobile phone *" error={showErrors && phoneDigits.length < 10 ? 'Enter a valid phone number' : ''}><input type="tel" autoComplete="tel" aria-invalid={showErrors && phoneDigits.length < 10} value={quote.customer.phone} onChange={(event) => updateCustomer('phone', event.target.value)} /></Field>
+                      <Field label="Mobile phone *" error={showErrors && !phoneValid ? 'Enter a valid 10- to 15-digit phone number' : ''}><input type="tel" inputMode="tel" autoComplete="tel" aria-invalid={showErrors && !phoneValid} value={quote.customer.phone} onChange={(event) => updateCustomer('phone', event.target.value)} /></Field>
                       <Field label="City" hint="Optional"><input autoComplete="address-level2" value={quote.customer.city} onChange={(event) => updateCustomer('city', event.target.value)} /></Field>
                       <Field label="Preferred Bob Maxey location *" error={showErrors && !quote.store ? 'Choose a location' : ''}><select value={quote.store} onChange={(event) => update('store', event.target.value)}><option value="">Choose a location</option>{locations.map((location) => <option key={location.name} value={location.name}>{location.descriptor}</option>)}</select></Field>
                     </div>
                   </div>
                   <div className="studio-section contact-preferences">
                     <div className="studio-section__heading"><div><span>08</span><h2>Follow-up preference</h2></div></div>
-                    <div className={`contact-choice-grid ${showErrors && !quote.preferredContact ? 'has-error' : ''}`} role="radiogroup" aria-label="Preferred contact method" onKeyDown={handleRovingChoiceKeyDown}>{contactPreferences.map((item, index) => { const Icon = item.value === 'phone' ? Phone : item.value === 'text' ? MessageSquare : Mail; return <button key={item.value} type="button" role="radio" aria-checked={quote.preferredContact === item.value} tabIndex={quote.preferredContact === item.value || (!quote.preferredContact && index === 0) ? 0 : -1} className={quote.preferredContact === item.value ? 'is-selected' : ''} onClick={() => update('preferredContact', item.value)}><Icon /><span>{item.label}</span>{quote.preferredContact === item.value && <Check />}</button>; })}</div>
-                    {showErrors && !quote.preferredContact && <small className="field-error">Choose how you want us to contact you.</small>}
+                    <div className={`contact-choice-grid ${showErrors && !quote.preferredContact ? 'has-error' : ''}`} role="radiogroup" aria-label="Preferred contact method" aria-describedby={showErrors && !quote.preferredContact ? 'preferred-contact-error' : undefined} onKeyDown={handleRovingChoiceKeyDown}>{contactPreferences.map((item, index) => { const Icon = item.value === 'phone' ? Phone : item.value === 'text' ? MessageSquare : Mail; return <button key={item.value} type="button" role="radio" aria-checked={quote.preferredContact === item.value} tabIndex={quote.preferredContact === item.value || (!quote.preferredContact && index === 0) ? 0 : -1} className={quote.preferredContact === item.value ? 'is-selected' : ''} onClick={() => update('preferredContact', item.value)}><Icon /><span>{item.label}</span>{quote.preferredContact === item.value && <Check />}</button>; })}</div>
+                    {showErrors && !quote.preferredContact && <small id="preferred-contact-error" className="field-error" role="alert">Choose how you want us to contact you.</small>}
                     <Field label="Anything the specialist should know?" hint="Optional"><textarea rows="4" value={quote.notes} placeholder="Questions, best time to call, or coverage priorities" onChange={(event) => update('notes', event.target.value)} /></Field>
                     <label className={`consent-check ${showErrors && !quote.consent ? 'has-error' : ''}`}><input type="checkbox" checked={quote.consent} onChange={(event) => updateConsent(event.target.checked)} /><span><strong>I agree Bob Maxey may contact me about this Ford Protect request.</strong><small>This does not purchase coverage or authorize a contract. Permission is timestamped with this request and can be withdrawn before submission by clearing this box.</small></span></label>
                   </div>
@@ -1785,24 +1881,24 @@ export default function QuoteStudio({ initial = {}, onClose, onToast, onSaved })
             {step === 5 && (
               submissionReceipt ? (
                 <section className="studio-step studio-success">
-                  <div className="studio-success__mark"><Check /></div><small>REQUEST RECEIVED</small><h1 ref={successHeadingRef} tabIndex="-1">Your Ford Protect request has been received.</h1><p>A Bob Maxey specialist will review your vehicle, coverage, and product selections and contact you by {quote.preferredContact === 'text' ? 'text message' : quote.preferredContact === 'email' ? 'email' : 'phone'}.</p>
+                  <div className="studio-success__mark"><Check /></div><small>REQUEST RECEIVED</small><h1 ref={successHeadingRef} tabIndex="-1">Your Ford Protect request has been received.</h1><p>A Bob Maxey specialist will review {quote.program === 'products-only' ? 'your vehicle and selected products' : 'your vehicle, coverage, and product selections'} and contact you by {getPreferredContactLabel(quote.preferredContact).toLowerCase()}.</p>
                   <div className="studio-success__reference"><span><small>YOUR REFERENCE</small><strong>{quote.id}</strong></span><span><small>DEALERSHIP RECEIPT</small><strong>{submissionReceipt.leadId}</strong></span></div>
-                  <div className="studio-success__next"><h2>What happens next</h2><div><span><strong>1</strong><p>We verify the VIN, warranty status, inspection path, and current Ford eligibility.</p></span><span><strong>2</strong><p>Your specialist confirms the exact plan, selected products, and Bob Maxey price.</p></span><span><strong>3</strong><p>You review the issued agreement before deciding whether to purchase coverage.</p></span></div></div>
+                  <div className="studio-success__next"><h2>What happens next</h2><div><span><strong>1</strong><p>{quote.program === 'products-only' ? 'We verify the VIN, purchase timing, product configuration, and current eligibility for each selection.' : 'We verify the VIN, warranty status, inspection path, and current Ford eligibility.'}</p></span><span><strong>2</strong><p>Your specialist confirms the exact {quote.program === 'products-only' ? 'products, configurations,' : 'plan, selected products,'} and Bob Maxey price.</p></span><span><strong>3</strong><p>You review the issued agreement before deciding whether to purchase coverage.</p></span></div></div>
                   <div className="studio-success__actions"><button className="button button--secondary" type="button" onClick={() => setProposalPreview(true)}><Eye /> Preview proposal</button><button className="button button--primary" type="button" onClick={downloadProposal} disabled={busy === 'pdf'}>{busy === 'pdf' ? 'Preparing…' : 'Download personalized proposal'} <Download /></button></div>
                   {selectedProducts.length > 0 && <section className="selected-product-guides selected-product-guides--success"><div><small>DETAILED PRODUCT GUIDES</small><h2>Keep the details for every product you requested.</h2><p>Your personalized proposal stays concise. These separate guides explain each product in more depth.</p></div><div>{selectedProducts.map((product) => <button key={product.id} type="button" onClick={() => downloadSelectedProductGuide(product)} disabled={busy === `guide-${product.id}`}><FileText /><span><strong>{product.name}</strong><small>{busy === `guide-${product.id}` ? 'Preparing guide…' : 'Download product guide'}</small></span><Download /></button>)}</div></section>}
                 </section>
               ) : (
                 <section className="studio-step studio-review">
-                  <div className="studio-step__heading"><small>STEP 6 OF 6</small><h1>Review your complete protection request.</h1><p>Confirm the vehicle, primary coverage, additional products, and follow-up details before submitting to Bob Maxey.</p></div>
+                  <div className="studio-step__heading"><small>STEP 6 OF 6</small><h1>Review your complete protection request.</h1><p>{quote.program === 'products-only' ? 'Confirm the vehicle, selected products, product-specific choices, and follow-up details before submitting to Bob Maxey.' : 'Confirm the vehicle, primary coverage, additional products, and follow-up details before submitting to Bob Maxey.'}</p></div>
                   <StepAlert issue={stepIssue?.step === 5 ? stepIssue.message : ''} />
-                  <div className="review-hero"><div><small>{quote.vin.length === 17 ? 'COMPLETE PROTECTION REQUEST' : 'PLANNING REQUEST · VIN PENDING'}</small><h2>{plan.name}</h2><p>{quote.year} {quote.make} {quote.model} · Reference {quote.id}</p></div><img src={assetUrl('/assets/ford-official/ford-protect-logo.png')} alt="Ford Protect" /></div>
+                  <div className="review-hero"><div><small>{vinDecoded ? 'VIN-DECODED PROTECTION REQUEST' : quote.vin.length === 17 ? 'PLANNING REQUEST · VIN ENTERED' : 'PLANNING REQUEST · VIN PENDING'}</small><h2>{plan.name}</h2><p>{quote.year} {quote.make} {quote.model} · Reference {quote.id}</p></div><img src={assetUrl('/assets/ford-official/ford-protect-logo.png')} alt="Ford Protect" /></div>
                   <div className="review-section-grid">
-                    <article className="review-summary-card"><header><CarFront /><span><small>VEHICLE</small><h2>{quote.year} {quote.make} {quote.model}</h2></span><button type="button" onClick={() => goTo(0)}>Edit</button></header><dl><div><dt>Vehicle situation</dt><dd>{vehicleSituations.find((item) => item.id === quote.vehicleSituation)?.label || 'Not selected'}</dd></div>{quote.vehicleSituation === 'owned-after-sale' ? <div><dt>Your purchase date</dt><dd>{quote.purchaseDate || 'Not provided—specialist will verify if needed'}</dd></div> : null}<div><dt>VIN</dt><dd>{quote.vin || 'Pending—required for final Ford record review'}</dd></div>{quote.decodedVehicle?.trim || quote.decodedVehicle?.series ? <div><dt>Trim / series</dt><dd>{[quote.decodedVehicle.trim, quote.decodedVehicle.series].filter(Boolean).join(' / ')}</dd></div> : null}{quote.decodedVehicle?.engineDescription ? <div><dt>NHTSA engine</dt><dd>{quote.decodedVehicle.engineDescription}</dd></div> : null}{quote.decodedVehicle?.driveType || quote.decodedVehicle?.transmission ? <div><dt>Drive / transmission</dt><dd>{[quote.decodedVehicle.driveType, quote.decodedVehicle.transmission].filter(Boolean).join(' · ')}</dd></div> : null}{quote.decodedVehicle?.gvwr ? <div><dt>GVWR</dt><dd>{quote.decodedVehicle.gvwr}</dd></div> : null}<div><dt>Current mileage</dt><dd>{formatMiles(quote.mileage)} miles</dd></div><div><dt>Warranty / inspection</dt><dd>{inspection.shortLabel}</dd></div><div><dt>Use</dt><dd>{quote.usage} · {quote.powertrain} · {quote.snowPlow === 'Yes' ? 'Snow-plow use' : 'No snow plow'}</dd></div></dl>{quote.decodedVehicle && <p className="in-service-record-note"><Info /> NHTSA vehicle facts do not include the Ford warranty start or original in-service date. Bob Maxey verifies those in Ford records.</p>}</article>
-                    <article className="review-summary-card"><header><ShieldCheck /><span><small>PRIMARY COVERAGE</small><h2>{plan.name}</h2></span><button type="button" onClick={() => goTo(1)}>Edit</button></header><dl><div><dt>Coverage method</dt><dd>{quote.program === 'esp' ? quote.planPath === 'used' ? 'From enrollment and current odometer' : 'From original warranty start' : quote.program === 'csp' ? 'Monthly continued coverage' : 'Diesel EngineCARE'}</dd></div><div><dt>Term</dt><dd>{quote.program === 'csp' ? 'Monthly / no annual mileage limit' : quote.program === 'enginecare' ? '7 years / 200,000 total miles / 8,000 engine hours referenced maximum' : `${formatTerm(quote.termMonths)} / ${formatMiles(quote.termMiles)} ${quote.planPath === 'used' ? 'additional' : 'total'} miles`}</dd></div><div><dt>Deductible</dt><dd>{quote.program === 'csp' ? 'Confirmed with offer' : quote.program === 'enginecare' ? '$100' : quote.deductible === 'disappearing' ? 'Disappearing' : `$${quote.deductible}`}</dd></div><div><dt>Inspection path</dt><dd>{inspection.shortLabel}</dd></div></dl></article>
-                    <article className="review-summary-card review-summary-card--options"><header><PackagePlus /><span><small>OPTIONS &amp; PAYMENT</small><h2>{selectedProducts.length ? `${selectedProducts.length} additional product${selectedProducts.length === 1 ? '' : 's'}` : 'No additional products requested'}</h2></span><button type="button" onClick={() => goTo(3)}>Edit</button></header><dl><div><dt>Plan benefits</dt><dd>{quote.program === 'esp' ? protectionOptions.filter((item) => quote.addOns.includes(item.id)).map((item) => item.title).join(', ') || 'None requested' : 'Confirmed with the returned Ford offer'}</dd></div><div><dt>Payment review</dt><dd>{paymentChoices.find((item) => item.value === quote.paymentPreference)?.title || quote.paymentPreference}</dd></div></dl>{selectedProducts.length ? <div className="review-product-list">{selectedProducts.map((product) => <div key={product.id}><img src={assetUrl(product.image)} alt="" /><span><strong>{product.name}</strong><small>{productSelectionLabel(product, quote.productSelections?.[product.id])}</small></span><CheckCircle2 /></div>)}</div> : <p className="review-empty-choice"><CheckCircle2 /> Additional products were reviewed and declined.</p>}</article>
-                    <article className="review-summary-card"><header><UserRound /><span><small>CUSTOMER &amp; FOLLOW-UP</small><h2>{quote.customer.firstName} {quote.customer.lastName}</h2></span><button type="button" onClick={() => goTo(4)}>Edit</button></header><dl><div><dt>Email</dt><dd>{quote.customer.email}</dd></div><div><dt>Phone</dt><dd>{quote.customer.phone}</dd></div><div><dt>Preference</dt><dd>{quote.preferredContact === 'text' ? 'Text message' : quote.preferredContact === 'email' ? 'Email' : 'Phone call'}</dd></div><div><dt>Bob Maxey location</dt><dd>{locations.find((item) => item.name === quote.store)?.descriptor || quote.store}</dd></div></dl></article>
+                    <article className="review-summary-card"><header><CarFront /><span><small>VEHICLE</small><h2>{quote.year} {quote.make} {quote.model}</h2></span><button type="button" onClick={() => goTo(0)}>Edit</button></header><dl><div><dt>Vehicle situation</dt><dd>{vehicleSituations.find((item) => item.id === quote.vehicleSituation)?.label || 'Not selected'}</dd></div>{quote.purchaseContext === 'shopping' ? <div><dt>Expected transaction</dt><dd>{transactionMethods.find((item) => item.value === quote.transactionMethod)?.label || 'Not selected'}</dd></div> : null}{quote.vehicleSituation === 'owned-after-sale' ? <div><dt>Your purchase date</dt><dd>{quote.purchaseDate || 'Not provided—specialist will verify if needed'}</dd></div> : null}<div><dt>VIN</dt><dd>{quote.vin || 'Pending—required for final Ford record review'}</dd></div>{quote.decodedVehicle?.trim || quote.decodedVehicle?.series ? <div><dt>Trim / series</dt><dd>{[quote.decodedVehicle.trim, quote.decodedVehicle.series].filter(Boolean).join(' / ')}</dd></div> : null}{quote.decodedVehicle?.engineDescription ? <div><dt>NHTSA engine</dt><dd>{quote.decodedVehicle.engineDescription}</dd></div> : null}{quote.decodedVehicle?.driveType || quote.decodedVehicle?.transmission ? <div><dt>Drive / transmission</dt><dd>{[quote.decodedVehicle.driveType, quote.decodedVehicle.transmission].filter(Boolean).join(' · ')}</dd></div> : null}{quote.decodedVehicle?.gvwr ? <div><dt>GVWR</dt><dd>{quote.decodedVehicle.gvwr}</dd></div> : null}<div><dt>Current mileage</dt><dd>{formatMiles(quote.mileage)} miles</dd></div><div><dt>Warranty / inspection</dt><dd>{inspection.shortLabel}</dd></div><div><dt>Use</dt><dd>{quote.usage} · {quote.powertrain} · {quote.snowPlow === 'Yes' ? 'Snow-plow use' : 'No snow plow'}</dd></div></dl>{quote.decodedVehicle && <p className="in-service-record-note"><Info /> NHTSA vehicle facts do not include the Ford warranty start or original in-service date. Bob Maxey verifies those in Ford records.</p>}</article>
+                    <article className="review-summary-card"><header><ShieldCheck /><span><small>{quote.program === 'products-only' ? 'REQUEST TYPE' : 'PRIMARY COVERAGE'}</small><h2>{plan.name}</h2></span><button type="button" onClick={() => goTo(1)}>Edit</button></header><dl><div><dt>{quote.program === 'products-only' ? 'Request focus' : 'Coverage method'}</dt><dd>{quote.program === 'products-only' ? 'Selected Ford Protect ownership products' : quote.program === 'esp' ? quote.planPath === 'used' ? 'From enrollment and current odometer' : 'From original warranty start' : quote.program === 'csp' ? 'Monthly continued coverage' : 'Diesel EngineCARE'}</dd></div><div><dt>{quote.program === 'products-only' ? 'Product terms' : 'Term'}</dt><dd>{quote.program === 'products-only' ? 'Selected separately for each product' : quote.program === 'csp' ? 'Monthly / no annual mileage limit' : quote.program === 'enginecare' ? 'Up to 7 years / 200,000 total miles / 8,000 engine hours, subject to confirmation' : `${formatTerm(quote.termMonths)} / ${formatMiles(quote.termMiles)} ${quote.planPath === 'used' ? 'additional' : 'total'} miles`}</dd></div>{quote.program === 'products-only' ? <div><dt>Configuration</dt><dd>Confirmed separately for every selected product</dd></div> : <div><dt>Deductible</dt><dd>{quote.program === 'csp' ? 'Confirmed with offer' : quote.program === 'enginecare' ? '$100' : quote.deductible === 'disappearing' ? 'Disappearing' : `$${quote.deductible}`}</dd></div>}<div><dt>{quote.program === 'products-only' ? 'Eligibility review' : 'Inspection path'}</dt><dd>{inspection.shortLabel}</dd></div></dl></article>
+                    <article className="review-summary-card review-summary-card--options"><header><PackagePlus /><span><small>{quote.program === 'products-only' ? 'SELECTED PRODUCTS & PAYMENT' : 'OPTIONS & PAYMENT'}</small><h2>{quote.program === 'products-only' ? selectedProducts.length ? `${selectedProducts.length} selected product${selectedProducts.length === 1 ? '' : 's'}` : 'No products selected' : selectedProducts.length ? `${selectedProducts.length} additional product${selectedProducts.length === 1 ? '' : 's'}` : 'No additional products requested'}</h2></span><button type="button" onClick={() => goTo(3)}>Edit</button></header><dl>{quote.program === 'products-only' ? <div><dt>Product choices</dt><dd>{selectedProducts.length ? 'Configured separately for each selected product' : 'No product selected'}</dd></div> : <div><dt>Plan benefits</dt><dd>{quote.program === 'esp' ? protectionOptions.filter((item) => quote.addOns.includes(item.id)).map((item) => item.title).join(', ') || 'None requested' : 'Confirmed with the returned Ford offer'}</dd></div>}<div><dt>Payment review</dt><dd>{paymentChoices.find((item) => item.value === quote.paymentPreference)?.title || quote.paymentPreference}</dd></div></dl>{selectedProducts.length ? <div className="review-product-list">{selectedProducts.map((product) => <div key={product.id}><img src={assetUrl(product.image)} alt="" /><span><strong>{product.name}</strong><small>{productSelectionLabel(product, quote.productSelections?.[product.id])}</small></span><CheckCircle2 /></div>)}</div> : <p className="review-empty-choice"><CheckCircle2 /> {quote.program === 'products-only' ? 'Choose at least one product before submitting.' : 'Additional products were reviewed and declined.'}</p>}</article>
+                    <article className="review-summary-card"><header><UserRound /><span><small>CUSTOMER &amp; FOLLOW-UP</small><h2>{quote.customer.firstName} {quote.customer.lastName}</h2></span><button type="button" onClick={() => goTo(4)}>Edit</button></header><dl><div><dt>Email</dt><dd>{quote.customer.email}</dd></div><div><dt>Phone</dt><dd>{formatPhoneNumber(quote.customer.phone)}</dd></div><div><dt>Preference</dt><dd>{getPreferredContactLabel(quote.preferredContact)}</dd></div><div><dt>Bob Maxey location</dt><dd>{locations.find((item) => item.name === quote.store)?.descriptor || quote.store}</dd></div></dl></article>
                   </div>
-                  <div className="review-action-panel"><div><FileText /><span><small>{quote.vin.length === 17 ? 'PERSONALIZED CUSTOMER PROPOSAL' : 'DRAFT PROPOSAL · VIN PENDING'}</small><h2>A complete record of your protection request.</h2><p>Preview the branded portrait proposal with your vehicle, coverage, options, inspection path, and next steps.</p></span></div><button className="button button--secondary" type="button" onClick={() => setProposalPreview(true)}><Eye /> {quote.vin.length === 17 ? 'Preview proposal' : 'Preview draft proposal'}</button></div>
+                  <div className="review-action-panel"><div><FileText /><span><small>{vinDecoded ? 'VIN-DECODED CUSTOMER PROPOSAL' : quote.vin.length === 17 ? 'DRAFT PROPOSAL · VIN NOT DECODED' : 'DRAFT PROPOSAL · VIN PENDING'}</small><h2>A complete record of your protection request.</h2><p>Preview the branded portrait proposal with your vehicle, {quote.program === 'products-only' ? 'selected products, product choices' : 'coverage, options'}, inspection path, and next steps.</p></span></div><button className="button button--secondary" type="button" onClick={() => setProposalPreview(true)}><Eye /> {vinDecoded ? 'Preview proposal' : 'Preview draft proposal'}</button></div>
                   {selectedProducts.length > 0 && <section className="selected-product-guides"><div><small>OPTIONAL DOWNLOADS</small><h2>Detailed guides for your selected products</h2><p>Download only the deeper product information you want to keep.</p></div><div>{selectedProducts.map((product) => <button key={product.id} type="button" onClick={() => downloadSelectedProductGuide(product)} disabled={busy === `guide-${product.id}`}><FileText /><span><strong>{product.name}</strong><small>{productSelectionLabel(product, quote.productSelections?.[product.id])}</small></span><Download /></button>)}</div></section>}
                   {crmStatus && <div className={`crm-status ${crmStatus.tone}`} role={crmStatus.tone === 'error' ? 'alert' : 'status'} aria-live={crmStatus.tone === 'error' ? 'assertive' : 'polite'}><CheckCircle2 /><span><strong>{crmStatus.title}</strong><small>{crmStatus.text}</small></span></div>}
                   <div className="review-notice"><ShieldCheck /><span><strong>Ready for specialist review—not a purchase</strong><small>Submitting sends this request to Bob Maxey. Coverage is issued only after eligibility, price, and the Ford Protect agreement are confirmed and you approve the final offer.</small></span></div>

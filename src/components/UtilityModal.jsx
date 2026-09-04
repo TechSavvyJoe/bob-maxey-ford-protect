@@ -45,7 +45,7 @@ export function SavedQuotes({ onClose, onLoad }) {
     <ModalShell title="Find a saved request" onClose={onClose}>
       <div className="utility-modal__body">
         <h1>Find a saved request</h1>
-        <p>Saved drafts keep planning selections in this browser for up to {DRAFT_TTL_DAYS} days. VIN, ZIP code, contact details, notes and consent are never included.</p>
+        <p>Saved drafts keep planning selections in this browser for up to {DRAFT_TTL_DAYS} days. VIN, decoded NHTSA facts, ZIP code, contact details, notes and consent are never included.</p>
         <label className="search-field"><Search /><span className="sr-only">Search saved requests</span><input aria-label="Search saved requests" placeholder="Enter request number" value={search} onChange={(event) => setSearch(event.target.value)} /></label>
         <div className="saved-list" aria-live="polite">
           {filtered.map((quote) => (
@@ -73,7 +73,7 @@ export function ContactPanel({ onClose, initialLocation, onStartRequest }) {
   return (
     <ModalShell title="Talk to a Bob Maxey specialist" onClose={onClose}>
       <div className="utility-modal__body contact-panel">
-        <h1>Talk to a Ford Protect specialist</h1>
+        <h1>Talk to a Bob Maxey Ford Protect specialist</h1>
         <p>Choose the Bob Maxey location you want to work with, then start a request. This panel does not send a message or create a lead.</p>
         <div className="contact-locations" role="radiogroup" aria-label="Preferred Bob Maxey location" onKeyDown={handleRovingChoiceKeyDown}>
           {locations.map((item, index) => (
@@ -108,7 +108,7 @@ const resourceContent = {
   privacy: {
     title: 'Privacy',
     intro: 'This is a public preview. It should not be used for live customer submissions until Bob Maxey approves the final privacy notice and secure dealership connection.',
-    items: ['Saved drafts keep non-contact planning choices for up to 30 days', 'VIN, ZIP code, contact details, notes and consent are not saved in browser drafts', 'A VIN is sent to the public NHTSA vPIC service only when you choose Decode VIN', 'A request is shown as received only after a configured dealership system returns an accepted receipt'],
+    items: ['Saved drafts keep non-contact planning choices for up to 30 days', 'VIN, decoded NHTSA facts, ZIP code, contact details, notes and consent are not saved in browser drafts', 'A VIN is sent to the public NHTSA vPIC service only when you choose Decode VIN', 'A request is shown as received only after a configured dealership system returns an accepted receipt'],
   },
   terms: {
     title: 'Terms',

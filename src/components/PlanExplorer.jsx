@@ -92,7 +92,7 @@ export default function PlanExplorer({ onQuote, onOpenProduct }) {
           <div className="mobile-comparison__actions"><button type="button" onClick={() => onOpenProduct(selection[0].id)}>See {selection[0].name} details</button><button type="button" onClick={() => onOpenProduct(selection[1].id)}>See {selection[1].name} details</button></div>
         </div>
 
-        {mode === 'electric' && <p className="comparison-note"><CircleAlert /> The high-voltage battery assembly has its own manufacturer warranty and is not included in this comparison.</p>}
+        {mode === 'electric' && <p className="comparison-note"><CircleAlert /> The high-voltage traction-battery assembly has its own 8-year/100,000-mile manufacturer warranty and is not eligible for Ford Protect Extended Service Plan coverage. Ford warranty records and the issued agreement control the vehicle-specific result.</p>}
         <p className="comparison-note"><CircleAlert /> We’ll confirm the plans and terms available for your VIN before you choose.</p>
       </div>
     </section>

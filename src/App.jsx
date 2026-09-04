@@ -135,7 +135,10 @@ export default function App() {
         <ContactPanel
           initialLocation={contactLocation}
           onClose={() => setUtility(null)}
-          onToast={setToast}
+          onStartRequest={(initial) => {
+            setUtility(null);
+            openQuote(initial);
+          }}
         />
       )}
       {utility === 'resource' && (

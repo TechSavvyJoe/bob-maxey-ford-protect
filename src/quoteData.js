@@ -20,6 +20,7 @@ export const NEW_PLAN_MATRICES = {
     isAvailable: (months, miles) => months <= 60 ? miles >= 75000 : true,
   },
   'premium-plus-ev': {
+    planPaths: ['new'],
     months: [36, 48, 60, 72, 84, 96, 108, 120],
     miles: [36000, 48000, 60000, 75000, 85000, 100000, 125000, 150000],
     isAvailable: (months, miles) => !(months === 36 && miles === 36000),
@@ -41,94 +42,187 @@ export const NEW_PLAN_MATRICES = {
   },
 };
 
-const USED_MASTER = {
-  6: [6000],
-  12: [10000, 12000, 20000],
-  24: [10000, 12000, 18000, 20000, 24000, 30000, 36000, 40000],
-  36: [18000, 20000, 24000, 30000, 36000, 40000, 48000, 50000, 60000],
-  48: [20000, 24000, 30000, 36000, 40000, 48000, 50000, 60000, 75000],
-  60: [30000, 40000, 48000, 50000, 60000, 75000],
-  72: [40000, 50000, 60000, 75000],
-};
+const usedBand = (maxMileage, rows) => Object.freeze({
+  maxMileage,
+  rows: Object.freeze(Object.fromEntries(Object.entries(rows).map(([months, miles]) => [months, Object.freeze(miles)]))),
+});
 
-const usedLimitForMileage = (mileage) => {
-  if (mileage > 160000) return { maxMonths: 0, maxMiles: 0 };
-  if (mileage > 140000) return { maxMonths: 24, maxMiles: 20000 };
-  if (mileage > 120000) return { maxMonths: 24, maxMiles: 24000 };
-  if (mileage > 100000) return { maxMonths: 48, maxMiles: 48000 };
-  if (mileage > 80000) return { maxMonths: 60, maxMiles: 60000 };
-  return { maxMonths: 72, maxMiles: 75000 };
-};
+// Historical used-plan grids differ by plan and by current-odometer band. These
+// are exact planning references from the supplied September 2024 Michigan guide;
+// they are never a substitute for Ford's current VIN-specific rating response.
+const PREMIUM_USED_BANDS = Object.freeze([
+  usedBand(40000, { 12: [10000, 12000, 20000], 24: [10000, 12000, 18000, 20000, 24000, 30000, 36000, 40000], 36: [18000, 20000, 24000, 30000, 36000, 40000, 48000, 50000, 60000], 48: [20000, 24000, 30000, 36000, 40000, 48000, 50000, 60000, 75000], 60: [30000, 40000, 48000, 50000, 60000, 75000], 72: [40000, 50000, 60000, 75000] }),
+  usedBand(60000, { 12: [10000, 12000, 20000], 24: [10000, 12000, 18000, 20000, 24000, 30000, 36000, 40000], 36: [18000, 20000, 24000, 30000, 36000, 40000, 48000, 50000, 60000], 48: [20000, 24000, 30000, 36000, 40000, 48000, 50000, 60000, 75000], 60: [30000, 40000, 48000, 50000, 60000, 75000], 72: [40000, 50000, 60000, 75000] }),
+  usedBand(80000, { 12: [10000, 12000, 20000], 24: [10000, 12000, 18000, 20000, 24000, 30000, 36000, 40000], 36: [18000, 20000, 24000, 30000, 36000, 40000, 48000, 50000, 60000], 48: [20000, 24000, 30000, 36000, 40000, 48000, 50000, 60000], 60: [30000, 40000, 48000] }),
+  usedBand(100000, { 12: [10000, 12000, 20000], 24: [10000, 12000, 18000, 20000, 24000], 36: [18000, 20000, 36000, 48000, 60000], 48: [20000, 30000, 36000, 40000, 48000] }),
+  usedBand(120000, { 12: [10000, 12000, 20000], 24: [10000, 12000, 18000, 20000, 24000], 36: [18000, 20000, 24000] }),
+]);
+
+const EXTRA_USED_BANDS = Object.freeze([
+  PREMIUM_USED_BANDS[0],
+  PREMIUM_USED_BANDS[1],
+  PREMIUM_USED_BANDS[2],
+  usedBand(100000, { 12: [10000, 12000, 20000], 24: [10000, 12000, 18000, 20000, 24000, 30000, 36000], 36: [18000, 20000, 30000, 36000, 48000, 60000], 48: [20000, 24000, 36000, 40000, 48000] }),
+  PREMIUM_USED_BANDS[4],
+]);
+
+const BASE_USED_BANDS = Object.freeze([
+  usedBand(40000, { 6: [6000], 12: [10000, 12000, 20000], 24: [10000, 12000, 18000, 20000, 24000, 30000, 36000, 40000], 36: [18000, 20000, 24000, 30000, 36000, 40000, 48000, 50000, 60000], 48: [20000, 24000, 30000, 36000, 40000, 48000, 50000, 60000, 75000], 60: [30000, 40000, 48000, 50000, 60000, 75000] }),
+  usedBand(60000, { 6: [6000], 12: [10000, 12000, 20000], 24: [10000, 12000, 18000, 20000, 24000, 30000, 36000, 40000], 36: [18000, 20000, 24000, 30000, 36000, 40000, 48000, 50000, 60000], 48: [20000, 24000, 30000, 36000, 40000, 48000, 50000, 60000, 75000], 60: [30000, 40000, 48000, 50000, 60000, 75000], 72: [40000, 50000, 60000] }),
+  usedBand(80000, { 6: [6000], 12: [10000, 12000, 20000], 24: [10000, 12000, 18000, 20000, 24000, 30000, 36000, 40000], 36: [18000, 20000, 24000, 30000, 36000, 40000, 48000, 50000, 60000], 48: [20000, 24000, 30000, 36000, 40000, 48000, 50000, 60000], 60: [30000, 40000, 48000, 50000, 60000] }),
+  usedBand(100000, { 6: [6000], 12: [10000, 12000, 20000], 24: [10000, 12000, 18000, 20000, 24000, 30000, 36000], 36: [18000, 20000, 24000, 30000, 36000, 40000, 48000, 60000], 48: [20000, 24000, 30000, 36000, 40000, 48000], 60: [30000, 40000, 48000] }),
+  usedBand(120000, { 6: [6000], 12: [10000, 12000, 20000], 24: [10000, 12000, 18000, 20000, 24000], 36: [18000, 20000, 36000] }),
+  usedBand(140000, { 6: [6000], 12: [10000, 12000, 20000], 24: [10000, 12000, 18000, 20000, 24000] }),
+]);
+
+export const USED_PLAN_BANDS = Object.freeze({
+  premium: PREMIUM_USED_BANDS,
+  extra: EXTRA_USED_BANDS,
+  base: BASE_USED_BANDS,
+  powertrain: Object.freeze([...BASE_USED_BANDS, usedBand(160000, { 12: [10000, 12000, 20000], 24: [10000, 12000, 18000, 20000, 24000] })]),
+  'premium-ev': PREMIUM_USED_BANDS,
+  'extra-ev': EXTRA_USED_BANDS,
+  'base-ev': BASE_USED_BANDS,
+});
+
+const TERM_MATRIX_SOURCE = Object.freeze({
+  title: 'Ford/Lincoln Protect MI Retail Price Book',
+  edition: 'September 2024',
+  planningOnly: true,
+});
+
+const matrixNotice = 'Reference choices from Ford\'s September 2024 Michigan retail guide. Ford records and the current VIN-specific dealer rating result must verify every plan, term, mileage, deductible, benefit, and price.';
 
 export const getTermMatrix = ({ planId, planPath, mileage = 0 }) => {
   if (planPath === 'new') {
-    const matrix = NEW_PLAN_MATRICES[planId] ?? NEW_PLAN_MATRICES.premium;
+    const matrix = NEW_PLAN_MATRICES[planId];
+    if (!matrix) {
+      return {
+        months: [],
+        miles: [],
+        isAvailable: () => false,
+        mileageMode: 'total',
+        planningOnly: true,
+        source: TERM_MATRIX_SOURCE,
+        notice: `${matrixNotice} No historical new-plan grid is stored for this plan.`,
+      };
+    }
     return {
       months: matrix.months,
       miles: matrix.miles,
       isAvailable: matrix.isAvailable,
       mileageMode: 'total',
+      planningOnly: true,
+      source: TERM_MATRIX_SOURCE,
+      notice: matrixNotice,
     };
   }
 
-  const limit = usedLimitForMileage(Number(mileage || 0));
-  const months = Object.keys(USED_MASTER).map(Number).filter((value) => value <= limit.maxMonths);
-  const miles = [...new Set(months.flatMap((value) => USED_MASTER[value]))]
-    .filter((value) => value <= limit.maxMiles)
-    .sort((a, b) => a - b);
+  const planBands = USED_PLAN_BANDS[planId];
+  if (!planBands) {
+    return {
+      months: [],
+      miles: [],
+      mileageMode: 'additional',
+      currentMileageBandMaximum: null,
+      planningOnly: true,
+      source: TERM_MATRIX_SOURCE,
+      notice: `${matrixNotice} The supplied guide does not contain a used-plan grid for this plan.`,
+      isAvailable: () => false,
+    };
+  }
+  const currentMileage = Math.max(0, Number(mileage || 0));
+  const band = planBands.find((item) => currentMileage <= item.maxMileage);
+  const rows = band?.rows ?? {};
+  const months = Object.keys(rows).map(Number).sort((a, b) => a - b);
+  const miles = [...new Set(months.flatMap((value) => rows[value] ?? []))].sort((a, b) => a - b);
 
   return {
     months,
     miles,
     mileageMode: 'additional',
-    isAvailable: (selectedMonths, selectedMiles) => (
-      selectedMonths <= limit.maxMonths
-      && selectedMiles <= limit.maxMiles
-      && (USED_MASTER[selectedMonths] ?? []).includes(selectedMiles)
-    ),
+    currentMileageBandMaximum: band?.maxMileage ?? null,
+    planningOnly: true,
+    source: TERM_MATRIX_SOURCE,
+    notice: matrixNotice,
+    isAvailable: (selectedMonths, selectedMiles) => (rows[selectedMonths] ?? []).includes(selectedMiles),
   };
 };
 
 export const deductibleOptions = [
-  { id: '0', label: '$0', help: 'Lowest out-of-pocket amount where eligible.', paths: ['new'] },
-  { id: '50', label: '$50', help: 'Lower deductible option where eligible.', paths: ['new', 'used'] },
-  { id: '100', label: '$100', help: 'Standard deductible used in Ford plan materials.', paths: ['new', 'used'], recommended: true },
-  { id: '200', label: '$200', help: 'Higher deductible that may reduce plan price.', paths: ['new', 'used'] },
-  { id: 'disappearing', label: 'Disappearing', help: 'May be waived at the selling dealer when agreement rules are met.', paths: ['new', 'used'] },
+  { id: '0', label: '$0', help: 'Historical new-plan reference; Ford must return it for this vehicle and plan. PremiumCARE Plus EV used $0 in the supplied guide.', paths: ['new'], planIds: 'all', planningOnly: true },
+  { id: '50', label: '$50', help: 'Historical reference; Ford must return it for this vehicle and plan.', paths: ['new', 'used'], planIds: ['premium', 'extra', 'base', 'powertrain', 'premium-ev', 'extra-ev', 'base-ev'], planningOnly: true },
+  { id: '100', label: '$100', help: 'Standard amount shown in the historical guide; the current Ford offer controls.', paths: ['new', 'used'], planIds: ['premium', 'extra', 'base', 'powertrain', 'premium-ev', 'extra-ev', 'base-ev'], recommended: true, planningOnly: true },
+  { id: '200', label: '$200', help: 'Historical reference; Ford must return it for this vehicle and plan.', paths: ['new', 'used'], planIds: ['premium', 'extra', 'base', 'powertrain', 'premium-ev', 'extra-ev', 'base-ev'], planningOnly: true },
+  { id: 'disappearing', label: 'Disappearing', help: 'Historical reference; waiver rules and availability require the current agreement.', paths: ['new', 'used'], planIds: ['premium', 'extra', 'base', 'powertrain', 'premium-ev', 'extra-ev', 'base-ev'], planningOnly: true },
 ];
+
+export const isDeductibleAvailable = (option, { planId, planPath, termMiles } = {}) => {
+  if (!option?.paths?.includes(planPath)) return false;
+  if (option.planIds !== 'all' && !option.planIds?.includes(planId)) return false;
+  if (planId === 'premium-plus-ev') return planPath === 'new' && option.id === '0';
+  const miles = Number(termMiles || 0);
+  if (planPath === 'new' && option.id === '200' && miles < 60000) return false;
+  if (planPath === 'used' && option.id !== '100' && miles < 12000) return false;
+  return true;
+};
 
 export const protectionOptions = [
   {
     id: 'first-day',
-    title: 'First-Day Rental',
-    short: 'Rental assistance starts on the first day of a covered repair when agreement conditions are met.',
+    title: 'Keep First-Day Rental',
+    short: 'The historical guide presents this as an included benefit that could be deleted. The current Ford offer confirms its status.',
     planIds: 'all',
+    planPaths: ['new', 'used'],
+    selectionMeaning: 'retain-benefit',
+    planningOnly: true,
   },
   {
     id: 'enhanced-rental',
-    title: 'Enhanced Rental',
-    short: 'Request the higher rental benefit available for eligible plans and repairs.',
+    title: 'Keep Enhanced Rental',
+    short: 'The historical guide presents enhanced daily rental as a benefit that could be deleted. Ford must verify the current amount and availability.',
     planIds: 'all',
+    planPaths: ['new', 'used'],
+    selectionMeaning: 'retain-benefit',
+    planningOnly: true,
   },
   {
     id: 'key',
-    title: 'Key Services',
-    short: 'Eligible lost, stolen, damaged, or destroyed key support, subject to the agreement limit.',
+    title: 'Keep Key Services',
+    short: 'The historical guide presents Key Services as a benefit that could be deleted. The current offer confirms eligibility and limits.',
     planIds: 'all',
+    planPaths: ['new', 'used'],
+    selectionMeaning: 'retain-benefit',
+    planningOnly: true,
   },
   {
     id: 'lighting',
-    title: 'Interior / Exterior Lighting',
-    short: 'Eligible factory-installed lighting option available with PremiumCARE paths.',
+    title: 'Keep Interior / Exterior Lighting',
+    short: 'Historical PremiumCARE benefit that could be deleted. Ford must verify the vehicle, plan, term, and lighting eligibility.',
     planIds: ['premium', 'premium-ev', 'premium-plus-ev'],
+    planPaths: ['new', 'used'],
+    selectionMeaning: 'retain-benefit',
+    planningOnly: true,
   },
   {
     id: 'pickup-delivery',
-    title: 'Pickup & Delivery',
-    short: 'Request dealer pickup and delivery review where available; distance and First-Day Rental rules apply.',
+    title: 'Add Pickup & Delivery',
+    short: 'Historical new-plan PremiumCARE reference. Distance, First-Day Rental, and current-offer rules apply.',
     planIds: ['premium', 'premium-ev', 'premium-plus-ev'],
+    planPaths: ['new'],
+    selectionMeaning: 'add-benefit',
+    planningOnly: true,
   },
 ];
+
+export const isProtectionOptionAvailable = (option, { planId, planPath, termMonths, termMiles } = {}) => {
+  if (!option?.planPaths?.includes(planPath)) return false;
+  if (option.planIds !== 'all' && !option.planIds?.includes(planId)) return false;
+  if (planPath === 'used' && option.id === 'enhanced-rental' && Number(termMiles || 0) < 12000) return false;
+  if (planPath === 'used' && option.id === 'key' && Number(termMonths || 0) < 12) return false;
+  if (planPath === 'used' && option.id === 'lighting' && Number(termMiles || 0) < 12000) return false;
+  return true;
+};
 
 export const maintenanceChoices = [
   { id: 'none', title: 'No maintenance plan', text: 'Keep this request focused on mechanical protection.' },
@@ -183,4 +277,4 @@ export const findBestCombination = ({ matrix, planPath, inService, currentMileag
   return best ? { ...best, meetsGoal: best.months >= targetMonths && best.miles >= targetMiles, targetMonths, targetMiles } : null;
 };
 
-export const historicalMatrixNotice = 'Term and mileage choices are organized from Ford’s September 2024 Michigan retail guide for planning only. Current availability, price, deductible, options, and eligibility require Bob Maxey confirmation.';
+export const historicalMatrixNotice = matrixNotice;

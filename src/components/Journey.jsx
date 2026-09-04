@@ -27,7 +27,7 @@ export default function Journey({ onQuote, onContact }) {
         </div>
         <details className="journey-payment-note">
           <summary><span><strong>Payment options for eligible plans</strong><small>See how the service payment plan works</small></span><ChevronDown /></summary>
-          <div><h3>A small down payment, then the remaining balance at 0% interest.</h3><p>The current offer confirms the exact down payment, number of scheduled payments, first due date, payment method and eligibility. The plan is separate from the vehicle loan.</p></div>
+          <div><h3>Interest-free payment choices may be available for eligible plans.</h3><p>Eligible Ford Protect Extended Service Plans may qualify for interest-free financing for up to 30 months. A down payment may apply; the current offer confirms its amount, installments, due dates, method and eligibility. The plan is separate from the vehicle loan.</p></div>
         </details>
       </section>
 

@@ -1,23 +1,36 @@
 import { ArrowRight, CarFront, Check, Search, ShieldCheck } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
-import { afterSaleProductCategories, hiddenCustomerProductIds, productCategories } from '../data';
+import { hiddenCustomerProductIds, productCategories } from '../data';
 import { assetUrl } from '../paths';
 
 const hiddenIds = new Set(hiddenCustomerProductIds);
 
 const availableCategories = (context) => {
-  const source = context === 'owner' ? afterSaleProductCategories : productCategories;
-  return source
-    .map((category) => ({ ...category, products: category.products.filter((product) => !hiddenIds.has(product.id)) }))
+  return productCategories
+    .map((category) => ({
+      ...category,
+      products: category.products.filter((product) => (
+        !hiddenIds.has(product.id)
+        && (product.purchaseContexts || ['shopping', 'owner']).includes(context)
+      )),
+    }))
     .filter((category) => category.products.length > 0);
 };
 
 const timingLabel = (category, product, context) => {
-  if (category.id === 'vehicle-care') return 'Available with an eligible vehicle purchase';
-  if (product.id === 'continued-service') return 'Available after eligible prior coverage';
+  if (product.purchaseTimingLabel) return product.purchaseTimingLabel;
+  if (product.purchaseContexts?.length === 1 && product.purchaseContexts[0] === 'shopping') return 'Original eligible vehicle transaction only';
+  if (product.id === 'continued-service') return 'As eligible OEM warranty or Ford Protect coverage is ending';
   if (product.id.includes('maintenance')) return context === 'owner' ? 'After-sale availability depends on warranty status' : 'Available with purchase or during the eligible warranty window';
   if (category.id === 'mechanical' || category.id === 'electric') return 'Vehicle-specific new and used coverage paths';
   return 'Bob Maxey specialist verification required';
+};
+
+const requestLabel = (product, context) => {
+  if (product.id === 'off-road-coverage') return 'Request dealer verification';
+  if (product.purchaseContexts?.length === 1 && product.purchaseContexts[0] === 'shopping') return 'Add to purchase plan';
+  if (context === 'owner') return 'Start eligibility request';
+  return 'Add to my purchase plan';
 };
 
 function ProductRow({ category, product, context, onOpenProduct, onStart }) {
@@ -37,7 +50,7 @@ function ProductRow({ category, product, context, onOpenProduct, onStart }) {
       <div className="product-row__actions">
         {product.count && <strong><b>{product.count}</b><small>{product.countLabel || 'covered components'}</small></strong>}
         <button className="button button--primary" type="button" onClick={() => onOpenProduct(product.id)}>See coverage details <ArrowRight /></button>
-        <button type="button" onClick={() => onStart(product)}>Add to my request</button>
+        <button type="button" onClick={() => onStart(product)}>{requestLabel(product, context)}</button>
       </div>
     </article>
   );
@@ -61,7 +74,7 @@ export default function ProductLibrary({ onQuote, onOpenProduct }) {
     return pool.filter(({ category: item, product }) => `${item.label} ${item.title} ${product.name} ${product.description} ${(product.groups || []).join(' ')}`.toLowerCase().includes(normalized));
   }, [categories, category, query]);
 
-  const startProduct = (product) => onQuote({ purchaseContext: context, productId: product.id, planId: product.id });
+  const startProduct = (product) => onQuote({ purchaseContext: context, ...(product.quoteSeed || {}) });
 
   return (
     <section className="product-library product-library--professional" id="products">
@@ -69,7 +82,7 @@ export default function ProductLibrary({ onQuote, onOpenProduct }) {
         <div>
           <span>Ford Protect plans and products</span>
           <h1>Find Ford Protect coverage for where you are in ownership.</h1>
-          <p>Start with whether you own the vehicle or are buying it from Bob Maxey. We’ll show only products that fit that purchase timing.</p>
+          <p>Start with whether you already own the vehicle or are planning a new or used vehicle purchase. Each product shows when it may be requested and what Bob Maxey must verify.</p>
         </div>
         <ShieldCheck aria-hidden="true" />
       </div>
@@ -79,7 +92,7 @@ export default function ProductLibrary({ onQuote, onOpenProduct }) {
           <ShieldCheck /><span><strong>I already own a Ford</strong><small>Explore coverage Ford may permit after the original sale, including vehicles bought elsewhere.</small></span><ArrowRight />
         </button>
         <button className={context === 'shopping' ? 'is-active' : ''} type="button" aria-pressed={context === 'shopping'} onClick={() => { setContext('shopping'); setQuery(''); }}>
-          <CarFront /><span><strong>I’m buying a vehicle from Bob Maxey</strong><small>Explore products that must be selected before delivery, financing or lease signing.</small></span><ArrowRight />
+          <CarFront /><span><strong>I’m buying a new or used vehicle from Bob Maxey</strong><small>Plan both original-transaction products and coverage that may also be available later.</small></span><ArrowRight />
         </button>
       </div>
 

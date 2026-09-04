@@ -1,13 +1,13 @@
-import { locations } from './data';
+import { locations } from './data.js';
 import {
   formatMiles,
   formatTerm,
   maintenanceChoices,
   protectionOptions,
-} from './quoteData';
-import { getProductTimingPresentation, quoteProducts } from './quoteProducts';
+} from './quoteData.js';
+import { getProductTimingPresentation, quoteProducts } from './quoteProducts.js';
+import { CONTACT_CONSENT_TEXT, CONTACT_CONSENT_VERSION } from './consent.js';
 
-const CONSENT_TEXT = 'I agree Bob Maxey may contact me about this Ford Protect request.';
 const AGREEMENT_DISCLAIMER = 'This personalized proposal is a request for review, not a service contract, price, eligibility approval, or promise of coverage. Vehicle eligibility, covered components, options, term, deductible, price, exclusions, cancellation provisions, and state availability must match the Ford Protect agreement issued for the vehicle. The executed agreement controls.';
 const ENGINECARE_LIMITS = Object.freeze({ months: 84, miles: 200000, engineHours: 8000, deductible: '100' });
 const ENGINECARE_LEVELS = Object.freeze({
@@ -181,8 +181,10 @@ export function getInspectionStatus(input = {}) {
   const mileage = finiteNumber(firstDefined(quote.mileage, quote.currentMileage, quote.vehicle?.currentMileage));
   const asOf = safeIso(quote.asOfDate || quote.generatedAt || quote.timestamps?.generatedAt) || new Date().toISOString();
   const warrantyEnd = inService ? addMonths(inService, limits.months) : null;
-  const withinTime = warrantyEnd ? new Date(asOf).getTime() <= warrantyEnd.getTime() : null;
-  const withinMiles = mileage === null ? null : mileage <= limits.miles;
+  // The New Vehicle Limited Warranty ends at the earlier limit. Reaching the
+  // exact time or mileage boundary is outside, not still within, the window.
+  const withinTime = warrantyEnd ? new Date(asOf).getTime() < warrantyEnd.getTime() : null;
+  const withinMiles = mileage === null ? null : mileage < limits.miles;
   const calculatedWithin = withinTime === null || withinMiles === null ? null : withinTime && withinMiles;
   const likelyWithin = explicitWithin ?? calculatedWithin;
   const warrantyRecordConfirmed = Boolean(firstDefined(
@@ -589,12 +591,25 @@ export function buildQuoteSnapshot({ quote = {}, plan = {}, detail = {} } = {}) 
     : isObject(quote.submission)
       ? quote.submission
       : {};
-  const submittedAt = safeIso(quote.submittedAt || receipt.receivedAt || receipt.submittedAt);
-  const submissionAccepted = Boolean(submittedAt || receipt.accepted === true || (receipt.leadId && receipt.receivedAt));
-  const finalConfirmed = Boolean(quote.finalConfirmed || quote.finalConfirmation)
+  const receiptLeadId = cleanText(receipt.leadId || receipt.id);
+  const receiptReceivedAt = safeIso(receipt.receivedAt || receipt.submittedAt);
+  const submittedAt = safeIso(quote.submittedAt);
+  // A local timestamp or identifier alone must never turn a draft into a submitted request.
+  const submissionAccepted = receipt.accepted === true
+    && Boolean(receiptLeadId)
+    && Boolean(receiptReceivedAt)
+    && (!submittedAt || submittedAt === receiptReceivedAt);
+  const confirmedSubmittedAt = submissionAccepted ? receiptReceivedAt : null;
+  const finalConfirmed = submissionAccepted
+    && receipt.finalConfirmed === true
     && vinValid
     && Boolean(quote.eligibility?.confirmed || quote.eligibilityStatus?.confirmed)
     && Boolean(quote.pricing?.confirmed || quote.priceStatus?.confirmed);
+  const consentAcceptedAt = safeIso(quote.consentAcceptedAt || quote.consentAt);
+  const consentGranted = quote.consent === true
+    && quote.consentVersion === CONTACT_CONSENT_VERSION
+    && quote.consentText === CONTACT_CONSENT_TEXT
+    && Boolean(consentAcceptedAt);
   const lifecycle = finalConfirmed
     ? { status: 'dealer-confirmed-offer', label: 'Dealer-confirmed offer', shortLabel: 'Confirmed offer', isDraft: false, isSubmitted: true, isFinal: true }
     : submissionAccepted
@@ -624,15 +639,23 @@ export function buildQuoteSnapshot({ quote = {}, plan = {}, detail = {} } = {}) 
     : 'Primary coverage not selected';
 
   return {
-    schemaVersion: '1.2',
+    schemaVersion: '1.3',
     quoteId: cleanText(quote.id, 'Pending'),
     lifecycle,
     submission: {
       accepted: submissionAccepted,
-      leadId: cleanText(receipt.leadId || receipt.id),
-      receivedAt: submittedAt,
+      leadId: submissionAccepted ? receiptLeadId : '',
+      receivedAt: confirmedSubmittedAt,
     },
     purchaseContext: cleanText(quote.purchaseContext),
+    vehicleSituation: cleanText(quote.vehicleSituation),
+    vehicleSituationLabel: quote.vehicleSituation === 'new-purchase'
+      ? 'Buying a new vehicle from Bob Maxey'
+      : quote.vehicleSituation === 'used-purchase'
+        ? 'Buying a used vehicle from Bob Maxey'
+        : quote.vehicleSituation === 'owned-after-sale'
+          ? 'Already owns the vehicle; adding protection after the sale'
+          : 'Vehicle situation not selected',
     program,
     customer: {
       firstName: cleanText(customer.firstName),
@@ -655,6 +678,8 @@ export function buildQuoteSnapshot({ quote = {}, plan = {}, detail = {} } = {}) 
       displayName: vehicleName,
       currentMileage: mileage,
       currentMileageLabel: mileage === null ? 'Mileage to be confirmed' : `${formatMiles(mileage)} miles`,
+      purchaseDate: safeIso(quote.purchaseDate || quote.vehiclePurchaseDate || quote.saleDate),
+      purchaseDateDisplay: cleanText(quote.purchaseDate || quote.vehiclePurchaseDate || quote.saleDate, 'Unknown'),
       inServiceDate: safeIso(quote.inService || quote.inServiceDate),
       inServiceDateDisplay: cleanText(quote.inService || quote.inServiceDate, 'Unknown'),
       state: cleanText(quote.state),
@@ -664,6 +689,37 @@ export function buildQuoteSnapshot({ quote = {}, plan = {}, detail = {} } = {}) 
       snowPlow: cleanText(quote.snowPlow, 'No'),
       image: cleanText(quote.vehicleImage || quote.vehicleImageUrl),
       imageAlt: cleanText(quote.vehicleImageAlt, vehicleName),
+      decoded: isObject(quote.decodedVehicle) ? {
+        source: cleanText(quote.decodedVehicle.source, 'NHTSA vPIC'),
+        decodedAt: safeIso(quote.decodedVehicle.decodedAt),
+        trim: cleanText(quote.decodedVehicle.trim),
+        series: cleanText(quote.decodedVehicle.series),
+        bodyClass: cleanText(quote.decodedVehicle.bodyClass),
+        bodyCabType: cleanText(quote.decodedVehicle.bodyCabType),
+        driveType: cleanText(quote.decodedVehicle.driveType),
+        fuelType: cleanText(quote.decodedVehicle.fuelType),
+        electrificationLevel: cleanText(quote.decodedVehicle.electrificationLevel),
+        engineCylinders: cleanText(quote.decodedVehicle.engineCylinders),
+        engineDisplacementL: cleanText(quote.decodedVehicle.engineDisplacementL),
+        engineModel: cleanText(quote.decodedVehicle.engineModel),
+        engineConfiguration: cleanText(quote.decodedVehicle.engineConfiguration),
+        engineHorsepower: cleanText(quote.decodedVehicle.engineHorsepower),
+        engineDescription: cleanText(quote.decodedVehicle.engineDescription),
+        transmissionStyle: cleanText(quote.decodedVehicle.transmissionStyle),
+        transmissionSpeeds: cleanText(quote.decodedVehicle.transmissionSpeeds),
+        transmission: cleanText(quote.decodedVehicle.transmission),
+        gvwr: cleanText(quote.decodedVehicle.gvwr),
+        doors: cleanText(quote.decodedVehicle.doors),
+        vehicleType: cleanText(quote.decodedVehicle.vehicleType),
+        manufacturer: cleanText(quote.decodedVehicle.manufacturer),
+        plantCity: cleanText(quote.decodedVehicle.plantCity),
+        plantState: cleanText(quote.decodedVehicle.plantState),
+        plantCountry: cleanText(quote.decodedVehicle.plantCountry),
+        plant: cleanText(quote.decodedVehicle.plant),
+        modelId: cleanText(quote.decodedVehicle.modelId),
+        warrantyRecordIncluded: false,
+        inServiceDateIncluded: false,
+      } : null,
     },
     coverage: {
       selected: primaryCoverageSelected,
@@ -740,10 +796,10 @@ export function buildQuoteSnapshot({ quote = {}, plan = {}, detail = {} } = {}) 
       store,
     },
     consent: {
-      granted: Boolean(quote.consent),
-      text: cleanText(quote.consentText, CONSENT_TEXT),
-      version: cleanText(quote.consentVersion, 'ford-protect-request-v1'),
-      acceptedAt: safeIso(quote.consentAcceptedAt || quote.consentAt),
+      granted: consentGranted,
+      text: cleanText(quote.consentText, CONTACT_CONSENT_TEXT),
+      version: cleanText(quote.consentVersion, CONTACT_CONSENT_VERSION),
+      acceptedAt: consentGranted ? consentAcceptedAt : null,
       finalConfirmed,
       finalConfirmedAt: safeIso(quote.finalConfirmedAt || quote.finalConfirmationAt),
     },
@@ -757,7 +813,7 @@ export function buildQuoteSnapshot({ quote = {}, plan = {}, detail = {} } = {}) 
     timestamps: {
       createdAt: safeIso(quote.createdAt),
       savedAt: safeIso(quote.savedAt),
-      submittedAt,
+      submittedAt: confirmedSubmittedAt,
       generatedAt: safeIso(quote.generatedAt) || now,
     },
   };
@@ -816,6 +872,8 @@ export function buildProposalModel(input = {}) {
         ? 'Request received for Bob Maxey specialist review. This is not a contract or final offer.'
         : 'Draft selections for Ford-backed protection with support from Bob Maxey.',
       purchaseContext: snapshot.purchaseContext,
+      vehicleSituation: snapshot.vehicleSituation,
+      vehicleSituationLabel: snapshot.vehicleSituationLabel,
       purchaseContextLabel: snapshot.purchaseContext === 'shopping'
         ? 'Planned with your Bob Maxey vehicle purchase'
         : snapshot.purchaseContext === 'owner' ? 'After-sale protection request for a vehicle you own' : 'Purchase context not selected',
@@ -857,6 +915,8 @@ export function buildProposalModel(input = {}) {
       lifecycle,
       submission: snapshot.submission,
       purchaseContext: snapshot.purchaseContext,
+      vehicleSituation: snapshot.vehicleSituation,
+      vehicleSituationLabel: snapshot.vehicleSituationLabel,
       purchaseContextLabel: snapshot.purchaseContext === 'shopping'
         ? 'Vehicle purchase + protection planning'
         : snapshot.purchaseContext === 'owner' ? 'After-sale owner protection request' : 'Purchase context not selected',

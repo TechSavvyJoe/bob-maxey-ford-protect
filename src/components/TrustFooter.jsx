@@ -28,6 +28,7 @@ export default function TrustFooter({ onQuote, onContact, onResource, compact = 
         <div className="page-shell site-footer__legal">
           <p>Your online selections are a coverage request. Final eligibility, availability, pricing and agreement terms are confirmed before purchase.</p>
           <p>Ford, Lincoln and Ford Protect are trademarks of Ford Motor Company. The issued Ford Protect agreement controls coverage, exclusions, limits and claims decisions.</p>
+          <p>This public preview is for evaluation and planning. Live customer submission remains unavailable until Bob Maxey approves the privacy notice and activates its secure dealership connection.</p>
         </div>
       </footer>
     </>

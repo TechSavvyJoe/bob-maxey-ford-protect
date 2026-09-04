@@ -14,6 +14,8 @@ export const comparisonRows = [
 export const planData = [
   {
     id: 'premium',
+    purchaseContexts: ['shopping', 'owner'],
+    quoteSeed: { program: 'esp', planId: 'premium' },
     name: 'PremiumCARE',
     count: '1,000+',
     label: 'Most comprehensive',
@@ -25,6 +27,8 @@ export const planData = [
   },
   {
     id: 'extra',
+    purchaseContexts: ['shopping', 'owner'],
+    quoteSeed: { program: 'esp', planId: 'extra' },
     name: 'ExtraCARE',
     count: '113',
     label: 'Enhanced protection',
@@ -36,6 +40,8 @@ export const planData = [
   },
   {
     id: 'base',
+    purchaseContexts: ['shopping', 'owner'],
+    quoteSeed: { program: 'esp', planId: 'base' },
     name: 'BaseCARE',
     count: '84',
     label: 'Essential protection',
@@ -47,6 +53,8 @@ export const planData = [
   },
   {
     id: 'powertrain',
+    purchaseContexts: ['shopping', 'owner'],
+    quoteSeed: { program: 'esp', planId: 'powertrain' },
     name: 'PowertrainCARE',
     count: '29',
     label: 'Core protection',
@@ -174,6 +182,10 @@ export const mechanicalCoverageDetails = [
 export const evPlanData = [
   {
     id: 'premium-plus-ev',
+    planPaths: ['new'],
+    planPathNotice: 'The supplied September 2024 guide lists PremiumCARE Plus EV as a new-plan bundle; it does not contain a PremiumCARE Plus EV used-plan matrix. A current Ford offer must confirm any different path.',
+    purchaseContexts: ['shopping', 'owner'],
+    quoteSeed: { program: 'esp', planId: 'premium-plus-ev', powertrain: 'Electric' },
     name: 'PremiumCARE Plus EV',
     count: '1,000+',
     label: 'Coverage + maintenance',
@@ -183,6 +195,8 @@ export const evPlanData = [
   },
   {
     id: 'premium-ev',
+    purchaseContexts: ['shopping', 'owner'],
+    quoteSeed: { program: 'esp', planId: 'premium-ev', powertrain: 'Electric' },
     name: 'PremiumCARE EV',
     count: '1,000+',
     label: 'Comprehensive EV protection',
@@ -192,6 +206,8 @@ export const evPlanData = [
   },
   {
     id: 'extra-ev',
+    purchaseContexts: ['shopping', 'owner'],
+    quoteSeed: { program: 'esp', planId: 'extra-ev', powertrain: 'Electric' },
     name: 'ExtraCARE EV',
     count: '113',
     label: 'Enhanced EV protection',
@@ -201,6 +217,8 @@ export const evPlanData = [
   },
   {
     id: 'base-ev',
+    purchaseContexts: ['shopping', 'owner'],
+    quoteSeed: { program: 'esp', planId: 'base-ev', powertrain: 'Electric' },
     name: 'BaseCARE EV',
     count: '84',
     label: 'Essential EV protection',
@@ -215,7 +233,7 @@ export const productCategories = [
     id: 'mechanical',
     label: 'Mechanical coverage',
     title: 'Ford Protect Extended Service Plans',
-    intro: 'Four levels of Ford-backed protection for covered repairs after the New Vehicle Limited Warranty.',
+    intro: 'Ford-backed mechanical protection with new- and used-plan paths. Ford records determine the eligible path, term, mileage, and deductible.',
     image: '/assets/ford-official/ford-why-plan.png',
     imageAlt: 'Ford Expedition from official Ford Protect marketing media',
     products: planData,
@@ -239,6 +257,9 @@ export const productCategories = [
     products: [
       {
         id: 'premium-maintenance',
+        purchaseContexts: ['shopping', 'owner'],
+        quoteSeed: { productId: 'premium-maintenance' },
+        purchaseTimingLabel: 'At purchase or during the eligible factory-warranty window',
         name: 'Premium Maintenance Plan',
         count: '$0',
         countLabel: 'deductible on covered maintenance',
@@ -250,6 +271,9 @@ export const productCategories = [
       },
       {
         id: 'premium-maintenance-ev',
+        purchaseContexts: ['shopping', 'owner'],
+        quoteSeed: { productId: 'premium-maintenance', powertrain: 'Electric' },
+        purchaseTimingLabel: 'At purchase or during the eligible factory-warranty window',
         name: 'Premium Maintenance EV',
         count: 'EV',
         countLabel: 'scheduled maintenance plan',
@@ -261,12 +285,15 @@ export const productCategories = [
       },
       {
         id: 'continued-service',
+        purchaseContexts: ['owner'],
+        quoteSeed: { program: 'csp' },
+        purchaseTimingLabel: 'As eligible OEM warranty or Ford Protect coverage is ending',
         name: 'Continued Service Plan',
         count: 'CSP',
         countLabel: 'continued coverage path',
-        label: 'After existing coverage',
-        bestFor: 'Eligible owners nearing the end of an existing Ford Protect plan.',
-        description: 'A Ford Protect path designed to continue protection after an eligible Ford Protect plan expires.',
+        label: 'As eligible coverage ends',
+        bestFor: 'Eligible owners nearing the end of an OEM warranty or Ford Protect plan.',
+        description: 'A monthly Ford Protect path designed to start after eligible OEM warranty or Ford Protect coverage expires. The returned offer establishes the effective date and terms.',
         groups: ['Ultimate plan', 'Standard Plus plan', 'Major systems', 'Rental benefits', 'Ford parts & service'],
         examples: ['Engine and transmission', 'Electrical systems', 'Steering and braking', 'Suspension and drive axle', 'Climate and selected high-tech systems'],
         dealerAssisted: true,
@@ -277,17 +304,18 @@ export const productCategories = [
     id: 'vehicle-care',
     label: 'Vehicle care',
     title: 'Additional protection from Ford Protect',
-    intro: 'Dealer-sold products for tires, wheels, dents, glass, appearance and theft deterrence. Availability varies by vehicle and state.',
+    intro: 'Original-transaction vehicle-care products, plus Ford’s narrow dealer-verified Off-Road after-sale request. Timing varies by product.',
     image: '/assets/ford-official/triplecare.png',
     imageAlt: 'Ford F-150 used for Ford Protect TripleCARE Plus marketing',
     products: [
-      { id: 'tirecare', name: 'TireCARE Plus', label: 'Tires & wheels', bestFor: 'Road-hazard protection for eligible tires and wheels.', description: 'Helps cover eligible tire and wheel damage caused by covered road hazards, with available off-road options on eligible vehicles.', groups: ['Tire repair', 'Tire replacement', 'Wheel repair', 'Wheel replacement', 'Road hazards'], image: '/assets/ford-official/tirecare.png', dealerAssisted: true },
-      { id: 'dentcare', name: 'DentCARE', label: 'Paintless dent repair', bestFor: 'Owners who want help addressing eligible minor dents and dings.', description: 'Paintless dent-repair coverage for eligible minor body-panel dents and dings without conventional body repair.', groups: ['Minor dents', 'Door dings', 'Paintless repair', 'Dealer-assisted service'], image: '/assets/ford-official/dentcare.png', dealerAssisted: true },
-      { id: 'windshieldcare', name: 'WindshieldCARE', label: 'Chips & cracks', bestFor: 'Owners who want convenient repair of eligible windshield chips and cracks.', description: 'Coverage for repair of eligible minor windshield chips and cracks. Contract terms define size, number and service limits.', groups: ['Chip repair', 'Minor crack repair', 'Windshield service'], image: '/assets/ford-official/windshieldcare.png', dealerAssisted: true },
-      { id: 'windshieldcare-ev', name: 'WindshieldCARE Plus EV', label: 'EV glass protection', bestFor: 'Eligible EV owners seeking enhanced windshield-related protection.', description: 'A Ford Protect glass-protection path designed for eligible electric vehicles; exact benefits depend on the agreement.', groups: ['EV windshield', 'Repair benefits', 'Agreement-defined coverage'], image: '/assets/ford-official/windshieldcare.png', dealerAssisted: true },
-      { id: 'triplecare', name: 'TripleCARE Plus', label: 'Three-part vehicle care', bestFor: 'Owners who want tire-and-wheel, dent and windshield protection together.', description: 'Combines three high-use vehicle-care benefits in one dealer-sold Ford Protect product. Coverage and provider vary by state.', groups: ['Tire & wheel', 'Paintless dent repair', 'Windshield repair', 'Available off-road option'], image: '/assets/ford-official/triplecare.png', dealerAssisted: true },
-      { id: 'surfacecare', name: 'SurfaceCARE', label: 'Interior & exterior', bestFor: 'Owners who want agreement-defined protection for eligible vehicle surfaces.', description: 'Helps protect eligible interior and exterior surfaces against specified damage listed in the final agreement.', groups: ['Interior surfaces', 'Exterior surfaces', 'Agreement-defined benefits'], image: '/assets/ford-official/surfacecare.png', dealerAssisted: true },
-      { id: 'theftcare', name: 'TheftCARE', label: 'Theft deterrence', bestFor: 'Owners seeking a theft-deterrent and limited reimbursement benefit.', description: 'Uses traceable identification and warning labels, with an agreement-defined limited benefit if the vehicle is stolen.', groups: ['Traceable identification', 'Warning labels', 'Limited reimbursement benefit'], image: '/assets/ford-official/theftcare.png', dealerAssisted: true },
+      { id: 'tirecare', quoteSeed: { productId: 'tirecare-plus' }, purchaseContexts: ['shopping'], purchaseTimingLabel: 'Original eligible vehicle transaction only', name: 'TireCARE Plus', label: 'Tires & wheels', bestFor: 'Road-hazard protection for eligible tires and wheels.', description: 'Helps cover eligible tire and wheel damage caused by covered road hazards. Ford currently presents ordinary TireCARE Plus as a time-of-sale product.', groups: ['Tire repair', 'Tire replacement', 'Wheel repair', 'Wheel replacement', 'Road hazards'], image: '/assets/ford-official/tirecare.png', dealerAssisted: true },
+      { id: 'off-road-coverage', quoteSeed: { productId: 'off-road-coverage' }, purchaseContexts: ['shopping', 'owner'], purchaseTimingLabel: 'At purchase or limited after-sale request · dealer verification', name: 'Off-Road Coverage Request', label: 'Limited tire & wheel exception', bestFor: 'Owners or shoppers who want Bob Maxey to verify Ford’s Off-Road option.', description: 'Ford describes a narrow after-sale request for an eligible TireCARE or TripleCARE product when the vehicle was purchased within three years and has fewer than 36,000 miles.', groups: ['Underlying product review', 'Purchase-date check', 'Under 36,000 miles', 'Off-road use review', 'Dealer verification'], image: '/assets/ford-official/tirecare.png', dealerAssisted: true },
+      { id: 'dentcare', quoteSeed: { productId: 'dentcare' }, purchaseContexts: ['shopping'], purchaseTimingLabel: 'Original eligible vehicle transaction only', name: 'DentCARE', label: 'Paintless dent repair', bestFor: 'Owners who want help addressing eligible minor dents and dings.', description: 'Paintless dent-repair coverage for eligible minor body-panel dents and dings. Ford currently presents it as a time-of-sale product.', groups: ['Minor dents', 'Door dings', 'Paintless repair', 'Dealer-assisted service'], image: '/assets/ford-official/dentcare.png', dealerAssisted: true },
+      { id: 'windshieldcare', quoteSeed: { productId: 'windshieldcare' }, purchaseContexts: ['shopping'], purchaseTimingLabel: 'Original eligible vehicle transaction only', name: 'WindshieldCARE', label: 'Chips & cracks', bestFor: 'Owners who want convenient repair of eligible windshield chips and cracks.', description: 'Coverage for repair of eligible minor windshield chips and cracks. Ford currently presents it as a time-of-sale product.', groups: ['Chip repair', 'Minor crack repair', 'Windshield service'], image: '/assets/ford-official/windshieldcare.png', dealerAssisted: true },
+      { id: 'windshieldcare-ev', quoteSeed: { productId: 'windshieldcare', productVariantId: 'windshieldcare-plus-ev', powertrain: 'Electric' }, purchaseContexts: ['shopping'], purchaseTimingLabel: 'Original eligible EV transaction only', name: 'WindshieldCARE Plus EV', label: 'EV glass protection', bestFor: 'Eligible EV owners seeking enhanced windshield-related protection.', description: 'An EV-specific Ford Protect glass-protection path offered with an eligible original vehicle transaction; exact benefits depend on the agreement.', groups: ['EV windshield', 'Repair benefits', 'Agreement-defined coverage'], image: '/assets/ford-official/windshieldcare.png', dealerAssisted: true },
+      { id: 'triplecare', quoteSeed: { productId: 'triplecare-plus' }, purchaseContexts: ['shopping'], purchaseTimingLabel: 'Original eligible vehicle transaction only', name: 'TripleCARE Plus', label: 'Three-part vehicle care', bestFor: 'Owners who want tire-and-wheel, dent and windshield protection together.', description: 'Combines three vehicle-care benefits. Ford currently presents ordinary TripleCARE Plus as a time-of-sale product; the separate Off-Road request has a limited exception.', groups: ['Tire & wheel', 'Paintless dent repair', 'Windshield repair', 'Purchase-time planning'], image: '/assets/ford-official/triplecare.png', dealerAssisted: true },
+      { id: 'surfacecare', quoteSeed: { productId: 'surfacecare' }, purchaseContexts: ['shopping'], purchaseTimingLabel: 'Original eligible vehicle transaction only', name: 'SurfaceCARE', label: 'Interior & exterior', bestFor: 'Owners who want agreement-defined protection for eligible vehicle surfaces.', description: 'Helps protect eligible interior and exterior surfaces against specified damage. Ford currently presents it as a time-of-sale product.', groups: ['Interior surfaces', 'Exterior surfaces', 'Agreement-defined benefits'], image: '/assets/ford-official/surfacecare.png', dealerAssisted: true },
+      { id: 'theftcare', quoteSeed: { productId: 'theftcare' }, purchaseContexts: ['shopping'], purchaseTimingLabel: 'Original eligible vehicle transaction only', name: 'TheftCARE', label: 'Theft deterrence', bestFor: 'Owners seeking a theft-deterrent and limited reimbursement benefit.', description: 'Uses traceable identification and warning labels with a limited benefit. Ford currently presents it as a time-of-sale product.', groups: ['Traceable identification', 'Warning labels', 'Limited reimbursement benefit'], image: '/assets/ford-official/theftcare.png', dealerAssisted: true },
     ],
   },
   {
@@ -298,11 +326,11 @@ export const productCategories = [
     image: '/assets/ford-official/ford-why-3.png',
     imageAlt: 'Ford Ranger on an off-road trail from official Ford Protect media',
     products: [
-      { id: 'fba-upgrade', name: 'Ford Blue Advantage Upgrade', label: 'Certified Ford vehicles', bestFor: 'Eligible Gold or Blue Certified vehicles requiring additional term, mileage or component coverage.', description: 'Upgrade coverage may add component protection or extend time and mileage beyond the included certified coverage.', groups: ['Gold Certified', 'Blue Certified', 'Ford eligibility review', 'Term and mileage options'], dealerAssisted: true },
-      { id: 'lincoln-cpo', name: 'Lincoln CPO Upgrade', label: 'Certified Lincoln vehicles', bestFor: 'Eligible Lincoln Certified Pre-Owned vehicles requiring longer PremiumCARE protection.', description: 'An L-CPO upgrade can provide eligible certified Lincoln vehicles with longer term and/or mileage coverage.', groups: ['Lincoln CPO', 'PremiumCARE upgrade', 'Dealer verification'], dealerAssisted: true },
-      { id: 'commercial', name: 'Commercial Vehicle Coverage', label: 'Business-use vehicles', bestFor: 'Eligible work vehicles, fleets and business-use units that need commercial rating.', description: 'Commercial use changes eligibility and rating. Bob Maxey verifies vehicle class, use, mileage, hours and equipment before quoting.', groups: ['Business use', 'Fleet use', 'Vehicle class', 'Mileage or hours', 'Equipment review'], dealerAssisted: true },
-      { id: 'incomplete', name: 'Incomplete Vehicle Coverage', label: 'Upfit vehicles', bestFor: 'Chassis cabs and other vehicles completed by an upfitter or final-stage manufacturer.', description: 'Eligibility can depend on original chassis configuration, final-stage completion and installed equipment.', groups: ['Chassis cab', 'Upfit review', 'Final-stage manufacturer', 'Commercial rating'], dealerAssisted: true },
-      { id: 'medium-duty', name: 'Medium-Duty Coverage', label: 'Eligible medium-duty trucks', bestFor: 'Medium-duty Ford vehicles that require a dedicated plan and usage review.', description: 'Bob Maxey confirms model, GVWR class, commercial use, mileage, hours and available terms before enrollment.', groups: ['Medium duty', 'GVWR class', 'Mileage or hours', 'Usage review'], dealerAssisted: true },
+      { id: 'fba-upgrade', purchaseContexts: ['shopping'], name: 'Ford Blue Advantage Upgrade', label: 'Certified Ford vehicles', bestFor: 'Eligible Gold or Blue Certified vehicles requiring additional term, mileage or component coverage.', description: 'Upgrade coverage may add component protection or extend time and mileage beyond the included certified coverage.', groups: ['Gold Certified', 'Blue Certified', 'Ford eligibility review', 'Term and mileage options'], dealerAssisted: true },
+      { id: 'lincoln-cpo', purchaseContexts: ['shopping'], name: 'Lincoln CPO Upgrade', label: 'Certified Lincoln vehicles', bestFor: 'Eligible Lincoln Certified Pre-Owned vehicles requiring longer PremiumCARE protection.', description: 'An L-CPO upgrade can provide eligible certified Lincoln vehicles with longer term and/or mileage coverage.', groups: ['Lincoln CPO', 'PremiumCARE upgrade', 'Dealer verification'], dealerAssisted: true },
+      { id: 'commercial', purchaseContexts: ['shopping', 'owner'], quoteSeed: { program: 'esp', usage: 'Business' }, name: 'Commercial Vehicle Coverage', label: 'Business-use vehicles', bestFor: 'Eligible work vehicles, fleets and business-use units that need commercial rating.', description: 'Commercial use changes eligibility and rating. Bob Maxey verifies vehicle class, use, mileage, hours and equipment before quoting.', groups: ['Business use', 'Fleet use', 'Vehicle class', 'Mileage or hours', 'Equipment review'], dealerAssisted: true },
+      { id: 'incomplete', purchaseContexts: ['shopping', 'owner'], quoteSeed: { program: 'esp', usage: 'Business' }, name: 'Incomplete Vehicle Coverage', label: 'Upfit vehicles', bestFor: 'Chassis cabs and other vehicles completed by an upfitter or final-stage manufacturer.', description: 'Eligibility can depend on original chassis configuration, final-stage completion and installed equipment.', groups: ['Chassis cab', 'Upfit review', 'Final-stage manufacturer', 'Commercial rating'], dealerAssisted: true },
+      { id: 'medium-duty', purchaseContexts: ['shopping', 'owner'], quoteSeed: { program: 'esp', usage: 'Business' }, name: 'Medium-Duty Coverage', label: 'Eligible medium-duty trucks', bestFor: 'Medium-duty Ford vehicles that require a dedicated plan and usage review.', description: 'Bob Maxey confirms model, GVWR class, commercial use, mileage, hours and available terms before enrollment.', groups: ['Medium duty', 'GVWR class', 'Mileage or hours', 'Usage review'], dealerAssisted: true },
     ],
   },
 ];
@@ -328,14 +356,15 @@ export const hiddenCustomerProductIds = Object.freeze(archivedCustomerProductCat
 
 const hiddenCustomerProductIdSet = new Set(hiddenCustomerProductIds);
 
-// Bob Maxey's online library is intentionally limited to products that can be
-// considered after the original vehicle sale. GAP, lease-only products,
-// certified-sale upgrades and dealer products Ford identifies as
-// time-of-sale-only are not presented as public purchase paths here.
+// The owner view keeps all genuine after-sale or dealer-verification request
+// paths while excluding products explicitly limited to the original vehicle
+// transaction. Ford's narrow Off-Road exception is intentionally retained.
 export const afterSaleProductCategories = productCategories
-  .filter((category) => category.id !== 'vehicle-care')
   .map((category) => {
-    const products = category.products.filter((product) => !hiddenCustomerProductIdSet.has(product.id));
+    const products = category.products.filter((product) => (
+      !hiddenCustomerProductIdSet.has(product.id)
+      && (product.purchaseContexts || ['shopping', 'owner']).includes('owner')
+    ));
     if (category.id !== 'specialty') return { ...category, products };
     return {
       ...category,
@@ -353,7 +382,7 @@ export const fordBenefits = [
   { title: '24-hour roadside assistance', text: 'Eligible plans include towing and other roadside benefits subject to contract limits.', image: '/assets/ford-official/ford-roadside.png' },
   { title: 'Rental vehicle benefits', text: 'Eligible covered repairs can include rental support, subject to the selected plan.', image: '/assets/ford-official/ford-rental.png' },
   { title: 'Transferable coverage', text: 'Eligible remaining coverage may transfer to a subsequent owner; a transfer fee may apply.', image: '/assets/ford-official/ford-transferable.png' },
-  { title: 'Flexible payment options', text: 'Eligible plans may use a small down payment, with the remaining balance financed at 0% interest. The current offer confirms the exact down payment, number of payments, schedule, and first due date.', image: '/assets/ford-official/ford-financing.png' },
+  { title: 'Interest-free payment options', text: 'Ford currently advertises interest-free financing for eligible Ford Protect Extended Service Plans for up to 30 months. The current offer controls the down payment, number of installments, due dates, method, and eligibility.', image: '/assets/ford-official/ford-financing.png' },
 ];
 
 export const faqItems = [
@@ -362,8 +391,8 @@ export const faqItems = [
   ['Does PremiumCARE cover a factory-installed turbocharger?', 'Ford’s current PremiumCARE component information lists the factory-installed turbocharger or supercharger unit among covered engine components. Final coverage depends on the contract, failure and vehicle eligibility.'],
   ['When does coverage begin?', 'For a new-plan agreement, time is generally measured from the original in-service date and mileage from zero. Used-plan agreements can use different start rules. Bob Maxey confirms the correct plan type before purchase.'],
   ['Can I buy coverage for an electric vehicle?', 'Yes. Ford Protect currently offers PremiumCARE Plus EV, PremiumCARE EV, ExtraCARE EV and BaseCARE EV, plus Premium Maintenance EV for eligible vehicles.'],
-  ['Is the high-voltage EV battery covered?', 'The high-voltage battery has its own manufacturer warranty and is generally not eligible for Ford Protect extended-warranty coverage. The final agreement and vehicle warranty record control.'],
-  ['Can I choose a deductible and term?', 'Available years, mileage limits and deductible choices depend on vehicle age, mileage, plan, state, use and Ford eligibility. The quote flow shows only combinations available for the verified vehicle.'],
+  ['Is the high-voltage EV battery covered?', 'The high-voltage traction-battery assembly has its own 8-year/100,000-mile manufacturer warranty and is not eligible for Ford Protect extended-service-plan coverage. Ford warranty records and the issued agreement control the vehicle-specific result.'],
+  ['Can I choose a deductible and term?', 'Available years, mileage limits and deductible choices depend on vehicle age, mileage, plan, state, use and Ford eligibility. Static choices shown here are planning references from the supplied September 2024 Michigan guide; Ford’s current VIN-specific dealer result must verify the actual combination.'],
   ['Are rental and roadside benefits included?', 'Eligible Ford Protect plans include roadside and rental benefits, with limits that vary by plan and agreement. Optional enhanced benefits may also be available.'],
   ['Can a business, snow-plow or upfit vehicle be covered?', 'Possibly. Commercial use, snow-plow use, incomplete vehicles and medium-duty vehicles require a dedicated eligibility and rating review.'],
   ['Can I cancel or transfer my plan?', 'Ford Protect plans can have cancellation and transfer provisions, fees and state-specific rules. Bob Maxey will provide the agreement that applies to the selected plan before purchase.'],

@@ -1,9 +1,11 @@
-import { protectionOptions } from './quoteData';
-import { locations } from './data';
-import { buildQuoteSnapshot } from './quoteOutput';
+import { protectionOptions } from './quoteData.js';
+import { locations } from './data.js';
+import { buildQuoteSnapshot } from './quoteOutput.js';
+import { CONTACT_CONSENT_TEXT, CONTACT_CONSENT_VERSION } from './consent.js';
 
 export const CRM_DESTINATION = 'internetleads@dealermail.com';
 export const CRM_SOURCE = 'Bob Maxey Ford Protect Website';
+const DEFAULT_CRM_TIMEOUT_MS = 12000;
 
 const leadTypeFor = (quote = {}) => quote.purchaseContext === 'shopping'
   ? 'Vehicle Purchase + F&I Product Interest'
@@ -70,19 +72,40 @@ export function buildLeadComments(quote, plan) {
   const store = locations.find((item) => item.name === quote.store)?.descriptor || quote.store || 'Bob Maxey Ford of Howell';
   const leadType = leadTypeFor(quote);
   const customerJourney = quote.purchaseContext === 'shopping'
-    ? 'Planning protection before purchasing a vehicle from Bob Maxey'
+    ? quote.vehicleSituation === 'new-purchase'
+      ? 'Buying a new vehicle from Bob Maxey; planning products before delivery'
+      : 'Buying a used vehicle from Bob Maxey; planning products before delivery'
     : 'Already owns the vehicle; requesting products eligible after the vehicle sale';
+  const decoded = quote.decodedVehicle || {};
+  const decodedFacts = [
+    decoded.trim || decoded.series ? `TRIM / SERIES: ${[decoded.trim, decoded.series].filter(Boolean).join(' / ')}` : '',
+    decoded.bodyClass ? `BODY CLASS: ${decoded.bodyClass}` : '',
+    decoded.vehicleType ? `VEHICLE TYPE: ${decoded.vehicleType}` : '',
+    decoded.manufacturer ? `MANUFACTURER: ${decoded.manufacturer}` : '',
+    decoded.driveType ? `DRIVE TYPE: ${decoded.driveType}` : '',
+    decoded.fuelType ? `NHTSA FUEL TYPE: ${decoded.fuelType}` : '',
+    decoded.engineDescription ? `ENGINE: ${decoded.engineDescription}` : '',
+    decoded.transmission ? `TRANSMISSION: ${decoded.transmission}` : '',
+    decoded.gvwr ? `GVWR: ${decoded.gvwr}` : '',
+    decoded.doors ? `DOORS: ${decoded.doors}` : '',
+    decoded.plant ? `ASSEMBLY PLANT: ${decoded.plant}` : '',
+    decoded.modelId ? `NHTSA MODEL ID: ${decoded.modelId}` : '',
+  ].filter(Boolean);
   return cleanLines([
     `LEAD TYPE: ${leadType}`,
     `LEAD SOURCE: ${leadSourceFor(quote)}`,
     `QUOTE ID: ${quote.id || 'Pending'}`,
     `STORE: ${store}`,
     `CUSTOMER JOURNEY: ${customerJourney}`,
+    `VEHICLE SITUATION: ${quote.vehicleSituation || 'Not selected'}`,
     '',
     `VEHICLE: ${quote.year || ''} ${quote.make || ''} ${quote.model || ''}`.trim(),
     quote.vin ? `VIN: ${quote.vin}` : 'VIN: Not provided',
     `CURRENT MILEAGE: ${Number(quote.mileage || 0).toLocaleString()}`,
+    quote.vehicleSituation === 'owned-after-sale' ? `CUSTOMER VEHICLE PURCHASE DATE: ${quote.purchaseDate || quote.vehiclePurchaseDate || 'Unknown'}` : '',
     `IN-SERVICE DATE: ${quote.inService || 'Unknown'}`,
+    quote.decodedVehicle ? 'VIN DATA SOURCE: NHTSA vPIC vehicle decode (does not provide Ford warranty or in-service records)' : '',
+    ...decodedFacts,
     `POWERTRAIN / USE: ${quote.powertrain || 'Not provided'} / ${quote.usage || 'Not provided'}`,
     `SNOW-PLOW USE: ${quote.snowPlow || 'No'}`,
     `REGISTERED: ${quote.state || ''} ${quote.zip || ''}`.trim(),
@@ -98,6 +121,9 @@ export function buildLeadComments(quote, plan) {
     `OWNERSHIP GOAL: Keep ${quote.keepYears || 0} years; approximately ${Number(quote.annualMiles || 0).toLocaleString()} miles/year`,
     `PREFERRED CONTACT: ${quote.preferredContact || 'phone'}`,
     `CONTACT CONSENT: ${quote.consent ? 'Granted for this Ford Protect request' : 'Not granted'}`,
+    quote.consent ? `CONTACT CONSENT VERSION: ${quote.consentVersion || CONTACT_CONSENT_VERSION}` : '',
+    quote.consent ? `CONTACT CONSENT ACCEPTED AT: ${quote.consentAcceptedAt || 'Timestamp missing - do not process until confirmed'}` : '',
+    quote.consent ? `CONTACT CONSENT TEXT: ${quote.consentText || CONTACT_CONSENT_TEXT}` : '',
     quote.notes ? `CUSTOMER NOTES: ${quote.notes}` : '',
     '',
     'IMPORTANT: Website selection is a coverage request, not a final contract or price. Confirm current Ford eligibility, warranty and inspection status, agreement, term, products, options, deductible, price, and state availability before sale.',
@@ -109,7 +135,7 @@ export function createAdfXml({ quote, plan, pageUrl = '', referrer = '' }) {
   const now = new Date().toISOString();
   const comments = buildLeadComments(quote, plan);
   const phone = String(customer.phone || '').replace(/\D/g, '');
-  const vehicleStatus = quote.planPath === 'new' ? 'new' : 'used';
+  const vehicleStatus = quote.vehicleSituation === 'new-purchase' ? 'new' : 'used';
   const leadType = leadTypeFor(quote);
   return `<?xml version="1.0" encoding="UTF-8"?>
 <?adf version="1.0"?>
@@ -121,6 +147,7 @@ export function createAdfXml({ quote, plan, pageUrl = '', referrer = '' }) {
       <year>${xmlEscape(quote.year)}</year>
       <make>${xmlEscape(quote.make)}</make>
       <model>${xmlEscape(quote.model)}</model>
+      ${quote.decodedVehicle?.trim ? `<trim>${xmlEscape(quote.decodedVehicle.trim)}</trim>` : ''}
       ${quote.vin ? `<vin>${xmlEscape(quote.vin)}</vin>` : ''}
       <odometer status="current" units="mi">${xmlEscape(quote.mileage || 0)}</odometer>
       <comments>${xmlEscape(comments)}</comments>
@@ -169,24 +196,67 @@ export function downloadLeadXml(xml, quoteId = 'ford-protect-quote') {
   window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-export async function submitCrmLead({ xml, quote }) {
-  const endpoint = import.meta.env.VITE_CRM_LEAD_ENDPOINT;
+export async function submitCrmLead({ xml, quote, timeoutMs = DEFAULT_CRM_TIMEOUT_MS, fetchImpl = globalThis.fetch, endpoint = import.meta.env?.VITE_CRM_LEAD_ENDPOINT }) {
   if (!endpoint) {
     return { configured: false, sent: false };
   }
-  const response = await fetch(endpoint, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      leadType: leadTypeFor(quote),
-      leadSource: leadSourceFor(quote),
-      quoteId: quote.id,
-      idempotencyKey: `ford-protect-${quote.id}`,
-      xml,
-    }),
-  });
-  if (!response.ok) throw new Error('The dealership lead connection did not accept this request.');
-  const receipt = await response.json().catch(() => null);
-  if (!receipt?.accepted) throw new Error('The dealership lead connection did not return an accepted receipt.');
-  return { configured: true, sent: true, accepted: true, leadId: receipt.leadId || receipt.id || quote.id, receivedAt: receipt.receivedAt || new Date().toISOString() };
+  if (quote?.consent !== true
+    || quote.consentVersion !== CONTACT_CONSENT_VERSION
+    || quote.consentText !== CONTACT_CONSENT_TEXT
+    || !Number.isFinite(Date.parse(quote.consentAcceptedAt || ''))) {
+    throw new Error('Current contact permission is required before this request can be sent. Nothing was delivered.');
+  }
+  if (typeof xml !== 'string' || !xml.trim() || xml.length > 500000) {
+    throw new Error('The request payload could not be prepared safely. Nothing was delivered.');
+  }
+  if (typeof fetchImpl !== 'function') throw new Error('The secure dealership connection is unavailable in this browser.');
+  let endpointUrl;
+  try {
+    endpointUrl = new URL(endpoint, globalThis.location?.origin || 'https://localhost.invalid');
+  } catch {
+    throw new Error('The secure dealership connection is not configured correctly.');
+  }
+  if (import.meta.env?.DEV !== true && endpointUrl.protocol !== 'https:') throw new Error('The dealership connection must use HTTPS.');
+
+  const controller = new AbortController();
+  let timedOut = false;
+  const timeout = globalThis.setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, Math.max(1000, timeoutMs));
+  try {
+    const response = await fetchImpl(endpointUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      credentials: 'omit',
+      cache: 'no-store',
+      signal: controller.signal,
+      body: JSON.stringify({
+        leadType: leadTypeFor(quote),
+        leadSource: leadSourceFor(quote),
+        quoteId: quote.id,
+        idempotencyKey: `ford-protect-${quote.id}`,
+        consent: {
+          granted: quote.consent === true,
+          version: quote.consentVersion || CONTACT_CONSENT_VERSION,
+          text: quote.consentText || CONTACT_CONSENT_TEXT,
+          acceptedAt: quote.consentAcceptedAt || '',
+        },
+        xml,
+      }),
+    });
+    if (!response.ok) throw new Error('The dealership lead connection did not accept this request.');
+    const receipt = await response.json().catch(() => null);
+    const accepted = receipt?.accepted === true;
+    const leadId = typeof receipt?.leadId === 'string' ? receipt.leadId.trim() : typeof receipt?.id === 'string' ? receipt.id.trim() : '';
+    const receivedAt = typeof receipt?.receivedAt === 'string' && Number.isFinite(Date.parse(receipt.receivedAt)) ? new Date(receipt.receivedAt).toISOString() : '';
+    if (!accepted || !leadId || !receivedAt) throw new Error('The dealership connection did not return a complete accepted receipt. Nothing was marked sent.');
+    return { configured: true, sent: true, accepted: true, leadId, receivedAt };
+  } catch (error) {
+    if (error?.name === 'AbortError') throw new Error(timedOut ? 'The dealership connection timed out. Nothing was marked sent.' : 'The request was canceled before delivery was confirmed.');
+    if (error instanceof TypeError) throw new Error('The dealership connection could not be reached. Nothing was marked sent. Check the connection and try again.');
+    throw error;
+  } finally {
+    globalThis.clearTimeout(timeout);
+  }
 }

@@ -34,10 +34,13 @@ jobs:
         run: npm run check
 
       - name: Install test browser
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install --with-deps chromium firefox webkit
 
       - name: Verify customer journeys and accessibility before publishing
         run: npm run test:browser
+
+      - name: Verify Firefox and WebKit quote journeys
+        run: npm run test:cross-browser
 
       - name: Configure GitHub Pages
         uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5

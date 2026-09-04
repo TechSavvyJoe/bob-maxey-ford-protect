@@ -8,6 +8,7 @@ This is a Ford Protect education and planning-request frontend, not a live ratin
 
 - `npm run check`: unit regressions, production build, complete generated routes, archived-product guards, bounded financing language and required-choice guards.
 - `npm run test:browser`: public-page accessibility/image/reflow checks, required quote decisions, product-only journeys for each vehicle situation, VIN provenance, proposal preview, backend-disabled status and module-load recovery.
+- `npm run test:cross-browser`: the same nine quote regressions in Firefox and WebKit. GitHub's Linux build supplies these engines when local Windows launch is unavailable.
 - GitHub Pages deployment runs these checks before publishing. A failed browser test prevents deployment.
 - Review generated customer PDFs visually after changes to fonts, layouts or coverage data. Raw test output is not published with the site.
 

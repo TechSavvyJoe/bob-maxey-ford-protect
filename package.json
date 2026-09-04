@@ -10,6 +10,7 @@
     "audit:release": "node scripts/release-audit.mjs",
     "check": "npm test && npm run build && npm run audit:release",
     "test:browser": "playwright test",
+    "test:cross-browser": "playwright test --config=playwright.cross-browser.config.js",
     "preview": "vite preview --host 0.0.0.0"
   },
   "dependencies": {

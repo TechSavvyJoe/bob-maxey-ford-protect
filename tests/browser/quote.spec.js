@@ -117,10 +117,12 @@ for (const width of [320, 390, 620, 820, 1366]) {
     await page.getByRole('tab', { name: 'All', exact: true }).click();
     const cards = panel.locator('.quote-product-card');
     expect(await cards.count()).toBeGreaterThan(3);
-    // The last product is reachable vertically, with its action wholly on-screen.
-    const lastAction = cards.last().getByRole('button').first();
-    await lastAction.scrollIntoViewIfNeeded();
-    await expect(lastAction).toBeInViewport();
+    // Each product's action is fully reachable, not just a peeking edge.
+    for (let index = 0; index < await cards.count(); index += 1) {
+      const action = cards.nth(index).getByRole('button').first();
+      await action.evaluate(element => element.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'instant' }));
+      await expect(action).toBeInViewport({ ratio: 1 });
+    }
     expect(await panel.evaluate((element) => element.scrollLeft)).toBe(0);
     expect(await categories.evaluate((element) => element.scrollLeft)).toBe(0);
   });

@@ -2956,6 +2956,10 @@ html.modal-open body.modal-open > #root {
   box-shadow: inset 0 -2px 0 var(--color-brand-blue);
 }
 
+.studio-backdrop.studio-v5 .quote-studio .studio-products-step .product-category-rail > button.is-selected svg {
+  color: currentColor;
+}
+
 .studio-backdrop.studio-v5 .quote-studio .studio-products-step .quote-product-card__actions {
   grid-template-columns: minmax(0, 1fr);
 }

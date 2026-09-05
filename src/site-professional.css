@@ -2881,7 +2881,7 @@ html.modal-open body.modal-open > #root {
 /* ========================================================================== */
 /* Mobile and tablet quote density                                             */
 /* Keep every decision available without turning the quote into a long stack. */
-/* Product browsing may use a rail; required decisions remain visible grids. */
+/* Products and required decisions stay in wrapping, fully visible grids. */
 /* ========================================================================== */
 
 .studio-backdrop.studio-v5 .quote-studio .review-summary-card > header button {
@@ -2889,65 +2889,81 @@ html.modal-open body.modal-open > #root {
   min-height: 44px;
 }
 
-@media (max-width: 1100px) {
-  .studio-backdrop.studio-v5 .quote-studio .studio-products-step .quote-product-grid {
-    width: 100%;
-    max-width: 100%;
-    min-width: 0;
-    margin-inline: 0;
-    padding: 1px 2px 8px;
-    display: grid !important;
-    grid-template-columns: none !important;
-    grid-template-rows: minmax(0, auto) !important;
-    grid-auto-flow: column !important;
-    grid-auto-columns: minmax(270px, calc((100% - 12px) / 2)) !important;
-    gap: 10px;
-    overflow-x: auto;
-    overflow-y: hidden;
-    overscroll-behavior-inline: contain;
-    scroll-snap-type: x mandatory;
-    scrollbar-width: thin;
-  }
-
-  .studio-backdrop.studio-v5 .quote-studio .studio-products-step .quote-product-card,
-  .studio-backdrop.studio-v5 .quote-studio .studio-products-step .quote-product-card.is-featured {
-    min-width: 0;
-    grid-template-columns: minmax(0, 1fr) !important;
-    grid-template-rows: 96px minmax(0, auto) !important;
-    scroll-snap-align: start;
-  }
-
-  .studio-backdrop.studio-v5 .quote-studio .studio-products-step .quote-product-card__media,
-  .studio-backdrop.studio-v5 .quote-studio .studio-products-step .quote-product-card.is-featured .quote-product-card__media {
-    width: 100% !important;
-    height: 96px !important;
-    min-height: 96px !important;
-    max-height: 96px !important;
-  }
+/* Product browsing follows the available panel width, including split-screen.
+   Every category uses rows: no off-screen cards or sideways swipe requirement. */
+.studio-backdrop.studio-v5 .quote-studio .studio-products-step .product-marketplace .quote-product-grid {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  margin-inline: 0;
+  padding: 1px 2px 8px;
+  display: grid !important;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr)) !important;
+  grid-template-rows: none !important;
+  grid-auto-flow: row !important;
+  grid-auto-columns: auto !important;
+  grid-auto-rows: auto !important;
+  align-items: start;
+  gap: 12px;
+  overflow: visible;
+  scroll-snap-type: none;
 }
 
-@media (min-width: 1101px) {
-  .studio-backdrop.studio-v5 .quote-studio .product-marketplace:has(#product-tab-all.is-selected) .quote-product-grid {
-    width: 100%;
-    max-width: 100%;
-    min-width: 0;
-    padding: 1px 2px 8px;
-    display: grid;
-    grid-template-columns: none !important;
-    grid-template-rows: repeat(2, minmax(0, auto)) !important;
-    grid-auto-flow: column;
-    grid-auto-columns: minmax(242px, calc((100% - 27px) / 4));
-    gap: 9px;
-    overflow-x: auto;
-    overflow-y: hidden;
-    overscroll-behavior-inline: contain;
-    scroll-snap-type: x mandatory;
-    scrollbar-width: thin;
-  }
+.studio-backdrop.studio-v5 .quote-studio .studio-products-step .product-marketplace .quote-product-grid > .quote-product-card {
+  width: 100%;
+  min-width: 0;
+  height: auto !important;
+  min-height: 0 !important;
+  grid-column: auto !important;
+  grid-row: auto !important;
+  grid-template-columns: minmax(0, 1fr) !important;
+  grid-template-rows: 96px minmax(0, auto) !important;
+  scroll-snap-align: none;
+}
 
-  .studio-backdrop.studio-v5 .quote-studio .product-marketplace:has(#product-tab-all.is-selected) .quote-product-card {
-    scroll-snap-align: start;
-  }
+.studio-backdrop.studio-v5 .quote-studio .studio-products-step .product-marketplace .quote-product-grid > .quote-product-card .quote-product-card__media {
+  width: 100% !important;
+  height: 96px !important;
+  min-height: 96px !important;
+  max-height: 96px !important;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .studio-products-step .product-category-rail {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0 0 10px;
+  overflow: visible;
+  scroll-snap-type: none;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .studio-products-step .product-category-rail > button {
+  flex: 1 1 150px;
+  min-width: 0;
+  min-height: 44px;
+  padding: 8px 10px;
+  justify-content: center;
+  gap: 6px;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  white-space: normal;
+}
+
+.studio-backdrop.studio-v5 .quote-studio .studio-products-step .product-category-rail > button.is-selected {
+  border-color: var(--color-brand-blue);
+  background: #eaf3ff;
+  color: #004b9b;
+  box-shadow: inset 0 -2px 0 var(--color-brand-blue);
+}
+
+.studio-backdrop.studio-v5 .quote-studio .studio-products-step .quote-product-card__actions {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.studio-backdrop.studio-v5 .quote-studio .studio-products-step .quote-product-card__actions > .button {
+  width: 100%;
+  min-width: 0;
+  justify-content: center;
 }
 
 @media (max-width: 1100px) {
@@ -3108,9 +3124,6 @@ html.modal-open body.modal-open > #root {
     line-height: 1.35;
   }
 
-  .studio-backdrop.studio-v5 .quote-studio .studio-products-step .quote-product-grid {
-    grid-auto-columns: calc(100% - 28px) !important;
-  }
 
   .studio-backdrop.studio-v5 .quote-studio .product-marketplace__header > div > p {
     display: none;
@@ -3125,14 +3138,14 @@ html.modal-open body.modal-open > #root {
     min-height: 0;
     padding: 7px;
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr);
     align-items: center;
     gap: 7px;
   }
 
   .studio-backdrop.studio-v5 .quote-studio .product-decision > span {
-    max-width: 86px;
-    text-align: right;
+    max-width: none;
+    text-align: center;
   }
 
   .studio-backdrop.studio-v5 .quote-studio .quote-product-card,

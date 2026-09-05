@@ -88,6 +88,44 @@ for (const width of [320, 390, 820, 1366]) {
   });
 }
 
+for (const width of [320, 390, 620, 820, 1366]) {
+  test(`product browsing ${width}px: all categories and cards fit without sideways scrolling`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await start(page);
+    await vehicle(page);
+    await espOptions(page);
+    const categories = page.getByRole('tablist', { name: 'Product categories' });
+    const tabs = categories.getByRole('tab');
+    const panel = page.locator('#product-category-panel');
+    for (let index = 0; index < await tabs.count(); index += 1) {
+      await tabs.nth(index).click();
+      await expect(panel.locator('.quote-product-card').first()).toBeVisible();
+      for (const container of [categories, panel]) {
+        const layout = await container.evaluate((element) => {
+          const bounds = element.getBoundingClientRect();
+          return {
+            overflow: element.scrollWidth - element.clientWidth,
+            childrenFit: [...element.children].every((child) => {
+              const rect = child.getBoundingClientRect();
+              return rect.left >= bounds.left - 1 && rect.right <= bounds.right + 1;
+            }),
+          };
+        });
+        expect(layout, `Category ${await tabs.nth(index).innerText()} at ${width}px`).toEqual({ overflow: 0, childrenFit: true });
+      }
+    }
+    await page.getByRole('tab', { name: 'All', exact: true }).click();
+    const cards = panel.locator('.quote-product-card');
+    expect(await cards.count()).toBeGreaterThan(3);
+    // The last product is reachable vertically, with its action wholly on-screen.
+    const lastAction = cards.last().getByRole('button').first();
+    await lastAction.scrollIntoViewIfNeeded();
+    await expect(lastAction).toBeInViewport();
+    expect(await panel.evaluate((element) => element.scrollLeft)).toBe(0);
+    expect(await categories.evaluate((element) => element.scrollLeft)).toBe(0);
+  });
+}
+
 for (const situation of ['Buying a new vehicle', 'Buying a used vehicle', 'I already own it']) {
   test(`products-only: ${situation} keeps timing and explicit configuration`, async ({ page }) => {
     await start(page);
